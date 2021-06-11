@@ -213,8 +213,12 @@ document.addEventListener("DOMContentLoaded", function(event) {
     let sessID = "1"
 
     if (window["WebSocket"]) {
-        // TODO: add ssl check
-        conn = new WebSocket("ws://" + window.location.host + window.location.pathname + "?ws=" + sessID);
+        let ws = "ws";
+        if (location.protocol === 'https:') {
+            ws = "wss";
+        }
+
+        conn = new WebSocket(ws + "://" + window.location.host + window.location.pathname + "?ws=" + sessID);
         conn.onopen = function (evt) {
             log("con: open");
         };
