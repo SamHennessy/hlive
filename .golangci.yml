@@ -1,0 +1,18 @@
+# golangci.com configuration
+# https://github.com/golangci/golangci/wiki/Configuration
+
+linters:
+  enable-all: true
+  disable:
+    - exhaustivestruct
+    # Deprecated
+    - interfacer
+    - maligned
+    - scopelint
+    - golint
+
+output:
+  sort-results: true
+
+service:
+  golangci-lint-version: 1.40.x # use the fixed version to not introduce new linters unexpectedly
