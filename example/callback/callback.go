@@ -21,37 +21,31 @@ func main() {
 	}
 }
 
+func callback(container *l.Component) {
+	container.On(l.OnDiffApply(func(ctx context.Context, e l.Event) {
+		container.Add(l.T("p", "OnDiffApply"))
+		container.RemoveEventBinding(e.Binding.ID)
+	}))
+}
+
 func Home(logger zerolog.Logger) *l.PageServer {
 	f := func() *l.Page {
+		container := l.C("div")
+
+		btn := l.C("button", "Trigger OnClick",
+			l.OnClick(func(ctx context.Context, e l.Event) {
+				container.Add(l.T("p", "OnClick"))
+				callback(container)
+			}),
+		)
+
 		page := l.NewPage()
 		page.SetLogger(logger)
-		page.Title.Add("Click Example")
-		page.Body.Add(newCountBtn())
+		page.Title.Add("Callback Example")
+		page.Body.Add(btn, l.T("h1", "Events"), container)
 
 		return page
 	}
 
 	return l.NewPageServer(f)
-}
-
-type countBtn struct {
-	*l.Component
-
-	Count int
-}
-
-func (c *countBtn) GetNodes() []interface{} {
-	return l.Tree(c.Count)
-}
-
-func newCountBtn() *countBtn {
-	c := &countBtn{
-		Component: l.NewComponent("button"),
-	}
-
-	c.On(l.OnClick(func(ctx context.Context, e l.Event) {
-		c.Count++
-	}))
-
-	return c
 }

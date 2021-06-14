@@ -25,14 +25,14 @@ func Home(logger zerolog.Logger) *l.PageServer {
 		count := 0
 
 		page := l.NewPage()
-		page.Logger = logger
-		page.Title.Add("Local Render Example")
+		page.SetLogger(logger)
+		page.Title.Add("Local GetNodes Example")
 		page.Body.Add(
-			l.T("p", "Global Render"),
+			l.T("p", "Global GetNodes"),
 			CountBtn(&count),
 			l.Tree("The count is: ", l.T("em", &count), " clicks"),
 			l.T("hr"),
-			l.T("p", "Local Render"),
+			l.T("p", "Local GetNodes"),
 			CountBtnLocal(&count),
 			l.Tree("The count is: ", l.T("em", &count), " clicks"),
 		)
@@ -49,7 +49,7 @@ type countBtn struct {
 	Count *int
 }
 
-func (c *countBtn) Render() []interface{} {
+func (c *countBtn) GetNodes() []interface{} {
 	return l.Tree(c.Count)
 }
 

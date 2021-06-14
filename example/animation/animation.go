@@ -71,7 +71,7 @@ func Home(logger zerolog.Logger) *l.PageServer {
 		}))
 
 		page := l.NewPage()
-		page.Logger = logger
+		page.SetLogger(logger)
 		page.Title.Add("Animation Example")
 		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"}))
 		page.Head.Add(l.T("style",
@@ -92,8 +92,7 @@ func Home(logger zerolog.Logger) *l.PageServer {
 			btn,
 			&current,
 			l.T("hr"),
-			l.T("div", l.CSS{"box": true}, h,
-			),
+			l.T("div", l.CSS{"box": true}, h),
 		)
 
 		return page

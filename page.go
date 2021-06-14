@@ -3,7 +3,6 @@ package hlive
 import (
 	"bytes"
 	"context"
-	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -18,14 +17,11 @@ import (
 	"github.com/rs/zerolog"
 )
 
-//go:embed page.js
-var PageJavaScript []byte
-
 func NewPage() *Page {
 	p := &Page{
 		Renderer: NewRender(),
 		Differ:   NewDiffer(),
-		Logger:   zerolog.Nop(),
+		logger:   zerolog.Nop(),
 
 		DocType: HTML5DocType,
 		HTML:    T("html", Attrs{"lang": "en"}),
@@ -36,14 +32,14 @@ func NewPage() *Page {
 
 		currentBindings: map[string]*EventBinding{},
 		mountables:      map[string]struct{}{},
-		unmountables:    map[string]ComponentUnmountInterface{},
+		unmountables:    map[string]Unmounter{},
 	}
 
-	p.Head.Add(p.Meta, p.Title, T("script", HTML(PageJavaScript)))
+	p.Head.Add(p.Meta, p.Title, T("script", HTML(p.Differ.JavaScript)))
 	p.HTML.Add(p.Head, p.Body)
 
-	p.Renderer.Logger = p.Logger
-	p.Differ.Logger = p.Logger
+	p.Renderer.logger = p.logger
+	p.Differ.logger = p.logger
 
 	return p
 }
@@ -52,7 +48,7 @@ type Page struct {
 	Upgrader websocket.Upgrader
 	Renderer *Renderer
 	Differ   *Differ
-	Logger   zerolog.Logger
+	logger   zerolog.Logger
 
 	DocType HTML
 	HTML    *Tag
@@ -61,16 +57,19 @@ type Page struct {
 	Title   *Tag
 	Body    *Tag
 
-	tree      interface{}
-	treeLock  sync.RWMutex
-	weConn    *websocket.Conn
-	connected bool
-
+	tree            interface{}
+	treeLock        sync.RWMutex
+	weConn          *websocket.Conn
+	connected       bool
 	currentBindings map[string]*EventBinding
-	// These with both grow and never removed from when user removed them from the tree
-	// TODO: add ways to allow removal
-	mountables   map[string]struct{}
-	unmountables map[string]ComponentUnmountInterface
+	mountables      map[string]struct{}
+	unmountables    map[string]Unmounter
+}
+
+func (p *Page) SetLogger(logger zerolog.Logger) {
+	p.logger = logger
+	p.Renderer.SetLogger(p.logger)
+	p.Differ.SetLogger(p.logger)
 }
 
 func (p *Page) IsConnected() bool {
@@ -90,7 +89,7 @@ func (p *Page) Close(ctx context.Context) {
 
 func (p *Page) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := p.RenderHTML(r.Context(), w); err != nil {
-		p.Logger.Err(err).Msg("render page")
+		p.logger.Err(err).Msg("render page")
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
@@ -106,7 +105,7 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 
 	sess := PageSess(ctx)
 	if sess == nil || sess.Page == nil || sess.ID == "" {
-		p.Logger.Error().Msg("server ws: empty or invalid session")
+		p.logger.Error().Msg("server ws: empty or invalid session")
 		w.WriteHeader(http.StatusInternalServerError)
 
 		return
@@ -119,7 +118,8 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 
 	p.weConn, err = p.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		p.Logger.Err(err).Msg("ws upgrade")
+		p.logger.Err(err).Msg("ws upgrade")
+		w.WriteHeader(http.StatusInternalServerError)
 
 		return
 	}
@@ -135,9 +135,9 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 		p.connected = false
 
 		if err := p.weConn.Close(); err != nil {
-			p.Logger.Err(err).Msg("ws conn close")
+			p.logger.Err(err).Msg("ws conn close")
 		} else {
-			p.Logger.Trace().Msg("ws close")
+			p.logger.Trace().Msg("ws close")
 		}
 	}()
 
@@ -145,9 +145,9 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 	// The unmounted components will not have an id
 	// Don't think we need a lock, but could be an issue if we have the same concurrent initial request
 	// We need a static render
-	p.tree, err = p.copyTree(SetIsNotWebSocket(ctx), p.Render(), false)
+	p.tree, err = p.copyTree(setIsNotWebSocket(ctx), p.GetNodes(), false)
 	if err != nil {
-		p.Logger.Err(err).Msg("ws static render")
+		p.logger.Err(err).Msg("ws static render")
 	}
 
 	// Add render function to context
@@ -163,7 +163,7 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 		mt, message, err := p.weConn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
-				p.Logger.Err(err).Msg("ws read")
+				p.logger.Err(err).Msg("ws read")
 			}
 
 			// Connection properly closed
@@ -173,30 +173,30 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 		sess.LastActive = time.Now()
 
 		if mt == websocket.BinaryMessage {
-			p.Logger.Error().Msg("unexpected binary message")
+			p.logger.Error().Msg("unexpected binary message")
 
 			continue
 		}
 
-		p.Logger.Trace().Str("msg", string(message)).Msg("ws msg recv")
+		p.logger.Trace().Str("msg", string(message)).Msg("ws msg recv")
 
 		msg := wsMsg{Data: map[string]string{}}
 		if err := json.Unmarshal(message, &msg); err != nil {
-			p.Logger.Err(err).Str("json", string(message)).Msg("ws msg unmarshal")
+			p.logger.Err(err).Str("json", string(message)).Msg("ws msg unmarshal")
 
 			continue
 		}
 
 		switch msg.Typ {
-		// Logger
+		// logger
 		case "l":
-			p.Logger.Info().Str("log", msg.Data["m"]).Msg("ws log")
+			p.logger.Info().Str("log", msg.Data["m"]).Msg("ws log")
 		// Event
 		case "e":
 			// Call handler
 			p.processMsgEvent(ctx, msg)
 		default:
-			p.Logger.Error().Str("msg", string(message)).Msg("ws msg recv: unexpected message format")
+			p.logger.Error().Str("msg", string(message)).Msg("ws msg recv: unexpected message format")
 		}
 	}
 }
@@ -205,7 +205,7 @@ func (p *Page) executeRenderWS(ctx context.Context) {
 	// Do a dynamic render
 	diffs, err := p.RenderWS(ctx)
 	if err != nil {
-		p.Logger.Err(err).Msg("ws render")
+		p.logger.Err(err).Msg("ws render")
 	}
 	// Any DOM updates?
 
@@ -219,9 +219,10 @@ func (p *Page) wsSend(message string) {
 		return
 	}
 
-	p.Logger.Trace().Str("msg", message).Msg("ws send")
+	p.logger.Trace().Str("msg", message).Msg("ws send")
+
 	if err := p.weConn.WriteMessage(websocket.TextMessage, []byte(message)); err != nil {
-		p.Logger.Err(err).Msg("ws write")
+		p.logger.Err(err).Msg("ws write")
 	}
 }
 
@@ -253,7 +254,7 @@ func (p *Page) diffsToMsg(diffs []Diff) string {
 			message += "a|"
 
 			if err := p.Renderer.Attribute([]*Attribute{diff.Attribute}, bb); err != nil {
-				p.Logger.Err(err).Msg("diffs to msg: render attribute")
+				p.logger.Err(err).Msg("diffs to msg: render attribute")
 			}
 		} else if diff.Tag != nil {
 			el = diff.Tag
@@ -261,7 +262,7 @@ func (p *Page) diffsToMsg(diffs []Diff) string {
 		}
 
 		if err := p.Renderer.HTML(bb, el); err != nil {
-			p.Logger.Err(err).Msg("diffs to msg: render children")
+			p.logger.Err(err).Msg("diffs to msg: render children")
 		}
 
 		message += base64.StdEncoding.EncodeToString(bb.Bytes())
@@ -293,14 +294,12 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 	for i := 0; i < len(ids); i++ {
 		id := ids[i]
 
-		p.Logger.Trace().Str("id", id).Msg("call event handler")
-		// TODO: Maybe maintain a map of bindings in the current tree
-		//       Add and remove binding on each render
-		// binding := GetEventBindingFromTree(id, p.Render())
+		p.logger.Trace().Str("id", id).Msg("call event handler")
+
 		binding := p.currentBindings[id]
 
 		if binding == nil {
-			p.Logger.Error().Str("id", id).Msg("unable to find binding")
+			p.logger.Error().Str("id", id).Msg("unable to find binding")
 
 			return
 		}
@@ -308,14 +307,14 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 		e.Binding = binding
 
 		if binding.Handler == nil {
-			p.Logger.Error().Str("id", id).Msg("unable to find binding handler")
+			p.logger.Error().Str("id", id).Msg("unable to find binding handler")
 
 			return
 		}
 
 		binding.Handler(ctx, e)
 
-		// Render?
+		// GetNodes?
 		if binding.Component.IsAutoRender() {
 			p.executeRenderWS(ctx)
 		}
@@ -328,7 +327,7 @@ func (p *Page) RenderWS(ctx context.Context) ([]Diff, error) {
 
 	p.currentBindings = map[string]*EventBinding{}
 
-	newTree, err := p.CopyTree(ctx, p.Render())
+	newTree, err := p.CopyTree(ctx, p.GetNodes())
 	if err != nil {
 		return nil, err
 	}
@@ -343,87 +342,7 @@ func (p *Page) RenderWS(ctx context.Context) ([]Diff, error) {
 	return diffs, nil
 }
 
-// TODO: this was really hard to write, gonna leave it here for now, just in case
-// func (p *Page) TreeLifecycle(ctx context.Context, diffs ...Diff) {
-// 	var comps []string
-// 	compC := map[string]interface{}{}
-// 	compD := map[string]interface{}{}
-//
-// 	for i := 0; i < len(diffs); i++ {
-// 		d := diffs[i]
-// 		switch d.Type {
-// 		case DiffCreate:
-// 			if d.Attribute != nil && d.Attribute.name == AttrID && d.Attribute.Value != nil {
-// 				comps = append(comps, *d.Attribute.Value)
-// 				compC[*d.Attribute.Value] = nil
-// 			}
-//
-// 			if d.Tag != nil {
-// 				ids := getCompIDsFromTag(d.Tag)
-// 				for j := 0; j < len(ids); j++ {
-// 					comps = append(comps, ids[j])
-// 					compC[ids[j]] = nil
-// 				}
-// 			}
-// 		case DiffUpdate:
-// 			// New Part
-// 			if d.Attribute != nil && d.Attribute.name == AttrID && d.Attribute.Value != nil {
-// 				comps = append(comps, *d.Attribute.Value)
-// 				compC[*d.Attribute.Value] = nil
-// 			}
-// 			// Old Part
-// 			oldAttr, ok := d.Old.(Attribute)
-// 			if ok && oldAttr.name == AttrID && oldAttr.Value != nil {
-// 				comps = append(comps, *oldAttr.Value)
-// 				compD[*oldAttr.Value] = nil
-// 			}
-//
-// 			// Tags are not updated
-// 		case DiffDelete:
-// 			if d.Attribute != nil {
-// 				if d.Attribute.name == AttrID && d.Attribute.Value != nil {
-// 					comps = append(comps, *d.Attribute.Value)
-// 					compD[*d.Attribute.Value] = nil
-// 				}
-// 			} else if d.Tag != nil {
-// 				ids := getCompIDsFromTag(d.Tag)
-// 				for j := 0; j < len(ids); j++ {
-// 					comps = append(comps, ids[j])
-// 					compD[ids[j]] = nil
-// 				}
-// 			} else if d.Old != nil {
-// 				switch v := d.Old.(type) {
-// 				case TagInterface:
-// 					ids := getCompIDsFromTag(v)
-// 					for j := 0; j < len(ids); j++ {
-// 						comps = append(comps, ids[j])
-// 						compD[ids[j]] = nil
-// 					}
-// 				}
-// 			}
-// 		}
-// 	}
-//
-// 	// There could be duplicates in comps
-// 	for i := 0; i < len(comps); i++ {
-// 		id := comps[i]
-// 		_, ce := compC[id]
-// 		_, de := compD[id]
-//
-// 		// Only delete
-// 		if !ce && de {
-// 			comp, exits := p.unmountables[id]
-// 			if exits {
-// 				delete(p.unmountables, id)
-// 				if err := comp.Unmount(ctx); err != nil {
-// 					p.Logger.Err(err).Msg("unmount component")
-// 				}
-// 			}
-// 		}
-// 	}
-// }
-
-func (p *Page) Render() []interface{} {
+func (p *Page) GetNodes() []interface{} {
 	return Tree(p.DocType, p.HTML)
 }
 
@@ -433,7 +352,7 @@ func (p *Page) RenderHTML(ctx context.Context, w io.Writer) error {
 	p.treeLock.Lock()
 	defer p.treeLock.Unlock()
 
-	p.tree, err = p.copyTree(ctx, p.Render(), false)
+	p.tree, err = p.copyTree(ctx, p.GetNodes(), false)
 	if err != nil {
 		return err
 	}
@@ -481,50 +400,60 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		return fmt.Sprintf("%v", v), nil
 	case HTML:
 		return v, nil
-	case TagInterface:
+	case Tagger:
 		if v == nil {
 			return nil, nil
 		}
 
 		if lifeCycle {
 			// Needs a lock higher up to be thread safe
-			if comp, ok := v.(ComponentInterface); ok {
+			if comp, ok := v.(Componenter); ok {
 				bindings := comp.GetEventBindings()
 				for i := 0; i < len(bindings); i++ {
 					p.currentBindings[bindings[i].ID] = bindings[i]
 				}
 			}
 
-			if comp, ok := v.(ComponentMountInterface); ok {
+			if comp, ok := v.(Mounter); ok {
 				if _, exists := p.mountables[comp.GetID()]; !exists {
 					comp.Mount(ctx)
+
 					p.mountables[comp.GetID()] = struct{}{}
 				}
 			}
 
-			if compU, ok := v.(ComponentUnmountInterface); ok {
+			if compU, ok := v.(Unmounter); ok {
 				if _, exists := p.unmountables[compU.GetID()]; !exists {
 					p.unmountables[compU.GetID()] = compU
 				}
 			}
+
+			if compTr, ok := v.(Teardowner); ok {
+				compTr.SetTeardown(func() {
+					delete(p.mountables, compTr.GetID())
+					delete(p.unmountables, compTr.GetID())
+				})
+			}
 		}
 
-		kids, err := p.copyTree(ctx, v.Render(), lifeCycle)
+		kids, err := p.copyTree(ctx, v.GetNodes(), lifeCycle)
 		if err != nil {
 			return nil, fmt.Errorf("copy tree on tag children: %s: %w", v.GetName(), err)
 		}
 
-		// Call Render before GetAttributes so users can set attributes in Render
-		var els []interface{}
-		oldAttrs := v.GetAttributes()
-		var attrs []*Attribute
+		// Call GetNodes before GetAttributes so users can set attributes in GetNodes
+		var (
+			els      []interface{}
+			attrs    []*Attribute
+			oldAttrs = v.GetAttributes()
+		)
 
 		for i := 0; i < len(oldAttrs); i++ {
 			attrs = append(attrs, oldAttrs[i].Clone())
 		}
 
 		// Strip hlive attributes to trigger diff
-		if !IsWebSocket(ctx) {
+		if !isWebSocket(ctx) {
 			var newAttrs []*Attribute
 
 			for i := 0; i < len(attrs); i++ {
@@ -543,6 +472,7 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		return T(v.GetName(), append(els, kids)), nil
 	case RenderFunc:
 		var newTree []interface{}
+
 		nodes := v()
 		for i := 0; i < len(nodes); i++ {
 			node, err := p.copyTree(ctx, nodes[i], lifeCycle)
@@ -556,6 +486,7 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		return newTree, nil
 	case []interface{}:
 		var newTree []interface{}
+
 		for i := 0; i < len(v); i++ {
 			node, err := p.copyTree(ctx, v[i], lifeCycle)
 			if err != nil {
@@ -566,8 +497,9 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		}
 
 		return newTree, nil
-	case []ComponentInterface:
+	case []Componenter:
 		var newTree []interface{}
+
 		for i := 0; i < len(v); i++ {
 			node, err := p.copyTree(ctx, v[i], lifeCycle)
 			if err != nil {
@@ -578,8 +510,9 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		}
 
 		return newTree, nil
-	case []TagInterface:
+	case []Tagger:
 		var newTree []interface{}
+
 		for i := 0; i < len(v); i++ {
 			node, err := p.copyTree(ctx, v[i], lifeCycle)
 			if err != nil {
@@ -592,6 +525,7 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		return newTree, nil
 	case []*Component:
 		var newTree []interface{}
+
 		for i := 0; i < len(v); i++ {
 			node, err := p.copyTree(ctx, v[i], lifeCycle)
 			if err != nil {
@@ -604,6 +538,7 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		return newTree, nil
 	case []*Tag:
 		var newTree []interface{}
+
 		for i := 0; i < len(v); i++ {
 			node, err := p.copyTree(ctx, v[i], lifeCycle)
 			if err != nil {
@@ -619,17 +554,17 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 	}
 }
 
-func IsWebSocket(ctx context.Context) bool {
-	isWebSocket, _ := ctx.Value(CtxIsWS).(bool)
+func isWebSocket(ctx context.Context) bool {
+	is, _ := ctx.Value(CtxIsWS).(bool)
 
-	return isWebSocket
+	return is
 }
 
 func SetIsWebSocket(ctx context.Context) context.Context {
 	return context.WithValue(ctx, CtxIsWS, true)
 }
 
-func SetIsNotWebSocket(ctx context.Context) context.Context {
+func setIsNotWebSocket(ctx context.Context) context.Context {
 	return context.WithValue(ctx, CtxIsWS, false)
 }
 
@@ -643,8 +578,8 @@ func RenderWS(ctx context.Context) {
 	render(ctx)
 }
 
-func RenderComponentWS(ctx context.Context, comp ComponentInterface) {
-	render, ok := ctx.Value(CtxRenderComponent).(func(context.Context, ComponentInterface))
+func RenderComponentWS(ctx context.Context, comp Componenter) {
+	render, ok := ctx.Value(CtxRenderComponent).(func(context.Context, Componenter))
 	if !ok {
 		panic("ERROR: RenderComponentWS not found in context")
 	}
@@ -652,28 +587,30 @@ func RenderComponentWS(ctx context.Context, comp ComponentInterface) {
 	render(ctx, comp)
 }
 
-func (p *Page) renderComponentWS(ctx context.Context, comp ComponentInterface) {
+func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 	if p == nil {
-		p.Logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("render component on dead page")
+		p.logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("render component on dead page")
 
 		return
 	}
 
 	oldTag := p.findComponentInTree(comp.GetID())
 	if oldTag == nil {
-		p.Logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("render component ws: can't find component in tree")
+		p.logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).
+			Msg("render component ws: can't find component in tree")
 
 		return
 	}
 
 	newTreeNode, err := p.copyTree(ctx, comp, true)
 	if err != nil {
-		p.Logger.Err(err).Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("render component ws: copy tree")
+		p.logger.Err(err).Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("render component ws: copy tree")
 
 		return
 	}
 
 	var newTag *Tag
+
 	newTags, ok := newTreeNode.([]interface{})
 	if ok && len(newTags) != 0 {
 		newTag, ok = newTags[0].(*Tag)
@@ -682,14 +619,15 @@ func (p *Page) renderComponentWS(ctx context.Context, comp ComponentInterface) {
 	}
 
 	if !ok {
-		p.Logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("render component ws: new node is not a tag, component, or group")
+		p.logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).
+			Msg("render component ws: new node is not a tag, component, or group")
 
 		return
 	}
 
 	diffs, err := p.Differ.Trees(comp.GetID(), "", oldTag, newTag)
 	if err != nil {
-		p.Logger.Err(err).Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("diff trees")
+		p.logger.Err(err).Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("diff trees")
 
 		return
 	}

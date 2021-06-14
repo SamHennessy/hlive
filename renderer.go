@@ -10,12 +10,16 @@ import (
 
 func NewRender() *Renderer {
 	return &Renderer{
-		Logger: zerolog.Nop(),
+		logger: zerolog.Nop(),
 	}
 }
 
 type Renderer struct {
-	Logger zerolog.Logger
+	logger zerolog.Logger
+}
+
+func (r *Renderer) SetLogger(logger zerolog.Logger) {
+	r.logger = logger
 }
 
 // HTML renders items that can be render to valid HTML nodes
@@ -47,7 +51,7 @@ func (r *Renderer) HTML(w io.Writer, el interface{}) error {
 		if err := r.rawHTML(v, w); err != nil {
 			return err
 		}
-	case TagInterface:
+	case Tagger:
 		if v != nil {
 			if err := r.tag(v, w); err != nil {
 				return err
@@ -98,7 +102,7 @@ func (r *Renderer) rawHTML(rawHTML HTML, w io.Writer) error {
 	return err
 }
 
-func (r *Renderer) tag(tag TagInterface, w io.Writer) error {
+func (r *Renderer) tag(tag Tagger, w io.Writer) error {
 	if _, err := w.Write([]byte("<" + tag.GetName())); err != nil {
 		return fmt.Errorf("write: %w", err)
 	}
@@ -115,7 +119,7 @@ func (r *Renderer) tag(tag TagInterface, w io.Writer) error {
 		return nil
 	}
 
-	kids := tag.Render()
+	kids := tag.GetNodes()
 	for i := 0; i < len(kids); i++ {
 		if err := r.HTML(w, kids[i]); err != nil {
 			return fmt.Errorf("render child: %#v: %w", kids[i], err)

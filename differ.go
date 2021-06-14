@@ -1,11 +1,15 @@
 package hlive
 
 import (
+	_ "embed"
 	"fmt"
 	"strconv"
 
 	"github.com/rs/zerolog"
 )
+
+//go:embed page.js
+var PageJavaScript []byte
 
 // Diff Diffs are from old to new
 type Diff struct {
@@ -14,7 +18,7 @@ type Diff struct {
 	// Position of each child
 	Path      string
 	Type      DiffType
-	Tag       TagInterface
+	Tag       Tagger
 	Text      *string
 	Attribute *Attribute
 	HTML      *HTML
@@ -23,22 +27,31 @@ type Diff struct {
 }
 
 func NewDiffer() *Differ {
-	return &Differ{Logger: zerolog.Nop()}
+	return &Differ{
+		logger:     zerolog.Nop(),
+		JavaScript: PageJavaScript,
+	}
 }
 
 type Differ struct {
-	Logger zerolog.Logger
+	logger     zerolog.Logger
+	JavaScript []byte
 }
 
-// Trees
+func (d *Differ) SetLogger(logger zerolog.Logger) {
+	d.logger = logger
+}
+
+// Trees diff two node tress
 //
 // Path: childIndex>childIndex
 // Path: 0>1>3
 //
-// After tree copy you only have TagInterface (with []Attribute), HTML, and strings. Then can be grouped in []interface{}
-func (p *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, error) {
-	p.Logger.Trace().Str("sel", selector).Str("path", path).Msg("diffTrees")
+// After tree copy you only have Tagger (with []Attribute), HTML, and strings. Then can be grouped in []interface{}
+func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, error) {
 	var diffs []Diff
+
+	d.logger.Trace().Str("sel", selector).Str("path", path).Msg("diffTrees")
 
 	// More nodes in new tree
 	if old == nil && new != nil {
@@ -101,7 +114,7 @@ func (p *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 				n = newIS[i]
 			}
 
-			subDiffs, err := p.Trees(selector, path+strconv.Itoa(i-indexOffset), v[i], n)
+			subDiffs, err := d.Trees(selector, path+strconv.Itoa(i-indexOffset), v[i], n)
 			if err != nil {
 				return nil, fmt.Errorf("diff []interface{}: %w", err)
 			}
@@ -133,8 +146,8 @@ func (p *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 				HTML: &newHTML,
 			})
 		}
-	case TagInterface:
-		newTag := new.(TagInterface)
+	case Tagger:
+		newTag := new.(Tagger)
 
 		// Different tag?
 		if v.GetName() != newTag.GetName() || v.IsVoid() != newTag.IsVoid() {
@@ -205,8 +218,8 @@ func (p *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 			}
 		}
 
-		oldKids := v.Render()
-		newKids := newTag.Render()
+		oldKids := v.GetNodes()
+		newKids := newTag.GetNodes()
 		// Loop old kids
 		i = 0
 		for ; i < len(oldKids); i++ {
@@ -216,7 +229,7 @@ func (p *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 				newKid = newKids[i]
 			}
 
-			kidDiffs, err := p.Trees(selector, path+">"+strconv.Itoa(i), oldKids[i], newKid)
+			kidDiffs, err := d.Trees(selector, path+">"+strconv.Itoa(i), oldKids[i], newKid)
 			if err != nil {
 				return nil, fmt.Errorf("tag diff kids: %w", err)
 			}
@@ -231,7 +244,6 @@ func (p *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 	}
 
 	return diffs, nil
-
 }
 
 func eqStrPtr(s1, s2 *string) bool {
@@ -273,7 +285,7 @@ func diffCreate(compID, path string, el interface{}) []Diff {
 				HTML: &v,
 			},
 		}
-	case TagInterface:
+	case Tagger:
 		return []Diff{
 			{
 				Root: compID,
@@ -310,8 +322,8 @@ func diffTreeNodeTypeMatch(old, new interface{}) bool {
 	case HTML:
 		_, ok := new.(HTML)
 		return ok
-	case TagInterface:
-		_, ok := new.(TagInterface)
+	case Tagger:
+		_, ok := new.(Tagger)
 		return ok
 	case nil:
 		return false

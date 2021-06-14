@@ -52,7 +52,7 @@ func Home(logger zerolog.Logger) *l.PageServer {
 		}))
 
 		page := l.NewPage()
-		page.Logger = logger
+		page.SetLogger(logger)
 		page.Title.Add("Add Remove Example")
 		page.Body.Add(
 			in,
@@ -87,7 +87,7 @@ type textInput struct {
 	Focus bool
 }
 
-func (c *textInput) Render() []interface{} {
+func (c *textInput) GetNodes() []interface{} {
 	c.SetAttributes(l.Attrs{"value": c.Value})
 	if c.Focus {
 		c.SetAttributes(l.Attrs{l.AttrFocus: nil})
@@ -113,7 +113,7 @@ type button struct {
 	Label string
 }
 
-func (c *button) Render() []interface{} {
+func (c *button) GetNodes() []interface{} {
 	c.SetAttributes(l.Attrs{"type": "button"})
 
 	return l.Tree(c.Label)
@@ -128,10 +128,10 @@ func List() *itemList {
 type itemList struct {
 	*l.Component
 
-	items []l.ComponentInterface
+	items []l.Componenter
 }
 
-func (c *itemList) Render() []interface{} {
+func (c *itemList) GetNodes() []interface{} {
 	var list []interface{}
 	for i := 0; i < len(c.items); i++ {
 		list = append(list, c.items[i])
@@ -140,8 +140,8 @@ func (c *itemList) Render() []interface{} {
 	return list
 }
 
-func (c *itemList) DeleteItem(item l.ComponentInterface) {
-	var newItems []l.ComponentInterface
+func (c *itemList) DeleteItem(item l.Componenter) {
+	var newItems []l.Componenter
 	for i := 0; i < len(c.items); i++ {
 		if c.items[i] == item {
 			continue
@@ -219,14 +219,14 @@ type textItem struct {
 
 	Label      string
 	EditMode   bool
-	EditLink   l.ComponentInterface
-	DeleteLink l.ComponentInterface
-	CancelLink l.ComponentInterface
-	UpdateBtn  l.ComponentInterface
-	Input      l.ComponentInterface
+	EditLink   l.Componenter
+	DeleteLink l.Componenter
+	CancelLink l.Componenter
+	UpdateBtn  l.Componenter
+	Input      l.Componenter
 }
 
-func (c *textItem) Render() []interface{} {
+func (c *textItem) GetNodes() []interface{} {
 	var kids []interface{}
 
 	if c.EditMode {

@@ -23,35 +23,28 @@ func main() {
 
 func Home(logger zerolog.Logger) *l.PageServer {
 	f := func() *l.Page {
+		hoverState := ""
+
+		hover := l.C("span",
+			l.OnMouseEnter(func(ctx context.Context, e l.Event) {
+				hoverState = "Mouse enter"
+			}),
+			l.OnMouseLeave(func(ctx context.Context, e l.Event) {
+				hoverState = "Mouse leave"
+			}),
+			"Hover over me",
+		)
+
 		page := l.NewPage()
 		page.SetLogger(logger)
-		page.Title.Add("Click Example")
-		page.Body.Add(newCountBtn())
+		page.Title.Add("Hover Example")
+		page.Body.Add(
+			l.T("div", hover),
+			l.T("div", &hoverState),
+		)
 
 		return page
 	}
 
 	return l.NewPageServer(f)
-}
-
-type countBtn struct {
-	*l.Component
-
-	Count int
-}
-
-func (c *countBtn) GetNodes() []interface{} {
-	return l.Tree(c.Count)
-}
-
-func newCountBtn() *countBtn {
-	c := &countBtn{
-		Component: l.NewComponent("button"),
-	}
-
-	c.On(l.OnClick(func(ctx context.Context, e l.Event) {
-		c.Count++
-	}))
-
-	return c
 }

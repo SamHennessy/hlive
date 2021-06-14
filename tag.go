@@ -5,11 +5,15 @@ import (
 	"strings"
 )
 
-type TagInterface interface {
-	Render() []interface{}
+type Tagger interface {
+	// GetName returns a tag's name. For example <hr>'s name is hr
 	GetName() string
-	IsVoid() bool
+	// GetAttributes returns all attributes for this tag
 	GetAttributes() []*Attribute
+	// GetNodes returns this tags children nodes, to be rendered inside of this tag
+	GetNodes() []interface{}
+	// IsVoid indicates if this has a closing tag or not. Void tags don't have a closing tag
+	IsVoid() bool
 }
 
 type Tag struct {
@@ -19,18 +23,22 @@ type Tag struct {
 	nodes       []interface{}
 	cssExists   map[string]bool
 	cssOrder    []string
-	styleNames  []string
 	styleValues map[string]string
+	styleOrder  []string
 }
 
 func T(name string, elements ...interface{}) *Tag {
 	return NewTag(name, elements...)
 }
+
 func NewTag(name string, elements ...interface{}) *Tag {
 	name = strings.ToLower(name)
+
 	var void bool
+
 	switch name {
-	case "area", "base", "br", "col", "command", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr":
+	case "area", "base", "br", "col", "command", "embed", "hr", "img", "input", "keygen", "link", "meta", "param",
+		"source", "track", "wbr":
 		void = true
 	}
 
@@ -75,10 +83,11 @@ func (t *Tag) GetAttributes() []*Attribute {
 		attrs = append(attrs, NewAttribute("class", strings.Join(t.cssOrder, " ")))
 	}
 
-	if len(t.styleNames) != 0 {
+	if len(t.styleOrder) != 0 {
 		value := ""
-		for i := 0; i < len(t.styleNames); i++ {
-			name := t.styleNames[i]
+
+		for i := 0; i < len(t.styleOrder); i++ {
+			name := t.styleOrder[i]
 			value += name + ":" + t.styleValues[name] + ";"
 		}
 
@@ -108,11 +117,12 @@ func (t *Tag) GetAttributeValue(name string) string {
 	return *a.Value
 }
 
+// Add an element to this Tag
 func (t *Tag) Add(element ...interface{}) {
 	addElementToTag(t, element)
 }
 
-func (t *Tag) Render() []interface{} {
+func (t *Tag) GetNodes() []interface{} {
 	return t.nodes
 }
 
@@ -135,6 +145,7 @@ func (t *Tag) SetAttributes(attrs ...interface{}) {
 
 	for i := 0; i < len(attributes); i++ {
 		hit := false
+
 		for j := 0; j < len(t.attributes); j++ {
 			if t.attributes[j].Name == attributes[i].Name {
 				hit = true
@@ -189,11 +200,11 @@ func addElementToTag(t *Tag, v interface{}) {
 		for i := 0; i < len(v); i++ {
 			addElementToTag(t, v[i])
 		}
-	case []ComponentInterface:
+	case []Componenter:
 		for i := 0; i < len(v); i++ {
 			addElementToTag(t, v[i])
 		}
-	case []TagInterface:
+	case []Tagger:
 		for i := 0; i < len(v); i++ {
 			addElementToTag(t, v[i])
 		}
@@ -223,29 +234,28 @@ func addStyle(t *Tag, v Style) {
 			removeList[name] = false
 			str, _ := value.(string)
 			t.styleValues[name] = str
-			t.styleNames = append(t.styleNames, name)
-
+			t.styleOrder = append(t.styleOrder, name)
 		}
 	}
 
 	var newNames []string
-	for i := 0; i < len(t.styleNames); i++ {
-		name := t.styleNames[i]
-		if removeList[name] {
-					delete(t.styleValues, name)
 
-					continue
+	for i := 0; i < len(t.styleOrder); i++ {
+		name := t.styleOrder[i]
+		if removeList[name] {
+			delete(t.styleValues, name)
+
+			continue
 		}
 
 		newNames = append(newNames, name)
 	}
 
-	t.styleNames = newNames
+	t.styleOrder = newNames
 }
 
+// This does allow duplicates in the same hlive.CSS element
 func addCSS(t *Tag, v CSS) {
-	// This does allow duplicates in the same hlive.CSS element
-
 	// Update the map
 	for class, enable := range v {
 		if enable {
@@ -268,44 +278,4 @@ func addCSS(t *Tag, v CSS) {
 	}
 
 	t.cssOrder = newOrder
-}
-
-func anyToAttributes(attrs ...interface{}) []*Attribute {
-	var newAttrs []*Attribute
-
-	for i := 0; i < len(attrs); i++ {
-		if attrs[i] == nil {
-			continue
-		}
-
-		switch v := attrs[i].(type) {
-		case *Attribute:
-			newAttrs = append(newAttrs, v)
-		case []*Attribute:
-			newAttrs = append(newAttrs, v...)
-		case Attrs:
-			newAttrs = append(newAttrs, attrsToAttributes(v)...)
-		default:
-			panic(ErrInvalidAttribute)
-		}
-	}
-
-	return newAttrs
-}
-
-func attrsToAttributes(attrs Attrs) []*Attribute {
-	var newAttrs []*Attribute
-	for name, val := range attrs {
-		attr := NewAttribute(name)
-		switch v := val.(type) {
-		case string:
-			attr.SetValue(v)
-		case *string:
-			attr.Value = v
-		}
-
-		newAttrs = append(newAttrs, attr)
-	}
-
-	return newAttrs
 }

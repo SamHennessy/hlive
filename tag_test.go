@@ -26,7 +26,7 @@ func TestTag_T(t *testing.T) {
 
 func TestTag_IsVoid(t *testing.T) {
 	div := l.T("div")
-	hr  := l.T("hr")
+	hr := l.T("hr")
 
 	if diff := deep.Equal(false, div.IsVoid()); diff != nil {
 		t.Error(diff)
@@ -45,7 +45,7 @@ func TestTag_Attributes(t *testing.T) {
 
 	div.SetAttributes(a, b)
 
-	if diff := deep.Equal([]*l.Attribute{a,b}, div.GetAttributes()); diff != nil {
+	if diff := deep.Equal([]*l.Attribute{a, b}, div.GetAttributes()); diff != nil {
 		t.Error(diff)
 	}
 
@@ -55,8 +55,9 @@ func TestTag_Attributes(t *testing.T) {
 		t.Error(diff)
 	}
 }
+
 func TestTag_Attrs(t *testing.T) {
-	div := l.T("div", l.Attrs{"foo":"bar"}, l.Attrs{"biz":"baz"})
+	div := l.T("div", l.Attrs{"foo": "bar"}, l.Attrs{"biz": "baz"})
 
 	a := l.NewAttribute("foo", "bar")
 	b := l.NewAttribute("biz", "baz")

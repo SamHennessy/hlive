@@ -18,6 +18,7 @@ func main() {
 	http.HandleFunc("/", sessionMiddleware(Home(logger, s).ServeHTTP))
 
 	logger.Info().Str("addr", ":3000").Msg("listing")
+
 	if err := http.ListenAndServe(":3000", nil); err != nil {
 		logger.Err(err).Msg("http listen and serve")
 	}
@@ -27,8 +28,8 @@ func Home(logger zerolog.Logger, s *Service) *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
 		page.Title.Add("HTTP Session Example")
-		page.Logger = logger
-		page.Body.Add(Message(s))
+		page.SetLogger(logger)
+		page.Body.Add(newMessage(s))
 
 		return page
 	}
@@ -37,19 +38,24 @@ func Home(logger zerolog.Logger, s *Service) *l.PageServer {
 }
 
 type CtxKey string
+
 const SessionKey CtxKey = "session"
 
 func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	cookieName := "hlive_session"
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		var sessionID string
+
 		cook, err := r.Cookie(cookieName)
-		if err == http.ErrNoCookie {
+		switch {
+		case err == http.ErrNoCookie:
 			sessionID = xid.New().String()
-			http.SetCookie(w, &http.Cookie{Name: cookieName, Value: sessionID, Path: "/", SameSite: http.SameSiteStrictMode})
-		} else if err != nil {
+			http.SetCookie(w,
+				&http.Cookie{Name: cookieName, Value: sessionID, Path: "/", SameSite: http.SameSiteStrictMode})
+		case err != nil:
 			fmt.Println("ERROR: get cookie: ", err.Error())
-		} else {
+		default:
 			sessionID = cook.Value
 		}
 
@@ -61,6 +67,7 @@ func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 
 func GetSessionID(ctx context.Context) string {
 	val, _ := ctx.Value(SessionKey).(string)
+
 	return val
 }
 
@@ -80,7 +87,7 @@ func (s *Service) GetMessage(userID string) string {
 	return s.userMessage[userID]
 }
 
-func Message(service *Service) *message {
+func newMessage(service *Service) *message {
 	c := &message{
 		Component: l.NewComponent("span"),
 		service:   service,
@@ -105,9 +112,8 @@ func (c *message) Mount(ctx context.Context) {
 	c.Message = c.service.GetMessage(GetSessionID(ctx))
 }
 
-func (c *message) Render() []interface{} {
+func (c *message) GetNodes() []interface{} {
 	c.SetName("textarea")
 
 	return l.Tree(c.Message)
 }
-

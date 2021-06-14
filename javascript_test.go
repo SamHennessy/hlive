@@ -26,6 +26,7 @@ func setup(t *testing.T, body []interface{}) *fixtures {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+
 	ctx, cancel = chromedp.NewContext(
 		ctx,
 		chromedp.WithLogf(log.Printf),
@@ -36,7 +37,7 @@ func setup(t *testing.T, body []interface{}) *fixtures {
 	home := func() *hlive.PageServer {
 		f := func() *hlive.Page {
 			page := hlive.NewPage()
-			page.Logger = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.WarnLevel)
+			page.SetLogger(zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).Level(zerolog.WarnLevel))
 			page.Body.Add(body)
 
 			return page

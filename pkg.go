@@ -1,16 +1,21 @@
 package hlive
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
-// Package errors
+// Public errors
 var (
 	ErrRenderElement    = errors.New("attempted to render an unrecognised element")
 	ErrAttrValueCount   = errors.New("zero or one value allowed only")
 	ErrInvalidNode      = errors.New("variable is not a valid node")
 	ErrInvalidElement   = errors.New("variable is not a valid element")
 	ErrInvalidAttribute = errors.New("variable is not a valid attribute")
+	ErrEventType        = errors.New("invalid event type")
 )
 
+// Event attribute keys
 const (
 	AttrID                = "data-hlive-id"
 	AttrFocus             = "data-hlive-focus"
@@ -22,11 +27,20 @@ const (
 	AttrOnAnimationCancel = "data-hlive-onanimationcancel"
 	AttrOnMouseEnter      = "data-hlive-onmouseenter"
 	AttrOnMouseLeave      = "data-hlive-onmouseleave"
-	HTML5DocType          = HTML("<!doctype html>")
+	AttrOnDiffApply       = "data-hlive-ondiffapply"
+)
+
+// Defaults
+const (
+	HTML5DocType                      = HTML("<!doctype html>")
+	WebSocketDisconnectTimeoutDefault = time.Second * 5
+	PageSessionLimitDefault           = 1000
+	PageSessionGarbageCollectionTick  = time.Second
 )
 
 type CtxKey int
 
+// Context keys
 const (
 	CtxPageSess CtxKey = iota
 	CtxIsWS
@@ -36,6 +50,7 @@ const (
 
 type DiffType string
 
+// Diff types
 const (
 	DiffUpdate DiffType = "u"
 	DiffCreate DiffType = "c"
@@ -44,6 +59,7 @@ const (
 
 type EventType int
 
+// Event types
 const (
 	Click EventType = iota
 	KeyDown
@@ -53,4 +69,5 @@ const (
 	AnimationCancel
 	MouseEnter
 	MouseLeave
+	DiffApply
 )

@@ -26,7 +26,7 @@ func main() {
 func Home(logger zerolog.Logger) *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.Logger = logger
+		page.SetLogger(logger)
 		page.Title.Add("Clock Example")
 		page.Body.Add(Clock(logger))
 
@@ -56,7 +56,7 @@ type clock struct {
 	done   chan bool
 }
 
-func (c *clock) Render() []interface{} {
+func (c *clock) GetNodes() []interface{} {
 	return l.Tree(c.t.String())
 }
 

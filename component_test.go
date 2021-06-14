@@ -23,7 +23,7 @@ func CountBtn() *countBtn {
 	}
 }
 
-func (c *countBtn) Render() []interface{} {
+func (c *countBtn) GetNodes() []interface{} {
 	return hlive.Tree(
 		hlive.NewTag("button", c.Count),
 	)
@@ -93,7 +93,6 @@ func TestPage_ComponentEventOnClickRender(t *testing.T) {
 			t.Error(diff)
 		}
 	}
-
 }
 
 func TestPage_ComponentEventOnClick(t *testing.T) {
