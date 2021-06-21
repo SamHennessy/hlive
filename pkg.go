@@ -15,10 +15,15 @@ var (
 	ErrEventType        = errors.New("invalid event type")
 )
 
+// HLive special attributes
+const (
+	AttrID     = "data-hlive-id"
+	AttrFocus  = "data-hlive-focus"
+	AttrUpload = "data-hlive-upload"
+)
+
 // Event attribute keys
 const (
-	AttrID                = "data-hlive-id"
-	AttrFocus             = "data-hlive-focus"
 	AttrOnClick           = "data-hlive-onclick"
 	AttrOnKeyDown         = "data-hlive-onkeydown"
 	AttrOnKeyUp           = "data-hlive-onkeyup"
@@ -28,6 +33,8 @@ const (
 	AttrOnMouseEnter      = "data-hlive-onmouseenter"
 	AttrOnMouseLeave      = "data-hlive-onmouseleave"
 	AttrOnDiffApply       = "data-hlive-ondiffapply"
+	AttrOnUpload          = "data-hlive-onupload"
+	AttrOnChange          = "data-hlive-onchange"
 )
 
 // Defaults
@@ -70,4 +77,6 @@ const (
 	MouseEnter
 	MouseLeave
 	DiffApply
+	Upload
+	Change
 )

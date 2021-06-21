@@ -162,66 +162,62 @@ func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 		}
 
 		// Attributes
-		//    The browser doesn't care about the order as we use setAttribute and removeAttribute. It would be
-		//    possible to ignore the order by sort both sets of attributes first
-		// Loop old attrs
+		// The browser doesn't care about the order as we use setAttribute and removeAttribute. It would be
+
 		oldAttrs := v.GetAttributes()
 		newAttrs := newTag.GetAttributes()
+		// exits maps, helps us know if we should delete or update
+		oldAttrsMap := map[string]*Attribute{}
+		for i := 0; i < len(oldAttrs); i++ {
+			oldAttrsMap[oldAttrs[i].Name] = oldAttrs[i]
+		}
+		newAttrsMap := map[string]*Attribute{}
+		for i := 0; i < len(newAttrs); i++ {
+			newAttrsMap[newAttrs[i].Name] = newAttrs[i]
+		}
 
-		i := 0
-		for ; i < len(oldAttrs); i++ {
-			// No new element exists
-			if i >= len(newAttrs) {
+		// Update existing or create new
+		for i := 0; i < len(newAttrs); i++ {
+			oldAttr, exits := oldAttrsMap[newAttrs[i].Name]
+
+			if !exits || newAttrs[i].GetValue() != oldAttr.GetValue() {
+				dt := DiffUpdate
+				if !exits {
+					dt = DiffCreate
+				}
+
 				diffs = append(diffs, Diff{
 					Root:      selector,
 					Path:      path,
-					Type:      DiffDelete,
-					Attribute: oldAttrs[i],
-				})
-
-				continue
-			}
-
-			if oldAttrs[i].Name != newAttrs[i].Name {
-				diffs = append(diffs, Diff{
-					Root:      selector,
-					Path:      path,
-					Type:      DiffDelete,
-					Attribute: oldAttrs[i],
-				})
-
-				diffs = append(diffs, diffCreate(selector, path, newAttrs[i])...)
-
-				continue
-			}
-
-			if !eqStrPtr(oldAttrs[i].Value, newAttrs[i].Value) {
-				diffs = append(diffs, Diff{
-					Root:      selector,
-					Path:      path,
-					Type:      DiffUpdate,
+					Type:      dt,
 					Attribute: newAttrs[i],
-					Old:       oldAttrs[i],
 				})
 			}
 		}
-		// Any extra new attrs?
-		for ; i < len(newAttrs); i++ {
-			diffs = append(diffs, diffCreate(selector, path, newAttrs[i])...)
+
+		// Delete old attrs that have been removed
+		for i := 0; i < len(oldAttrs); i++ {
+			_, exits := newAttrsMap[oldAttrs[i].Name]
+			if !exits {
+				diffs = append(diffs, Diff{
+					Root:      selector,
+					Path:      path,
+					Type:      DiffDelete,
+					Attribute: oldAttrs[i],
+				})
+			}
 		}
 
-		// Is new tag a component?
-		for x := 0; x < len(newAttrs); x++ {
-			if newAttrs[x].Name == AttrID && newAttrs[x].Value != nil {
-				selector = *newAttrs[x].Value
-				path = ""
-			}
+		// Is this tag a component?
+		if attr, exits := newAttrsMap[AttrID]; exits {
+			selector = attr.GetValue()
+			path = ""
 		}
 
 		oldKids := v.GetNodes()
 		newKids := newTag.GetNodes()
 		// Loop old kids
-		i = 0
+		i := 0
 		for ; i < len(oldKids); i++ {
 
 			var newKid interface{}

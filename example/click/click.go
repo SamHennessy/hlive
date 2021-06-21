@@ -49,7 +49,7 @@ func newCountBtn() *countBtn {
 		Component: l.NewComponent("button"),
 	}
 
-	c.On(l.OnClick(func(ctx context.Context, e l.Event) {
+	c.Add(l.On("click", func(ctx context.Context, e l.Event) {
 		c.Count++
 	}))
 

@@ -23,7 +23,7 @@ type Tag struct {
 	nodes       []interface{}
 	cssExists   map[string]bool
 	cssOrder    []string
-	styleValues map[string]string
+	styleValues map[string]*string
 	styleOrder  []string
 }
 
@@ -46,7 +46,7 @@ func NewTag(name string, elements ...interface{}) *Tag {
 		name:        name,
 		void:        void,
 		cssExists:   map[string]bool{},
-		styleValues: map[string]string{},
+		styleValues: map[string]*string{},
 	}
 
 	for i := 0; i < len(elements); i++ {
@@ -88,7 +88,11 @@ func (t *Tag) GetAttributes() []*Attribute {
 
 		for i := 0; i < len(t.styleOrder); i++ {
 			name := t.styleOrder[i]
-			value += name + ":" + t.styleValues[name] + ";"
+			if t.styleValues[name] == nil {
+				continue
+			}
+
+			value += name + ":" + *t.styleValues[name] + ";"
 		}
 
 		attrs = append(attrs, NewAttribute("style", value))
@@ -126,7 +130,7 @@ func (t *Tag) GetNodes() []interface{} {
 	return t.nodes
 }
 
-func (t *Tag) AddNodes(nodes ...interface{}) {
+func (t *Tag) addNodes(nodes ...interface{}) {
 	for i := 0; i < len(nodes); i++ {
 		if nodes[i] == nil {
 			continue
@@ -215,7 +219,7 @@ func addElementToTag(t *Tag, v interface{}) {
 	case Style:
 		addStyle(t, v)
 	default:
-		t.AddNodes(v)
+		t.addNodes(v)
 	}
 }
 
@@ -227,13 +231,25 @@ func addStyle(t *Tag, v Style) {
 			if value == nil {
 				removeList[name] = true
 			} else {
-				str, _ := value.(string)
-				t.styleValues[name] = str
+				strP, ok := value.(*string)
+				if ok {
+					t.styleValues[name] = strP
+				} else {
+					str, _ := value.(string)
+					t.styleValues[name] = &str
+				}
 			}
 		} else if value != nil {
 			removeList[name] = false
-			str, _ := value.(string)
-			t.styleValues[name] = str
+
+			strP, ok := value.(*string)
+			if ok {
+				t.styleValues[name] = strP
+			} else {
+				str, _ := value.(string)
+				t.styleValues[name] = &str
+			}
+
 			t.styleOrder = append(t.styleOrder, name)
 		}
 	}

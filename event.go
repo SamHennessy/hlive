@@ -15,6 +15,22 @@ type Event struct {
 	ShiftKey bool
 	AltKey   bool
 	CtrlKey  bool
+	File     *File
+}
+
+type File struct {
+	Name string
+	Size int
+	Type string
+	Data []byte
+	// Which file is this in the total file count, 0 index
+	Index int
+	// How many files are being uploaded in total
+	Total int
+}
+
+func (f *File) GetData() []byte {
+	return nil
 }
 
 type EventHandler func(ctx context.Context, e Event)
@@ -28,4 +44,7 @@ type EventBinding struct {
 	Handler   EventHandler
 	Type      EventType
 	Component Componenter
+	Once      bool
+
+	Name string
 }

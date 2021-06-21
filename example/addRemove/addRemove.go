@@ -12,25 +12,26 @@ import (
 func main() {
 	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger().Level(zerolog.InfoLevel)
 
-	http.Handle("/", Home(logger))
+	http.Handle("/", home(logger))
 
 	logger.Info().Str("addr", ":3000").Msg("listing")
+
 	if err := http.ListenAndServe(":3000", nil); err != nil {
 		logger.Err(err).Msg("http listen and serve")
 	}
 }
 
-func Home(logger zerolog.Logger) *l.PageServer {
+func home(logger zerolog.Logger) *l.PageServer {
 	f := func() *l.Page {
 		itemList := List()
-		in := TextInput()
+		in := newTextInput()
 		in.On(l.OnKeyUp(func(ctx context.Context, e l.Event) {
 			// We need to allow 1 render so we can clear later
 			doRender := in.Value == ""
 			newVal := e.Value
 
 			if e.Key == "Enter" && in.Value != "" {
-				itemList.items = append(itemList.items, TextItem(itemList, in.Value))
+				itemList.items = append(itemList.items, newTextItem(itemList, in.Value))
 				newVal = ""
 				doRender = true
 			}
@@ -42,10 +43,10 @@ func Home(logger zerolog.Logger) *l.PageServer {
 			}
 		}))
 
-		btn := Button("Add")
+		btn := newButton("Add")
 		btn.On(l.OnClick(func(ctx context.Context, e l.Event) {
 			if in.Value != "" {
-				itemList.items = append(itemList.items, TextItem(itemList, in.Value))
+				itemList.items = append(itemList.items, newTextItem(itemList, in.Value))
 			}
 
 			in.Value = ""
@@ -54,6 +55,7 @@ func Home(logger zerolog.Logger) *l.PageServer {
 		page := l.NewPage()
 		page.SetLogger(logger)
 		page.Title.Add("Add Remove Example")
+		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
 		page.Body.Add(
 			in,
 			btn,
@@ -66,7 +68,7 @@ func Home(logger zerolog.Logger) *l.PageServer {
 	return l.NewPageServer(f)
 }
 
-func TextInput() *textInput {
+func newTextInput() *textInput {
 	c := &textInput{
 		Component: l.NewComponent("input", l.Attrs{"type": "text", "placeholder": "Label"}),
 	}
@@ -98,7 +100,7 @@ func (c *textInput) GetNodes() []interface{} {
 	return nil
 }
 
-func Button(label string) *button {
+func newButton(label string) *button {
 	c := &button{
 		Component: l.C("button"),
 		Label:     label,
@@ -142,6 +144,7 @@ func (c *itemList) GetNodes() []interface{} {
 
 func (c *itemList) DeleteItem(item l.Componenter) {
 	var newItems []l.Componenter
+
 	for i := 0; i < len(c.items); i++ {
 		if c.items[i] == item {
 			continue
@@ -153,13 +156,13 @@ func (c *itemList) DeleteItem(item l.Componenter) {
 	c.items = newItems
 }
 
-func TextItem(list *itemList, label string) *textItem {
+func newTextItem(list *itemList, label string) *textItem {
 	item := &textItem{
 		Component: l.C("div"),
 		Label:     label,
 	}
 
-	in := TextInput()
+	in := newTextInput()
 	in.On(l.OnKeyUp(func(ctx context.Context, e l.Event) {
 		doRender := in.Value == ""
 		newVal := e.Value
@@ -179,7 +182,7 @@ func TextItem(list *itemList, label string) *textItem {
 
 	item.Input = in
 
-	edit := ClickLink("Edit")
+	edit := newClickLink("Edit")
 	edit.On(l.OnClick(func(ctx context.Context, e l.Event) {
 		in.Value = item.Label
 		in.Focus = true
@@ -188,21 +191,21 @@ func TextItem(list *itemList, label string) *textItem {
 
 	item.EditLink = edit
 
-	can := ClickLink("Cancel")
+	can := newClickLink("Cancel")
 	can.On(l.OnClick(func(ctx context.Context, e l.Event) {
 		item.EditMode = false
 	}))
 
 	item.CancelLink = can
 
-	del := ClickLink("Delete")
+	del := newClickLink("Delete")
 	del.On(l.OnClick(func(ctx context.Context, e l.Event) {
 		list.DeleteItem(item)
 	}))
 
 	item.DeleteLink = del
 
-	btn := Button("Update")
+	btn := newButton("Update")
 	btn.On(l.OnClick(func(ctx context.Context, e l.Event) {
 		item.Label = in.Value
 		in.Value = ""
@@ -246,7 +249,7 @@ func (c *textItem) GetNodes() []interface{} {
 	return kids
 }
 
-func ClickLink(children ...interface{}) *clickLink {
+func newClickLink(children ...interface{}) *clickLink {
 	// A child could overwrite these attributes
 	children = append([]interface{}{l.Attrs{"href": "#"}}, children...)
 	c := &clickLink{

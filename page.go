@@ -95,9 +95,11 @@ func (p *Page) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type wsMsg struct {
-	Typ  string            `json:"t"`
-	ID   string            `json:"i,omitempty"`
-	Data map[string]string `json:"d,omitempty"`
+	Typ      string            `json:"t"`
+	ID       string            `json:"i,omitempty"`
+	Data     map[string]string `json:"d,omitempty"`
+	File     *File             `json:"file,omitempty"`
+	fileData []byte
 }
 
 func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
@@ -172,15 +174,23 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 
 		sess.LastActive = time.Now()
 
-		if mt == websocket.BinaryMessage {
-			p.logger.Error().Msg("unexpected binary message")
+		msg := wsMsg{Data: map[string]string{}}
 
-			continue
+		if mt == websocket.BinaryMessage {
+			msgParts := bytes.SplitN(message, []byte("\n\n"), 2)
+
+			if len(msgParts) != 2 {
+				p.logger.Error().Msg("invalid binary message")
+
+				continue
+			}
+
+			message = msgParts[0]
+			msg.fileData = msgParts[1]
 		}
 
-		p.logger.Trace().Str("msg", string(message)).Msg("ws msg recv")
+		p.logger.Debug().Str("msg", string(message)).Msg("ws msg recv")
 
-		msg := wsMsg{Data: map[string]string{}}
 		if err := json.Unmarshal(message, &msg); err != nil {
 			p.logger.Err(err).Str("json", string(message)).Msg("ws msg unmarshal")
 
@@ -194,6 +204,9 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 		// Event
 		case "e":
 			// Call handler
+			if len(msg.fileData) != 0 && msg.File != nil {
+				msg.File.Data = msg.fileData
+			}
 			p.processMsgEvent(ctx, msg)
 		default:
 			p.logger.Error().Str("msg", string(message)).Msg("ws msg recv: unexpected message format")
@@ -288,6 +301,7 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 		ShiftKey: shiftKey,
 		AltKey:   altKey,
 		CtrlKey:  ctrlKey,
+		File:     msg.File,
 	}
 
 	ids := strings.Split(msg.ID, ",")
@@ -309,6 +323,8 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 		if binding.Handler == nil {
 			p.logger.Error().Str("id", id).Msg("unable to find binding handler")
 
+			delete(p.currentBindings, id)
+
 			return
 		}
 
@@ -317,6 +333,12 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 		// GetNodes?
 		if binding.Component.IsAutoRender() {
 			p.executeRenderWS(ctx)
+		}
+
+		// Once, do this after calling the handler so the developer can turn off once if they want
+		if binding.Once {
+			delete(p.currentBindings, id)
+			binding.Component.RemoveEventBinding(id)
 		}
 	}
 }
@@ -398,6 +420,12 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 	// TODO: stop using printf
 	case int8, int16, int32, uint, uint8, uint16, uint32:
 		return fmt.Sprintf("%v", v), nil
+	case *HTML:
+		if v == nil || *v == "" {
+			return nil, nil
+		}
+
+		return *v, nil
 	case HTML:
 		return v, nil
 	case Tagger:
@@ -437,6 +465,7 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		}
 
 		kids, err := p.copyTree(ctx, v.GetNodes(), lifeCycle)
+
 		if err != nil {
 			return nil, fmt.Errorf("copy tree on tag children: %s: %w", v.GetName(), err)
 		}
@@ -485,7 +514,13 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 
 		return newTree, nil
 	case []interface{}:
-		var newTree []interface{}
+		var (
+			newTree       []interface{}
+			thisNodeStr   string
+			thisNodeIsStr bool
+			lastNodeStr   string
+			lastNodeIsStr bool
+		)
 
 		for i := 0; i < len(v); i++ {
 			node, err := p.copyTree(ctx, v[i], lifeCycle)
@@ -493,7 +528,17 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 				return nil, err
 			}
 
-			newTree = append(newTree, node)
+			thisNodeStr, thisNodeIsStr = v[i].(string)
+
+			// Combine strings like a browser would
+			if lastNodeIsStr && thisNodeIsStr && len(newTree) > 0 {
+				// replace last node
+				newTree[len(newTree)-1] = lastNodeStr + thisNodeStr
+			} else {
+				newTree = append(newTree, node)
+			}
+
+			lastNodeStr, lastNodeIsStr = thisNodeStr, thisNodeIsStr
 		}
 
 		return newTree, nil
@@ -523,7 +568,33 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		}
 
 		return newTree, nil
+	case []Component:
+		var newTree []interface{}
+
+		for i := 0; i < len(v); i++ {
+			node, err := p.copyTree(ctx, v[i], lifeCycle)
+			if err != nil {
+				return nil, err
+			}
+
+			newTree = append(newTree, node)
+		}
+
+		return newTree, nil
 	case []*Component:
+		var newTree []interface{}
+
+		for i := 0; i < len(v); i++ {
+			node, err := p.copyTree(ctx, v[i], lifeCycle)
+			if err != nil {
+				return nil, err
+			}
+
+			newTree = append(newTree, node)
+		}
+
+		return newTree, nil
+	case []Tag:
 		var newTree []interface{}
 
 		for i := 0; i < len(v); i++ {

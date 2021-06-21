@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", function(event) {
     function eventData(e) {
         let d = {};
         if (e.currentTarget.value !== undefined) {
-            d.value = e.currentTarget.value;
+            d.value = String(e.currentTarget.value);
         }
 
         if (e.key !== undefined) {
@@ -57,6 +57,165 @@ document.addEventListener("DOMContentLoaded", function(event) {
         }
     }
 
+    function handlerHelperGeneric(e, attrName) {
+        if (!e.currentTarget || !e.currentTarget.hasAttribute || !e.currentTarget.hasAttribute(attrName)) {
+            return
+        }
+
+        const el = e.currentTarget;
+
+        let msg = {
+            t: "e",
+            i: el.getAttribute(attrName),
+        };
+
+        let d = {};
+        if (el.value !== undefined) {
+            d.value = String(el.value);
+        }
+
+        if (e.key !== undefined) {
+            d.key = e.key;
+            d.charCode = String(e.charCode);
+            d.keyCode = String(e.keyCode);
+            d.shiftKey = String(e.shiftKey);
+            d.altKey = String(e.altKey);
+            d.ctrlKey = String(e.ctrlKey);
+        }
+
+        if (d.length !== 0) {
+            msg.d = d;
+        }
+
+        // File?
+        if (el.files) {
+            // No files
+            msg.file = {
+                "name": "",
+                "size": 0,
+                "type": "",
+                "index": 0,
+                "total": 0,
+            };
+            // Single file
+            if (el.files.length === 1) {
+                msg.file = {
+                    "name": el.files[0].name,
+                    "size": el.files[0].size,
+                    "type": el.files[0].type,
+                    "index": 0,
+                    "total": 1,
+                };
+            }
+            // Multiple files
+            // Need to send multiple messages
+            if (el.files.length > 1) {
+                for (let i = 0; i < el.files.length; i++) {
+                    msg.file = {
+                        "name": el.files[i].name,
+                        "size": el.files[i].size,
+                        "type": el.files[i].type,
+                        "index": i,
+                        "total": el.files.length,
+                    };
+
+                    sendMsg(msg);
+                }
+
+                return
+            }
+        }
+
+        sendMsg(msg);
+
+    }
+
+
+    function handlerHelper2(e, handlerID) {
+        const el = e.currentTarget;
+
+        let msg = {
+            t: "e",
+            i: handlerID,
+        };
+
+        let d = {};
+        if (el.value !== undefined) {
+            d.value = String(el.value);
+        }
+
+        if (e.key !== undefined) {
+            d.key = e.key;
+            d.charCode = String(e.charCode);
+            d.keyCode = String(e.keyCode);
+            d.shiftKey = String(e.shiftKey);
+            d.altKey = String(e.altKey);
+            d.ctrlKey = String(e.ctrlKey);
+        }
+
+        if (d.length !== 0) {
+            msg.d = d;
+        }
+
+        // File?
+        if (el.files) {
+            // No files
+            msg.file = {
+                "name": "",
+                "size": 0,
+                "type": "",
+                "index": 0,
+                "total": 0,
+            };
+            // Single file
+            if (el.files.length === 1) {
+                msg.file = {
+                    "name": el.files[0].name,
+                    "size": el.files[0].size,
+                    "type": el.files[0].type,
+                    "index": 0,
+                    "total": 1,
+                };
+            }
+            // Multiple files
+            // Need to send multiple messages
+            if (el.files.length > 1) {
+                for (let i = 0; i < el.files.length; i++) {
+                    msg.file = {
+                        "name": el.files[i].name,
+                        "size": el.files[i].size,
+                        "type": el.files[i].type,
+                        "index": i,
+                        "total": el.files.length,
+                    };
+
+                    sendMsg(msg);
+                }
+
+                return
+            }
+        }
+
+        sendMsg(msg);
+
+    }
+
+    const eventHandler = (e) => {
+        if (!e.currentTarget || !e.currentTarget.getAttribute) {
+            return
+        }
+
+        const el = e.currentTarget;
+
+        const pairs = el.getAttribute("data-hlive-on").split(",");
+        for (let i = 0; i < pairs.length; i++) {
+            const parts = pairs[i].split("|");
+            if (parts[1].toLowerCase() === e.type.toLowerCase()) {
+                handlerHelper2(e, parts[0]);
+            }
+        }
+    }
+
     const clickHandler = (e) => {
         e.preventDefault();
         handlerHelper(e,"data-hlive-onclick");
@@ -83,14 +242,26 @@ document.addEventListener("DOMContentLoaded", function(event) {
     }
 
     const mouseenterHandler = (e) => {
-        handlerWithDataHelper(e,"data-hlive-onmouseenter");
+        handlerHelper(e,"data-hlive-onmouseenter");
     }
 
     const mouseleaveHandler = (e) => {
-        handlerWithDataHelper(e,"data-hlive-onmouseleave");
+        handlerHelper(e,"data-hlive-onmouseleave");
+    }
+
+    const changeHandler = (e) => {
+        handlerHelperGeneric(e, "data-hlive-onchange")
     }
 
     function setEventHandlers() {
+        document.querySelectorAll("[data-hlive-on]").forEach(function (el) {
+            const pairs = el.getAttribute("data-hlive-on").split(",");
+            for (let i = 0; i < pairs.length; i++) {
+                const parts = pairs[i].split("|");
+                el.addEventListener(parts[1].toLowerCase(), eventHandler);
+            }
+        });
+
         document.querySelectorAll("[data-hlive-onclick]").forEach(function (value) {
             value.addEventListener("click", clickHandler);
         });
@@ -119,8 +290,8 @@ document.addEventListener("DOMContentLoaded", function(event) {
             value.addEventListener("mouseenter", mouseenterHandler);
         });
 
-        document.querySelectorAll("[data-hlive-onmouseleave]").forEach(function (value) {
-            value.addEventListener("mouseleave", mouseleaveHandler);
+        document.querySelectorAll("[data-hlive-onchange]").forEach(function (value) {
+            value.addEventListener("change", changeHandler);
         });
     }
 
@@ -173,7 +344,38 @@ document.addEventListener("DOMContentLoaded", function(event) {
             }
         });
 
-        // Trigger ondiffapply
+        // Start file upload
+        document.querySelectorAll("[data-hlive-upload]").forEach(function (el) {
+            if (el.hasAttribute("data-hlive-onupload")) {
+
+                if (el.files.length !== 0) {
+                    let i = 0;
+                    const file = el.files[0];
+
+                    const fileMeta = {
+                        "name": file.name,
+                        "size": file.size,
+                        "type": file.type,
+                        "index": i,
+                        "total": el.files.length,
+                    };
+
+                    let msg = {
+                        t: "e",
+                        i: el.getAttribute("data-hlive-onupload"),
+                        file: fileMeta,
+                    };
+
+                    queueMicrotask(function () {
+                        conn.send(new Blob([JSON.stringify(msg) + "\n\n", el.files[i]], {type: el.files[i].type}));
+                    });
+                }
+            }
+        });
+
+        // Trigger ondiffapply, should always be last
+        // TODO: make work with generic event handler
+        //      maybe: [data-hlive-on*="diffapply"]
         document.querySelectorAll("[data-hlive-ondiffapply]").forEach(function (el) {
             let msg = {
                 t: "e",
@@ -199,6 +401,12 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
         conn.onclose = function (evt) {
             log("con: closed");
+
+            let cover = document.createElement("div");
+            const s = "position:fixed;top:0;left:0;background:rgba(0,0,0,0.4);z-index:5;width:100%;height:100%;";
+            cover.setAttribute("style", s);
+
+            document.getElementsByTagName("body")[0].appendChild(cover);
         };
 
         conn.onmessage = function (evt) {
@@ -342,19 +550,19 @@ document.addEventListener("DOMContentLoaded", function(event) {
                         // Tag / HTML
                         if (parts[diffParts.DiffType] === "c" && parts[diffParts.ContentType] === "h") {
                             // Only a single root element is allowed
-                            let element = document.createElement("div");
-                            element.innerHTML = window.atob(parts[diffParts.Content]);
+                            let template = document.createElement('template');
+                            template.innerHTML = window.atob(parts[diffParts.Content]);
 
                             const index = path[path.length - 1];
                             if (index < target.childNodes.length) {
-                                target.insertBefore(element.firstChild.cloneNode(true), target.childNodes[index]);
+                                target.insertBefore(template.content.firstChild, target.childNodes[index]);
                             } else {
-                                target.appendChild(element.firstChild.cloneNode(true));
+                                target.appendChild(template.content.firstChild);
                             }
                         } else if (parts[diffParts.DiffType] === "u" && parts[diffParts.ContentType] === "h") {
-                            let element = document.createElement("div");
-                            element.innerHTML = window.atob(parts[diffParts.Content]);
-                            target.replaceWith(element.firstChild.cloneNode(true));
+                            let template = document.createElement('template');
+                            template.innerHTML = window.atob(parts[diffParts.Content]);
+                            target.replaceWith(template.content.firstChild);
                         }
 
                         // Attributes
@@ -362,8 +570,13 @@ document.addEventListener("DOMContentLoaded", function(event) {
                             const attrData = window.atob(parts[diffParts.Content]);
                             let attrParts = [];
                             const index = attrData.indexOf("=");
-                            attrParts[0] = attrData.substring(0, index);
-                            attrParts[1] = attrData.substring(index + 1);
+                            if (index === -1) {
+                                attrParts[0] = attrData;
+                                attrParts[1] = "";
+                            } else {
+                                attrParts[0] = attrData.substring(0, index);
+                                attrParts[1] = attrData.substring(index + 1);
+                            }
 
                             const name = attrParts[0].trim();
                             attrParts[0] = attrParts[0].trim()
@@ -376,7 +589,7 @@ document.addEventListener("DOMContentLoaded", function(event) {
                             }
 
                             if (parts[diffParts.DiffType] === "c" || parts[diffParts.DiffType] === "u" ) {
-                                if (attrParts[0] === "value") {
+                                if (name === "value") {
                                     if (target === document.activeElement && attrParts[1] !== "") {
                                         // Don't update when someone is typing
                                     } else {

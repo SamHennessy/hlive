@@ -3,6 +3,47 @@ HLive is a server-side WebSocket based dynamic template-less view layer for Go.
 
 HLive is a fantastic tool for creating complex and dynamic browser-based user interfaces for developers who want to keep all the logic in Go. It's a great use case for admin interfaces and internal company tools.
 
+## Table of contents
+
+- [HLive](#hlive)
+  * [Quick Start Tutorial](#quick-start-tutorial)
+    + [Step 1: Static Page](#step-1--static-page)
+    + [Step 2: Interactive Page](#step-2--interactive-page)
+  * [Examples](#examples)
+  * [Concepts](#concepts)
+    + [Tag](#tag)
+    + [Attribute](#attribute)
+      - [CSS Classes](#css-classes)
+      - [Style Attribute](#style-attribute)
+    + [Tag Children](#tag-children)
+    + [Components](#components)
+      - [EventBinding](#eventbinding)
+      - [EventHandler](#eventhandler)
+    + [Node](#node)
+    + [Element](#element)
+    + [Page](#page)
+      - [HTML vs WebSocket](#html-vs-websocket)
+    + [PageSession](#pagesession)
+    + [PageServer](#pageserver)
+    + [Middleware](#middleware)
+    + [PageSessionStore](#pagesessionstore)
+    + [HTTP vs WebSocket Render](#http-vs-websocket-render)
+    + [Tree and Tree Copy](#tree-and-tree-copy)
+    + [WebSocket Render and Tree Diffing](#websocket-render-and-tree-diffing)
+    + [First WebSocket Render](#first-websocket-render)
+    + [AutoRender and Manuel Render](#autorender-and-manuel-render)
+    + [Local Render](#local-render)
+    + [Differ](#differ)
+    + [Render](#render)
+    + [HTML Type](#html-type)
+    + [JavaScript](#javascript)
+    + [Virtual DOM, Browser DOM](#virtual-dom--browser-dom)
+    + [Lifecycle](#lifecycle)
+  * [Inspiration](#inspiration)
+    + [Phoenix LiveView](#phoenix-liveview)
+    + [gomponents](#gomponents)
+    + [ReactJS and JSX](#reactjs-and-jsx)
+  * [TODO:](#todo-)
 
 ## Quick Start Tutorial
 
@@ -133,6 +174,10 @@ func home() *l.Page {
 Run it and type something into the input. The page should update to display what you typed.
 
 ![Hello world step 2](./tutorial/helloworld/img/step2.png)
+
+## Examples
+
+TODO: link to each example and explain what they are
 
 ## Concepts
 
@@ -272,6 +317,14 @@ If you set `AutoRender` to `false` you can manually trigger a WebSocket render b
 
 If you want only to render a single `Component` and not the whole page, you can call `hlive.RenderComponentWS(ctx context.Context, comp Componenter)` you will also want to set any relevant `Component`s to `AutoRender` `false`.
 
+### Differ
+
+TODO: What is it and how does it work
+
+### Render
+
+TODO: What is it
+
 ### HTML Type
 
 HLive's `HTML` type is a special `string` type that will render what you've set. One rule is that the HTML in `HTML` have a single root node.
@@ -323,6 +376,7 @@ https://reactjs.org/
     - Maybe multiple concurrent requets is okay, maybe we just batch renders,
 - Have non-Live pages, only using the templating for static pages
 - What to do about when a page is reloaded, and the forms are prefilled with data?
+    - check input "value" when doing event binding and match the value
 - Add JavaScript test for multi child delete
     - E.g.:
     - d|d|doc|1>1>0>0>1>2||
@@ -337,3 +391,16 @@ https://reactjs.org/
 - Do we make it a hard rule, one page one user?
 - If multiple sockets are connected to the same page will the inital load of later pages work?
     - That that works, do we need to broadcast to the other connection that the page has changed?
+- Pick a licence 
+- Add animated gifs for tutorial and examples
+- build full todo example site
+- Add a handy debug console
+- Add hooks for custom events
+  - How to add attributes for custom events
+  - How to hook up the JavaScript for these attributes
+- have a single JavaScript event handler, make binding events generic 
+- Do we need Component.On?
+- allow pointer values for CSS and Attrs
+- Update Attributes to always have a value
+  - Then update JS to assume there is always a value
+- browser adds tbody to table

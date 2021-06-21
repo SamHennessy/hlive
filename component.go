@@ -18,6 +18,8 @@ type Componenter interface {
 	GetEventBinding(id string) *EventBinding
 	// GetEventBindings returns all event bindings for this tag
 	GetEventBindings() []*EventBinding
+	// RemoveEventBinding remove an event binding from this component
+	RemoveEventBinding(id string)
 	// IsAutoRender indicates if the page should rerender after an event binding on this tag is called
 	// TODO: move this to it's own interface?
 	IsAutoRender() bool
@@ -159,6 +161,7 @@ func (c *Component) Add(elements ...interface{}) {
 }
 
 // On allows you to add one or more EventBinding to this component
+// TODO: do we need this, as Add also does this
 func (c *Component) On(bindings ...*EventBinding) {
 	for i := 0; i < len(bindings); i++ {
 		c.on(bindings[i])
@@ -187,6 +190,10 @@ func eventToAttr(et EventType) string {
 		attrName = AttrOnMouseLeave
 	case DiffApply:
 		attrName = AttrOnDiffApply
+	case Upload:
+		attrName = AttrOnUpload
+	case Change:
+		attrName = AttrOnChange
 	default:
 		panic(ErrEventType)
 	}
@@ -221,7 +228,14 @@ func (c *Component) on(binding *EventBinding) {
 		id = xid.New().String()
 	}
 
-	attrName := eventToAttr(binding.Type)
+	var attrName string
+
+	if binding.Name != "" {
+		attrName = "data-hlive-on"
+		id = id + "|" + binding.Name
+	} else {
+		attrName = eventToAttr(binding.Type)
+	}
 
 	// Support multiple bindings per type
 	if c.GetAttributeValue(attrName) != "" {
@@ -278,4 +292,20 @@ func OnMouseLeave(handler EventHandler) *EventBinding {
 // made it to the browser. You can then, if you wish, immediately remove it from the tree to prevent more triggers.
 func OnDiffApply(handler EventHandler) *EventBinding {
 	return onHelper(DiffApply, handler)
+}
+
+func OnUpload(handler EventHandler) *EventBinding {
+	return onHelper(Upload, handler)
+}
+
+func OnChange(handler EventHandler) *EventBinding {
+	return onHelper(Change, handler)
+}
+
+func On(name string, handler EventHandler) *EventBinding {
+	binding := NewEventBinding()
+	binding.Handler = handler
+	binding.Name = name
+
+	return binding
 }
