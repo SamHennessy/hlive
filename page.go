@@ -33,6 +33,8 @@ func NewPage() *Page {
 		currentBindings: map[string]*EventBinding{},
 		mountables:      map[string]struct{}{},
 		unmountables:    map[string]Unmounter{},
+
+		send: make(chan []byte, 256),
 	}
 
 	p.Head.Add(p.Meta, p.Title, T("script", HTML(p.Differ.JavaScript)))
@@ -64,6 +66,9 @@ type Page struct {
 	currentBindings map[string]*EventBinding
 	mountables      map[string]struct{}
 	unmountables    map[string]Unmounter
+
+	// Buffered channel of outbound messages.
+	send chan []byte
 }
 
 func (p *Page) SetLogger(logger zerolog.Logger) {
@@ -132,17 +137,6 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 	// Send session id, it maybe new or have changed
 	p.wsSend("s|id|" + sess.ID)
 
-	defer func() {
-		sess.LastActive = time.Now()
-		p.connected = false
-
-		if err := p.weConn.Close(); err != nil {
-			p.logger.Err(err).Msg("ws conn close")
-		} else {
-			p.logger.Trace().Msg("ws close")
-		}
-	}()
-
 	// Do an initial render
 	// The unmounted components will not have an id
 	// Don't think we need a lock, but could be an issue if we have the same concurrent initial request
@@ -160,58 +154,8 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 	p.executeRenderWS(ctx)
 
 	// Start to read messages
-	for {
-		// This blocks until we get a message
-		mt, message, err := p.weConn.ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
-				p.logger.Err(err).Msg("ws read")
-			}
-
-			// Connection properly closed
-			break
-		}
-
-		sess.LastActive = time.Now()
-
-		msg := wsMsg{Data: map[string]string{}}
-
-		if mt == websocket.BinaryMessage {
-			msgParts := bytes.SplitN(message, []byte("\n\n"), 2)
-
-			if len(msgParts) != 2 {
-				p.logger.Error().Msg("invalid binary message")
-
-				continue
-			}
-
-			message = msgParts[0]
-			msg.fileData = msgParts[1]
-		}
-
-		p.logger.Debug().Str("msg", string(message)).Msg("ws msg recv")
-
-		if err := json.Unmarshal(message, &msg); err != nil {
-			p.logger.Err(err).Str("json", string(message)).Msg("ws msg unmarshal")
-
-			continue
-		}
-
-		switch msg.Typ {
-		// logger
-		case "l":
-			p.logger.Info().Str("log", msg.Data["m"]).Msg("ws log")
-		// Event
-		case "e":
-			// Call handler
-			if len(msg.fileData) != 0 && msg.File != nil {
-				msg.File.Data = msg.fileData
-			}
-			p.processMsgEvent(ctx, msg)
-		default:
-			p.logger.Error().Str("msg", string(message)).Msg("ws msg recv: unexpected message format")
-		}
-	}
+	go p.readPump(ctx, sess)
+	go p.writePump()
 }
 
 func (p *Page) executeRenderWS(ctx context.Context) {
@@ -234,9 +178,7 @@ func (p *Page) wsSend(message string) {
 
 	p.logger.Trace().Str("msg", message).Msg("ws send")
 
-	if err := p.weConn.WriteMessage(websocket.TextMessage, []byte(message)); err != nil {
-		p.logger.Err(err).Msg("ws write")
-	}
+	p.send <- []byte(message)
 }
 
 // Create and deletes should only happen at the end of a tag or attr list?
@@ -736,4 +678,160 @@ func (p *Page) findComponent(id string, tree interface{}) *Tag {
 	}
 
 	return nil
+}
+
+// readPump pumps messages from the websocket connection to the hub.
+//
+// The application runs readPump in a per-connection goroutine. The application
+// ensures that there is at most one reader on a connection by executing all
+// reads from this goroutine.
+func (p *Page) readPump(ctx context.Context, sess *PageSession) {
+	defer func() {
+		sess.LastActive = time.Now()
+		p.connected = false
+
+		if err := p.weConn.Close(); err != nil {
+			p.logger.Err(err).Msg("ws conn close")
+		} else {
+			p.logger.Trace().Msg("ws close")
+		}
+	}()
+
+	// c.conn.SetReadLimit(maxMessageSize)
+	if err := p.weConn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+		p.logger.Err(err).Msg("read pump set read deadline")
+	}
+
+	p.weConn.SetPongHandler(func(string) error {
+		p.logger.Trace().Msg("ws pong")
+
+		if err := p.weConn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
+			p.logger.Err(err).Msg("pong handler: set read deadline")
+		}
+
+		return nil
+	})
+
+	for {
+		mt, message, err := p.weConn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				p.logger.Err(err).Msg("unexpected close error")
+			}
+
+			break
+		}
+
+		sess.LastActive = time.Now()
+
+		msg := wsMsg{Data: map[string]string{}}
+
+		if mt == websocket.BinaryMessage {
+			msgParts := bytes.SplitN(message, []byte("\n\n"), 2)
+
+			if len(msgParts) != 2 {
+				p.logger.Error().Msg("invalid binary message")
+
+				continue
+			}
+
+			message = msgParts[0]
+			msg.fileData = msgParts[1]
+		}
+
+		p.logger.Debug().Str("msg", string(message)).Msg("ws msg recv")
+
+		if err := json.Unmarshal(message, &msg); err != nil {
+			p.logger.Err(err).Str("json", string(message)).Msg("ws msg unmarshal")
+
+			continue
+		}
+
+		switch msg.Typ {
+		// logger
+		case "l":
+			p.logger.Info().Str("log", msg.Data["m"]).Msg("ws log")
+		// Event
+		case "e":
+			// Call handler
+			if len(msg.fileData) != 0 && msg.File != nil {
+				msg.File.Data = msg.fileData
+			}
+
+			p.processMsgEvent(ctx, msg)
+		default:
+			p.logger.Error().Str("msg", string(message)).Msg("ws msg recv: unexpected message format")
+		}
+	}
+}
+
+// writePump pumps messages from the hub to the websocket connection.
+//
+// A goroutine running writePump is started for each connection. The
+// application ensures that there is at most one writer to a connection by
+// executing all writes from this goroutine.
+func (p *Page) writePump() {
+	ticker := time.NewTicker(pingPeriod)
+	defer func() {
+		ticker.Stop()
+
+		if err := p.weConn.Close(); err != nil {
+			p.logger.Err(err).Msg("write pump: close ws connection")
+		}
+	}()
+
+	for {
+		select {
+		case message, ok := <-p.send:
+			if err := p.weConn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				p.logger.Err(err).Msg("write pump: message set write deadline")
+			}
+
+			if !ok {
+				// Send channel closed.
+				if err := p.weConn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
+					p.logger.Err(err).Msg("write pump: write close message")
+				}
+
+				return
+			}
+
+			w, err := p.weConn.NextWriter(websocket.TextMessage)
+			if err != nil {
+				p.logger.Err(err).Msg("write pump: create writer")
+
+				return
+			}
+
+			if _, err := w.Write(message); err != nil {
+				p.logger.Err(err).Msg("write pump: write first message")
+			}
+
+			// Add queued chat messages to the current websocket message.
+			n := len(p.send)
+			for i := 0; i < n; i++ {
+				if _, err := w.Write(newline); err != nil {
+					p.logger.Err(err).Msg("write pump: write queued message")
+				}
+
+				if _, err := w.Write(<-p.send); err != nil {
+					p.logger.Err(err).Msg("write pump: write message delimiter")
+				}
+			}
+
+			if err := w.Close(); err != nil {
+				return
+			}
+		case <-ticker.C:
+			p.logger.Trace().Msg("ws ping")
+
+			if err := p.weConn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
+				p.logger.Err(err).Msg("write pump: ping tick: set write deadline")
+			}
+
+			if err := p.weConn.WriteMessage(websocket.PingMessage, nil); err != nil {
+				return
+			}
+		}
+	}
 }
