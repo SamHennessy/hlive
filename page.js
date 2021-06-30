@@ -132,6 +132,8 @@ document.addEventListener("DOMContentLoaded", function(event) {
 
 
     function handlerHelper2(e, handlerID) {
+        e.preventDefault();
+
         const el = e.currentTarget;
 
         let msg = {

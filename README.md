@@ -366,7 +366,6 @@ https://reactjs.org/
 ## TODO:
 
 - Store to database demo
-- add WS ping-pong
 - CSS animation chain, classes that will be in order, after the previous link triggers onanimationend
     - this is find of like giving focus but with focue you can turn it off using the onfocue event
     - On last step of the chain we can trigger a custom event
@@ -384,23 +383,22 @@ https://reactjs.org/
 - Page level events, e.g., page history.
 - Remove isWebSocket from context
 - Emoji's not working on input
-- WS reconnect or reload on fail
-    - Allow multiple reconnect tries to try to find the correct server
-    - New session on fail
-- If we remove reconnect we can simplify session store
+- WS reconnect, make it optional and off by default
 - Do we make it a hard rule, one page one user?
-- If multiple sockets are connected to the same page will the inital load of later pages work?
-    - That that works, do we need to broadcast to the other connection that the page has changed?
+  - YES
 - Pick a licence 
 - Add animated gifs for tutorial and examples
 - build full todo example site
 - Add a handy debug console
-- Add hooks for custom events
-  - How to add attributes for custom events
-  - How to hook up the JavaScript for these attributes
 - have a single JavaScript event handler, make binding events generic 
 - Do we need Component.On?
+  - Let's remove it for now, we can add it back later
 - allow pointer values for CSS and Attrs
 - Update Attributes to always have a value
   - Then update JS to assume there is always a value
 - browser adds tbody to table
+- Change GetNodes to only return interface{} and not []interface{}
+- copyTree error wrapping is not very productive
+
+Good use case:
+ - Interactive code review tool with large diff files. 

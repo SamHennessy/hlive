@@ -5,9 +5,19 @@ type HTML string
 
 type RenderFunc func() []interface{}
 
-func If(ok *bool, nodes ...interface{}) RenderFunc {
+func IfP(ok *bool, nodes ...interface{}) RenderFunc {
 	return func() []interface{} {
 		if ok != nil && *ok {
+			return nodes
+		}
+
+		return nil
+	}
+}
+
+func If(ok bool, nodes ...interface{}) RenderFunc {
+	return func() []interface{} {
+		if ok {
 			return nodes
 		}
 
