@@ -200,7 +200,8 @@ func (p *Page) diffsToMsg(diffs []Diff) string {
 		if diff.Type == DiffDelete && diff.Attribute == nil {
 			message += "|"
 		} else if diff.Text != nil {
-			el = *diff.Text
+			// We use node.textContent in the browser which doesn't require us to encode
+			el = HTML(*diff.Text)
 			message += "t|"
 		} else if diff.HTML != nil {
 			el = *diff.HTML
