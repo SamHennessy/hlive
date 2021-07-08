@@ -100,7 +100,7 @@ go run ./tutorial/helloworld/helloworld.go
 
 In a browser go to http://localhost:3000 you should see this:
 
-![Hello world step 1](./tutorial/helloworld/img/step1.png)
+![Hello world step 1](./_tutorial/helloworld/img/step1.png)
 
 ### Step 2: Interactive Page
 HLive is all about interactive content. We're going to add a text input field to let us type our own hello message.
@@ -183,7 +183,7 @@ func home() *l.Page {
 
 Run it and type something into the input. The page should update to display what you typed.
 
-![Hello world step 2](./tutorial/helloworld/img/step2.gif)
+![Hello world step 2](./_tutorial/helloworld/img/step2.gif)
 
 ## Examples
 
