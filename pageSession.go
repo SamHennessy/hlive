@@ -149,6 +149,15 @@ func NewPageServer(pf func() *Page) *PageServer {
 	return s
 }
 
+func NewPageServerWithSessionStore(pf func() *Page, sess *PageSessionStore) *PageServer {
+	s := &PageServer{
+		pageFunc: pf,
+		Sessions: sess,
+	}
+
+	return s
+}
+
 type PageServer struct {
 	pageFunc func() *Page
 	Sessions *PageSessionStore
@@ -158,10 +167,15 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// WebSocket?
 	if sessID := r.URL.Query().Get("ws"); sessID != "" {
 		var sess *PageSession
-		// TODO: need to rethink reconnect
+
+		// TODO: check is we already have a page connection?
 		if sessID != "1" {
 			sess = s.Sessions.Get(sessID)
+
+			// TODO: if nil we can't just start a new session, the browser will not be synced.
+			// 		 We would need to trigger a page reload.
 		}
+
 		// New or not found
 		if sess == nil {
 			sess = s.Sessions.New()

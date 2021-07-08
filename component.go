@@ -1,19 +1,20 @@
 package hlive
 
 import (
-	"context"
 	"strings"
 
 	"github.com/rs/xid"
 )
 
-// Componenter builds on Tagger and adds the ability to handle events.
-type Componenter interface {
-	// Tagger means this is a tag
+type UniqueTagger interface {
 	Tagger
-
-	// GetID will return a unique id for this tag
+	// GetID will return a unique id
 	GetID() string
+}
+
+// Componenter builds on UniqueTagger and adds the ability to handle events.
+type Componenter interface {
+	UniqueTagger
 	// GetEventBinding returns a binding by it's id
 	GetEventBinding(id string) *EventBinding
 	// GetEventBindings returns all event bindings for this tag
@@ -21,34 +22,7 @@ type Componenter interface {
 	// RemoveEventBinding remove an event binding from this component
 	RemoveEventBinding(id string)
 	// IsAutoRender indicates if the page should rerender after an event binding on this tag is called
-	// TODO: move this to it's own interface?
 	IsAutoRender() bool
-}
-
-// Mounter wants to be notified after it's mounted.
-type Mounter interface {
-	// GetID will return a unique id for this tag
-	GetID() string
-	// Mount is called after a component is mounted
-	Mount(ctx context.Context)
-}
-
-// Unmounter wants to be notified before it's unmounted.
-type Unmounter interface {
-	// GetID will return a unique id for this tag
-	GetID() string
-	// Unmount is called before a component is unmounted
-	Unmount(ctx context.Context)
-}
-
-// Teardowner wants to be able to manual control when it needs to be removed from a Page.
-// If you have a Mounter or Unmounter that will be permanently removed from a Page they must call the passed
-// function to clean up their references.
-type Teardowner interface {
-	// GetID will return a unique id for this tag
-	GetID() string
-	// SetTeardown set teardown function
-	SetTeardown(teardown func())
 }
 
 // Component is an the default implementation of Componenter.
@@ -132,8 +106,6 @@ func (c *Component) RemoveEventBinding(id string) {
 
 	for i := 0; i < len(c.bindings); i++ {
 		if c.bindings[i].ID == id {
-			c.removeIDFromAttr(id, eventToAttr(c.bindings[i].Type))
-
 			continue
 		}
 
@@ -141,6 +113,21 @@ func (c *Component) RemoveEventBinding(id string) {
 	}
 
 	c.bindings = newList
+
+	// Reset attribute
+	var value string
+
+	for i := 0; i < len(c.bindings); i++ {
+		value += c.bindings[i].ID + "|" + c.bindings[i].Name + ","
+	}
+
+	value = strings.TrimRight(value, ",")
+
+	if value == "" {
+		c.RemoveAttributes(AttrOn)
+	} else {
+		c.Add(Attrs{AttrOn: value})
+	}
 }
 
 // Add an element to this Component.
@@ -153,70 +140,10 @@ func (c *Component) Add(elements ...interface{}) {
 				c.Add(v[j])
 			}
 		case *EventBinding:
-			c.On(v)
+			c.on(v)
 		default:
 			c.Tag.Add(v)
 		}
-	}
-}
-
-// On allows you to add one or more EventBinding to this component
-// TODO: do we need this, as Add also does this
-func (c *Component) On(bindings ...*EventBinding) {
-	for i := 0; i < len(bindings); i++ {
-		c.on(bindings[i])
-	}
-}
-
-func eventToAttr(et EventType) string {
-	var attrName string
-
-	switch et {
-	case Click:
-		attrName = AttrOnClick
-	case KeyDown:
-		attrName = AttrOnKeyDown
-	case KeyUp:
-		attrName = AttrOnKeyUp
-	case Focus:
-		attrName = AttrOnFocus
-	case AnimationEnd:
-		attrName = AttrOnAnimationEnd
-	case AnimationCancel:
-		attrName = AttrOnAnimationCancel
-	case MouseEnter:
-		attrName = AttrOnMouseEnter
-	case MouseLeave:
-		attrName = AttrOnMouseLeave
-	case DiffApply:
-		attrName = AttrOnDiffApply
-	case Upload:
-		attrName = AttrOnUpload
-	case Change:
-		attrName = AttrOnChange
-	default:
-		panic(ErrEventType)
-	}
-
-	return attrName
-}
-
-func (c *Component) removeIDFromAttr(id, attrName string) {
-	var newIDs []string
-
-	oldIDs := strings.Split(c.GetAttribute(attrName).GetValue(), ",")
-	for j := 0; j < len(oldIDs); j++ {
-		if oldIDs[j] == id {
-			continue
-		}
-
-		newIDs = append(newIDs, oldIDs[j])
-	}
-
-	if len(newIDs) == 0 {
-		c.RemoveAttributes(attrName)
-	} else {
-		c.Add(NewAttribute(attrName, strings.Join(newIDs, ",")))
 	}
 }
 
@@ -228,84 +155,31 @@ func (c *Component) on(binding *EventBinding) {
 		id = xid.New().String()
 	}
 
-	var attrName string
-
-	if binding.Name != "" {
-		attrName = "data-hlive-on"
-		id = id + "|" + binding.Name
-	} else {
-		attrName = eventToAttr(binding.Type)
-	}
+	value := id + "|" + binding.Name
 
 	// Support multiple bindings per type
-	if c.GetAttributeValue(attrName) != "" {
-		id = c.GetAttributeValue(attrName) + "," + id
+	if c.GetAttributeValue(AttrOn) != "" {
+		value = c.GetAttributeValue(AttrOn) + "," + value
 	}
 
-	c.Add(NewAttribute(attrName, id))
+	c.Add(NewAttribute(AttrOn, value))
 
 	c.bindings = append(c.bindings, binding)
-}
-
-func onHelper(eventType EventType, handler EventHandler) *EventBinding {
-	binding := NewEventBinding()
-	binding.Type = eventType
-	binding.Handler = handler
-
-	return binding
-}
-
-func OnClick(handler EventHandler) *EventBinding {
-	return onHelper(Click, handler)
-}
-
-func OnKeyDown(handler EventHandler) *EventBinding {
-	return onHelper(KeyDown, handler)
-}
-
-func OnKeyUp(handler EventHandler) *EventBinding {
-	return onHelper(KeyUp, handler)
-}
-
-func OnFocus(handler EventHandler) *EventBinding {
-	return onHelper(Focus, handler)
-}
-
-func OnAnimationEnd(handler EventHandler) *EventBinding {
-	return onHelper(AnimationEnd, handler)
-}
-
-func OnAnimationCancel(handler EventHandler) *EventBinding {
-	return onHelper(AnimationCancel, handler)
-}
-
-func OnMouseEnter(handler EventHandler) *EventBinding {
-	return onHelper(MouseEnter, handler)
-}
-
-func OnMouseLeave(handler EventHandler) *EventBinding {
-	return onHelper(MouseLeave, handler)
-}
-
-// OnDiffApply is a special event that will trigger when a diff is applied.
-// This means that it will trigger itself when first added. This will allow you to know when a change in the tree has
-// made it to the browser. You can then, if you wish, immediately remove it from the tree to prevent more triggers.
-func OnDiffApply(handler EventHandler) *EventBinding {
-	return onHelper(DiffApply, handler)
-}
-
-func OnUpload(handler EventHandler) *EventBinding {
-	return onHelper(Upload, handler)
-}
-
-func OnChange(handler EventHandler) *EventBinding {
-	return onHelper(Change, handler)
 }
 
 func On(name string, handler EventHandler) *EventBinding {
 	binding := NewEventBinding()
 	binding.Handler = handler
-	binding.Name = name
+	binding.Name = strings.ToLower(name)
+
+	return binding
+}
+
+func OnOnce(name string, handler EventHandler) *EventBinding {
+	binding := NewEventBinding()
+	binding.Handler = handler
+	binding.Name = strings.ToLower(name)
+	binding.Once = true
 
 	return binding
 }

@@ -110,7 +110,7 @@ func TestBrowser_ClickButton(t *testing.T) {
 
 	count := 0
 	cBtn := hlive.C("button", hlive.Attrs{"id": "target"},
-		hlive.OnClick(func(ctx context.Context, e hlive.Event) {
+		hlive.On("click", func(ctx context.Context, e hlive.Event) {
 			count++
 		}),
 		&count,
@@ -171,7 +171,7 @@ func TestBrowser_ClickButtonMultiple(t *testing.T) {
 
 	count := 0
 	cBtn := hlive.C("button", hlive.Attrs{"id": "target"},
-		hlive.OnClick(func(ctx context.Context, e hlive.Event) {
+		hlive.On("click", func(ctx context.Context, e hlive.Event) {
 			count++
 		}),
 		&count,

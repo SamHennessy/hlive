@@ -1,13 +1,15 @@
 # HLive
 HLive is a server-side WebSocket based dynamic template-less view layer for Go.
 
-HLive is a fantastic tool for creating complex and dynamic browser-based user interfaces for developers who want to keep all the logic in Go. It's a great use case for admin interfaces and internal company tools.
+HLive is a fantastic tool for creating complex and dynamic browser-based user interfaces for developers who want to keep all the logic in Go.
 
+All the power and data available on the backend with the responsive feel of a pure JavaScript solution. 
 
+It's a great use case for admin interfaces and internal company tools.
 
 ## Notice
 
-<span style="color:darkgreen">**The first version of the API is under active development. Change is likely. Your feedback is welcome.**</span>
+**The first version of the API is under active development. Change is likely. Your feedback is welcome.**
 
 ## Table of contents
 
@@ -122,10 +124,10 @@ We want to set the input to a text type. We do this adding a`Attrs` map to our `
 	input.Add(l.Attrs{"type": "text"})
 ```
 
-Here we add an `EventBinding`. This binding will trigger on key up in the browser. When the event's triggered, the handler function will be called. Our handler will update `message`. It does this by using what was passed from the `Event`.
+Here we add an `EventBinding` to listen to "keyup" JavaScript events. When triggered, the handler function will be called. Our handler will update `message`. It does this by using the data in the passed `Event` parameter.
 
 ```go
-	input.On(l.OnKeyUp(func(ctx context.Context, e l.Event) {
+	input.On(l.On("keyup", func(ctx context.Context, e l.Event) {
 		message = e.Value
 	}))
 ```
@@ -142,9 +144,10 @@ Here we add our `input` to the body but first we wrap it in a `div` tag.
 	page.Body.Add(l.T("div", input))
 ```
 
-Next, we will display our message. Notice that we're passing `message` by reference. That's key for making this work.
+Next, we will display our message. Notice that we're passing `message` by reference. That's key for making this example work. We'll also add an "hr" tag to stop it being squashed todeather.
 
 ```go
+	page.Body.Add(l.T("hr"))
 	page.Body.Add("Hello, ", &message)
 ```
 
@@ -170,6 +173,7 @@ func home() *l.Page {
 	page := l.NewPage()
 	page.Body.Add(
 		l.T("div", input),
+		l.T("hr"),
 		"Hello, ", &message,
 	)
 
@@ -179,7 +183,7 @@ func home() *l.Page {
 
 Run it and type something into the input. The page should update to display what you typed.
 
-![Hello world step 2](./tutorial/helloworld/img/step2.png)
+![Hello world step 2](./tutorial/helloworld/img/step2.gif)
 
 ## Examples
 
@@ -215,9 +219,9 @@ The order of the style rules in a single `Style` is NOT respected. If the order 
 
 ### Tag Children
 
-`Tag` has `func GetNodes() []interface{}`. This will return can children a `Tag` has.
+`Tag` has `func GetNodes() interface{}`. This will return can children a `Tag` has.
 
-This function may be called many times and not always when it's time to render. Calls to `GetNodes` must
+This function is called many times and not always when it's time to render. Calls to `GetNodes` must
 be [deterministic](https://en.wikipedia.org/wiki/Deterministic_algorithm). If you've not made a change to the `Tag`
 the output is expected to be the same.
 
@@ -371,40 +375,22 @@ https://reactjs.org/
 
 ## TODO:
 
-- Store to database demo
-- CSS animation chain, classes that will be in order, after the previous link triggers onanimationend
-    - this is find of like giving focus but with focue you can turn it off using the onfocue event
-    - On last step of the chain we can trigger a custom event
-    - OnChainComplete, then use can remove the attribute
+- Better log solution in the JavaScript, need to know if in debug mode?
+  - Send a message to indicate debug mode
+  - Also, could control reconnect on/off and limit
 - Batch message sends and receives in the javascript (https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide)
 - Add a queue for incoming messages on a page session
-    - Maybe multiple concurrent requets is okay, maybe we just batch renders,
-- Have non-Live pages, only using the templating for static pages
-- What to do about when a page is reloaded, and the forms are prefilled with data?
-    - check input "value" when doing event binding and match the value
+    - Maybe multiple concurrent requests is okay, maybe we just batch renders?
 - Add JavaScript test for multi child delete
     - E.g.:
     - d|d|doc|1>1>0>0>1>2||
     - d|d|doc|1>1>0>0>1>3||
-- Page level events, e.g., page history.
-- Remove isWebSocket from context
-- Emoji's not working on input
-- WS reconnect, make it optional and off by default
-- Do we make it a hard rule, one page one user?
-  - YES
-- Pick a licence 
-- Add animated gifs for tutorial and examples
-- build full todo example site
-- Add a handy debug console
-- have a single JavaScript event handler, make binding events generic 
-- Do we need Component.On?
-  - Let's remove it for now, we can add it back later
-- allow pointer values for CSS and Attrs
-- Update Attributes to always have a value
-  - Then update JS to assume there is always a value
-- browser adds tbody to table
-- Change GetNodes to only return interface{} and not []interface{}
+- Remove isWebSocket from context. Move it out of the context?
 - copyTree error wrapping is not very productive
+- Document that browser adds tbody to table
+- Add initial page sync to concepts
+- Add one page one user to concepts
+- Document how to debug in browser
 
 Good use case:
  - Interactive code review tool with large diff files. 

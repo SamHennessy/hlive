@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 
 	l "github.com/SamHennessy/hlive"
 	"github.com/rs/xid"
@@ -12,10 +11,10 @@ import (
 )
 
 func main() {
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger().Level(zerolog.InfoLevel)
-	s := NewService()
+	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+	s := newService()
 
-	http.HandleFunc("/", sessionMiddleware(Home(logger, s).ServeHTTP))
+	http.HandleFunc("/", sessionMiddleware(home(logger, s).ServeHTTP))
 
 	logger.Info().Str("addr", ":3000").Msg("listing")
 
@@ -24,12 +23,18 @@ func main() {
 	}
 }
 
-func Home(logger zerolog.Logger, s *Service) *l.PageServer {
+func home(logger zerolog.Logger, s *service) *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.Title.Add("HTTP Session Example")
 		page.SetLogger(logger)
-		page.Body.Add(newMessage(s))
+		page.Title.Add("HTTP Session Example")
+		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+
+		page.Body.Add(
+			l.T("h1", "Your Message"),
+			l.T("p", "Your message will persist between page reloads but not server reloads"),
+			newMessage(s),
+		)
 
 		return page
 	}
@@ -37,9 +42,9 @@ func Home(logger zerolog.Logger, s *Service) *l.PageServer {
 	return l.NewPageServer(f)
 }
 
-type CtxKey string
+type ctxKey string
 
-const SessionKey CtxKey = "session"
+const SessionKey ctxKey = "session"
 
 func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	cookieName := "hlive_session"
@@ -71,29 +76,29 @@ func GetSessionID(ctx context.Context) string {
 	return val
 }
 
-func NewService() *Service {
-	return &Service{userMessage: map[string]string{}}
+func newService() *service {
+	return &service{userMessage: map[string]string{}}
 }
 
-type Service struct {
+type service struct {
 	userMessage map[string]string
 }
 
-func (s *Service) SetMessage(userID, message string) {
+func (s *service) SetMessage(userID, message string) {
 	s.userMessage[userID] = message
 }
 
-func (s *Service) GetMessage(userID string) string {
+func (s *service) GetMessage(userID string) string {
 	return s.userMessage[userID]
 }
 
-func newMessage(service *Service) *message {
+func newMessage(service *service) *message {
 	c := &message{
-		Component: l.NewComponent("span"),
+		Component: l.C("textarea"),
 		service:   service,
 	}
 
-	c.On(l.OnKeyUp(func(ctx context.Context, e l.Event) {
+	c.Add(l.On("change", func(ctx context.Context, e l.Event) {
 		c.service.SetMessage(GetSessionID(ctx), e.Value)
 	}))
 
@@ -105,15 +110,13 @@ type message struct {
 
 	Message string
 
-	service *Service
+	service *service
 }
 
 func (c *message) Mount(ctx context.Context) {
 	c.Message = c.service.GetMessage(GetSessionID(ctx))
 }
 
-func (c *message) GetNodes() []interface{} {
-	c.SetName("textarea")
-
+func (c *message) GetNodes() interface{} {
 	return l.Tree(c.Message)
 }

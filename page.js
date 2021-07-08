@@ -1,631 +1,526 @@
-document.addEventListener("DOMContentLoaded", function(event) {
-    let conn = null;
+let hlive = {
+    reconnectLimit: 5,
+    reconnectCount: 0,
+    conn: null,
+    isInitialSyncDone: false,
+    sessID: 1,
+};
 
-    function sendMsg(msg) {
-        queueMicrotask(function () {
-            conn.send(JSON.stringify(msg));
-        });
+hlive.msgPart = {
+    Type: 0,
+};
+
+hlive.diffParts = {
+    DiffType: 1,
+    Root: 2,
+    Path: 3,
+    ContentType: 4,
+    Content: 5,
+};
+
+// Ref: https://stackoverflow.com/questions/30106476/using-javascripts-atob-to-decode-base64-doesnt-properly-decode-utf-8-strings
+hlive.b64DecodeUnicode = (str) => {
+    // Going backwards: from byte stream, to percent-encoding, to original string.
+    return decodeURIComponent(atob(str).split('').map(function(c) {
+        return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+}
+
+hlive.eventHandler = (e) => {
+    if (!e.currentTarget || !e.currentTarget.getAttribute) {
+        return
     }
 
-    function log(message) {
-        console.log(message)
-        if (conn) {
-            let msg = {
-                t: "l",
-                d: {m: message},
-            };
-            sendMsg(msg);
+    const el = e.currentTarget;
+
+    const pairs = el.getAttribute("data-hlive-on").split(",");
+    for (let i = 0; i < pairs.length; i++) {
+        const parts = pairs[i].split("|");
+        if (parts[1].toLowerCase() === e.type.toLowerCase()) {
+            hlive.eventHandlerHelper(e, parts[0], false);
         }
     }
+}
 
-    function eventData(e) {
-        let d = {};
-        if (e.currentTarget.value !== undefined) {
-            d.value = String(e.currentTarget.value);
-        }
-
-        if (e.key !== undefined) {
-            d.key = e.key;
-            d.charCode = String(e.charCode);
-            d.keyCode = String(e.keyCode);
-            d.shiftKey = String(e.shiftKey);
-            d.altKey = String(e.altKey);
-            d.ctrlKey = String(e.ctrlKey);
-        }
-
-        return d
+hlive.removeEventHandlers = (el) => {
+    if (!el.getAttribute ) {
+        return
     }
 
-    function handlerHelper(e, attrName) {
-        if (e.currentTarget && e.currentTarget.hasAttribute && e.currentTarget.hasAttribute(attrName)) {
-            let msg = {
-                t: "e",
-                i: e.currentTarget.getAttribute(attrName),
-            };
-            sendMsg(msg);
-        }
+    const value = el.getAttribute("data-hlive-on");
+
+    if (value === null || value === "") {
+        return
     }
 
-    function handlerWithDataHelper(e, attrName) {
-        if (e.currentTarget && e.currentTarget.hasAttribute && e.currentTarget.hasAttribute(attrName)) {
-            let msg = {
-                t: "e",
-                i: e.currentTarget.getAttribute(attrName),
-                d: eventData(e),
-            };
-            sendMsg(msg);
-        }
+    const pairs = value.split(",");
+    for (let i = 0; i < pairs.length; i++) {
+        const parts = pairs[i].split("|");
+        el.removeEventListener(parts[1].toLowerCase(), hlive.eventHandler)
     }
+}
 
-    function handlerHelperGeneric(e, attrName) {
-        if (!e.currentTarget || !e.currentTarget.hasAttribute || !e.currentTarget.hasAttribute(attrName)) {
-            return
-        }
-
-        const el = e.currentTarget;
-
-        let msg = {
-            t: "e",
-            i: el.getAttribute(attrName),
-        };
-
-        let d = {};
-        if (el.value !== undefined) {
-            d.value = String(el.value);
-        }
-
-        if (e.key !== undefined) {
-            d.key = e.key;
-            d.charCode = String(e.charCode);
-            d.keyCode = String(e.keyCode);
-            d.shiftKey = String(e.shiftKey);
-            d.altKey = String(e.altKey);
-            d.ctrlKey = String(e.ctrlKey);
-        }
-
-        if (d.length !== 0) {
-            msg.d = d;
-        }
-
-        // File?
-        if (el.files) {
-            // No files
-            msg.file = {
-                "name": "",
-                "size": 0,
-                "type": "",
-                "index": 0,
-                "total": 0,
-            };
-            // Single file
-            if (el.files.length === 1) {
-                msg.file = {
-                    "name": el.files[0].name,
-                    "size": el.files[0].size,
-                    "type": el.files[0].type,
-                    "index": 0,
-                    "total": 1,
-                };
-            }
-            // Multiple files
-            // Need to send multiple messages
-            if (el.files.length > 1) {
-                for (let i = 0; i < el.files.length; i++) {
-                    msg.file = {
-                        "name": el.files[i].name,
-                        "size": el.files[i].size,
-                        "type": el.files[i].type,
-                        "index": i,
-                        "total": el.files.length,
-                    };
-
-                    sendMsg(msg);
-                }
-
-                return
-            }
-        }
-
-        sendMsg(msg);
-
-    }
-
-
-    function handlerHelper2(e, handlerID) {
+hlive.eventHandlerHelper = (e, handlerID, isInitial) => {
+    if (e.preventDefault) {
         e.preventDefault();
-
-        const el = e.currentTarget;
-
-        let msg = {
-            t: "e",
-            i: handlerID,
-        };
-
-        let d = {};
-        if (el.value !== undefined) {
-            d.value = String(el.value);
-        }
-
-        if (e.key !== undefined) {
-            d.key = e.key;
-            d.charCode = String(e.charCode);
-            d.keyCode = String(e.keyCode);
-            d.shiftKey = String(e.shiftKey);
-            d.altKey = String(e.altKey);
-            d.ctrlKey = String(e.ctrlKey);
-        }
-
-        if (d.length !== 0) {
-            msg.d = d;
-        }
-
-        // File?
-        if (el.files) {
-            // No files
-            msg.file = {
-                "name": "",
-                "size": 0,
-                "type": "",
-                "index": 0,
-                "total": 0,
-            };
-            // Single file
-            if (el.files.length === 1) {
-                msg.file = {
-                    "name": el.files[0].name,
-                    "size": el.files[0].size,
-                    "type": el.files[0].type,
-                    "index": 0,
-                    "total": 1,
-                };
-            }
-            // Multiple files
-            // Need to send multiple messages
-            if (el.files.length > 1) {
-                for (let i = 0; i < el.files.length; i++) {
-                    msg.file = {
-                        "name": el.files[i].name,
-                        "size": el.files[i].size,
-                        "type": el.files[i].type,
-                        "index": i,
-                        "total": el.files.length,
-                    };
-
-                    sendMsg(msg);
-                }
-
-                return
-            }
-        }
-
-        sendMsg(msg);
-
     }
 
-    const eventHandler = (e) => {
-        if (!e.currentTarget || !e.currentTarget.getAttribute) {
+    const el = e.currentTarget;
+
+    let msg = {
+        t: "e",
+        i: handlerID,
+    };
+
+    let d = {};
+    if (el.value !== undefined) {
+        d.value = String(el.value);
+        if (isInitial) {
+            d.init = "true";
+        }
+    }
+
+    if (e.key !== undefined) {
+        d.key = e.key;
+        d.charCode = String(e.charCode);
+        d.keyCode = String(e.keyCode);
+        d.shiftKey = String(e.shiftKey);
+        d.altKey = String(e.altKey);
+        d.ctrlKey = String(e.ctrlKey);
+    }
+
+    if (d.length !== 0) {
+        msg.d = d;
+    }
+
+    // File?
+    if (el.files) {
+        // No files
+        msg.file = {
+            "name": "",
+            "size": 0,
+            "type": "",
+            "index": 0,
+            "total": 0,
+        };
+        // Single file
+        if (el.files.length === 1) {
+            msg.file = {
+                "name": el.files[0].name,
+                "size": el.files[0].size,
+                "type": el.files[0].type,
+                "index": 0,
+                "total": 1,
+            };
+        }
+        // Multiple files
+        // Need to send multiple messages
+        if (el.files.length > 1) {
+            for (let i = 0; i < el.files.length; i++) {
+                msg.file = {
+                    "name": el.files[i].name,
+                    "size": el.files[i].size,
+                    "type": el.files[i].type,
+                    "index": i,
+                    "total": el.files.length,
+                };
+
+                hlive.sendMsg(msg);
+            }
+
             return
         }
+    }
 
-        const el = e.currentTarget;
+    hlive.sendMsg(msg);
+}
 
+hlive.sendMsg = (msg) => {
+    queueMicrotask(function () {
+        // https://developer.mozilla.org/en-US/docs/Web/API/WebSocket/readyState
+        // TODO: maybe add to a retry queue?
+        if (hlive.conn.readyState === 1) {
+            hlive.conn.send(JSON.stringify(msg));
+        }
+    });
+}
+
+hlive.log = (message) => {
+    console.log(message)
+    if (hlive.conn) {
+        let msg = {
+            t: "l",
+            d: {m: message},
+        };
+        hlive.sendMsg(msg);
+    }
+}
+
+hlive.setEventHandlers = () => {
+    document.querySelectorAll("[data-hlive-on]").forEach(function (el) {
         const pairs = el.getAttribute("data-hlive-on").split(",");
         for (let i = 0; i < pairs.length; i++) {
             const parts = pairs[i].split("|");
-            if (parts[1].toLowerCase() === e.type.toLowerCase()) {
-                handlerHelper2(e, parts[0]);
+            el.addEventListener(parts[1].toLowerCase(), hlive.eventHandler);
+        }
+    });
+}
+
+// Looks at the current value of the input and if needed triggers events to sync that value to the backend
+hlive.syncInitialInputValues = () => {
+    document.querySelectorAll("[data-hlive-on]").forEach(function (el) {
+        const pairs = el.getAttribute("data-hlive-on").split(",");
+        for (let i = 0; i < pairs.length; i++) {
+            if (el.value !== undefined && el.value === "") {
+                continue
+            }
+
+            const parts = pairs[i].split("|");
+            const name = parts[1].toLowerCase();
+
+            if (name === "keyup" || name === "keydown" || name === "keypress" || name === "input" || name === "change") {
+                const evt = {
+                    currentTarget: el
+                }
+
+                hlive.eventHandlerHelper(evt, parts[0], true);
             }
         }
+    });
+}
+
+hlive.postMessage = () => {
+    hlive.setEventHandlers();
+
+    if (!hlive.isInitialSyncDone) {
+        hlive.isInitialSyncDone = true;
+        hlive.syncInitialInputValues();
     }
 
-    const clickHandler = (e) => {
-        e.preventDefault();
-        handlerHelper(e,"data-hlive-onclick");
-    }
+    // Give focus
+    document.querySelectorAll("[data-hlive-focus]").forEach(function (el) {
+        el.focus();
+        if (el.selectionStart !== undefined) {
+            setTimeout(function(){ el.selectionStart = el.selectionEnd = 10000; }, 0);
+        }
+    });
 
-    const focusHandler = (e) => {
-        handlerHelper(e,"data-hlive-onfocus");
-    }
+    // Start file upload
+    document.querySelectorAll("[data-hlive-upload]").forEach(function (el) {
+        const ids = hlive.getEventHAndlerIDs(el);
 
-    const keydownHandler = (e) => {
-        handlerWithDataHelper(e,"data-hlive-onkeydown");
-    }
+        if (!ids["upload"]) {
+            return
+        }
 
-    const keyupHandler = (e) => {
-        handlerWithDataHelper(e,"data-hlive-onkeyup");
-    }
+        if (el.files.length !== 0) {
+            let i = 0;
+            const file = el.files[0];
 
-    const animationendHandler = (e) => {
-        handlerHelper(e,"data-hlive-onanimationend");
-    }
+            const fileMeta = {
+                "name": file.name,
+                "size": file.size,
+                "type": file.type,
+                "index": i,
+                "total": el.files.length,
+            };
 
-    const animationcancelHandler = (e) => {
-        handlerHelper(e,"data-hlive-onanimationcancel");
-    }
+            let msg = {
+                t: "e",
+                file: fileMeta,
+            };
 
-    const mouseenterHandler = (e) => {
-        handlerHelper(e,"data-hlive-onmouseenter");
-    }
+            queueMicrotask(function () {
+                for (let j = 0; j < ids["upload"].length; j++) {
+                    msg.i = ids["upload"][j];
 
-    const mouseleaveHandler = (e) => {
-        handlerHelper(e,"data-hlive-onmouseleave");
-    }
+                    hlive.conn.send(new Blob([JSON.stringify(msg) + "\n\n", el.files[i]], {type: el.files[i].type}));
+                }
+            });
+        }
+    });
 
-    const changeHandler = (e) => {
-        handlerHelperGeneric(e, "data-hlive-onchange")
-    }
+    // Trigger diffapply, should always be last
+    document.querySelectorAll("[data-hlive-on*=diffapply]").forEach(function (el) {
+        const ids = hlive.getEventHAndlerIDs(el);
 
-    function setEventHandlers() {
-        document.querySelectorAll("[data-hlive-on]").forEach(function (el) {
-            const pairs = el.getAttribute("data-hlive-on").split(",");
-            for (let i = 0; i < pairs.length; i++) {
-                const parts = pairs[i].split("|");
-                el.addEventListener(parts[1].toLowerCase(), eventHandler);
-            }
-        });
-
-        document.querySelectorAll("[data-hlive-onclick]").forEach(function (value) {
-            value.addEventListener("click", clickHandler);
-        });
-
-        document.querySelectorAll("[data-hlive-onkeydown]").forEach(function (value) {
-            value.addEventListener("keydown", keydownHandler);
-        });
-
-        document.querySelectorAll("[data-hlive-onkeyup]").forEach(function (value) {
-            value.addEventListener("keyup", keyupHandler);
-        });
-
-        document.querySelectorAll("[data-hlive-onfocus]").forEach(function (value) {
-            value.addEventListener("focus", focusHandler);
-        });
-
-        document.querySelectorAll("[data-hlive-onanimationend]").forEach(function (value) {
-            value.addEventListener("animationend", animationendHandler);
-        });
-
-        document.querySelectorAll("[data-hlive-onanimationcancel]").forEach(function (value) {
-            value.addEventListener("animationcancel", animationcancelHandler);
-        });
-
-        document.querySelectorAll("[data-hlive-onmouseenter]").forEach(function (value) {
-            value.addEventListener("mouseenter", mouseenterHandler);
-        });
-
-        document.querySelectorAll("[data-hlive-onchange]").forEach(function (value) {
-            value.addEventListener("change", changeHandler);
-        });
-    }
-
-    function removeEventHandlers(el) {
-        if (!el.hasAttribute) {
+        if (!ids["diffapply"]) {
             return;
         }
 
-        if (el.hasAttribute("data-hlive-onclick")) {
-            el.removeEventListener("click", clickHandler);
-        }
-
-        if (el.hasAttribute("data-hlive-onkeydown")) {
-            el.removeEventListener("keydown", keydownHandler);
-        }
-
-        if (el.hasAttribute("data-hlive-onkeyup")) {
-            el.removeEventListener("keyup", keyupHandler);
-        }
-
-        if (el.hasAttribute("data-hlive-onfocus")) {
-            el.removeEventListener("focus", focusHandler);
-        }
-
-        if (el.hasAttribute("data-hlive-onanimationend")) {
-            el.removeEventListener("animationend", animationendHandler);
-        }
-
-        if (el.hasAttribute("data-hlive-onanimationcancel")) {
-            el.removeEventListener("animationcancel", animationcancelHandler);
-        }
-
-        if ( el.hasAttribute("data-hlive-onmouseenter")) {
-            el.removeEventListener("mouseenter", mouseenterHandler);
-        }
-
-        if (el.hasAttribute("data-hlive-onmouseleave")) {
-            el.removeEventListener("mouseleave", mouseleaveHandler);
-        }
-    }
-
-    function postMessage() {
-        setEventHandlers();
-
-        // Give focus
-        document.querySelectorAll("[data-hlive-focus]").forEach(function (el) {
-            el.focus();
-            if (el.selectionStart !== undefined) {
-                setTimeout(function(){ el.selectionStart = el.selectionEnd = 10000; }, 0);
-            }
-        });
-
-        // Start file upload
-        document.querySelectorAll("[data-hlive-upload]").forEach(function (el) {
-            if (el.hasAttribute("data-hlive-onupload")) {
-
-                if (el.files.length !== 0) {
-                    let i = 0;
-                    const file = el.files[0];
-
-                    const fileMeta = {
-                        "name": file.name,
-                        "size": file.size,
-                        "type": file.type,
-                        "index": i,
-                        "total": el.files.length,
-                    };
-
-                    let msg = {
-                        t: "e",
-                        i: el.getAttribute("data-hlive-onupload"),
-                        file: fileMeta,
-                    };
-
-                    queueMicrotask(function () {
-                        conn.send(new Blob([JSON.stringify(msg) + "\n\n", el.files[i]], {type: el.files[i].type}));
-                    });
-                }
-            }
-        });
-
-        // Trigger ondiffapply, should always be last
-        // TODO: make work with generic event handler
-        //      maybe: [data-hlive-on*="diffapply"]
-        document.querySelectorAll("[data-hlive-ondiffapply]").forEach(function (el) {
-            let msg = {
+        for (let i = 0; i < ids["diffapply"].length; i++) {
+            hlive.sendMsg({
                 t: "e",
-                i: el.getAttribute("data-hlive-ondiffapply"),
-            };
+                i: ids["diffapply"][i],
+            });
+        }
+    });
+}
 
-            sendMsg(msg);
-        });
+hlive.getEventHAndlerIDs = (el) => {
+    let map = {};
+
+    if (el.getAttribute && el.getAttribute("data-hlive-on") !== "") {
+        const pairs = el.getAttribute("data-hlive-on").split(",");
+        for (let i = 0; i < pairs.length; i++) {
+            const parts = pairs[i].split("|");
+            const eventName = parts[1].toLowerCase();
+            const eventID =  parts[0];
+
+            if (!map[eventName]) {
+                map[eventName] = [eventID];
+            } else {
+                map[eventName].push(eventID);
+            }
+        }
     }
 
-    let sessID = "1";
+    return map;
+}
 
+hlive.findDiffTarget = (diff) => {
+    const parts = diff.split("|");
+
+    let target = document
+    if (parts[hlive.diffParts.Root] !== "doc") {
+        target = document.querySelector('[data-hlive-id="'+parts[hlive.diffParts.Root]+'"]');
+    }
+
+    if (target === null) {
+        hlive.log("root element not found: " + parts[hlive.diffParts.Root]);
+        return null
+    }
+
+    const path = parts[hlive.diffParts.Path].split(">");
+
+    for (let j = 0; j < path.length; j++) {
+        // Doesn't exist
+        if (parts[1] === "c" && (parts[4] === "h" || parts[4] === "t" ) && j === path.length - 1) {
+            continue;
+        }
+
+        // Happens when we start the path for a new component
+        if (path[j] === "") {
+            continue;
+        }
+
+        if (path[j] >= target.childNodes.length ) {
+            hlive.log("child not found " + parts[hlive.diffParts.Root] + ":" + parts[hlive.diffParts.Path]);
+
+            target = null;
+            break;
+        }
+
+        target = target.childNodes[path[j]];
+    }
+
+    return target;
+}
+
+hlive.processMsg = (evt) => {
+    let messages = evt.data.split('\n');
+
+    let newMessages = [];
+    let deleteMessageBuffer = [];
+
+    // Re-order deletes
+    // Example problem:
+    // d|d|doc|1>1>0>0>1>2||
+    // d|d|doc|1>1>0>0>1>3||
+
+    for (let i = 0; i < messages.length; i++) {
+        // Delete diff?
+        if (messages[i].substring(0, 4) === "d|d|") {
+            // If buffer empty, start the buffer
+            if (deleteMessageBuffer.length === 0) {
+                deleteMessageBuffer[deleteMessageBuffer.length] = messages[i];
+
+                continue;
+            }
+            // Is this delete a child of the same parent in the buffer?
+            const aParts =  deleteMessageBuffer[0].split("|");
+            const aIndexOf = aParts[hlive.diffParts.Path].lastIndexOf(">");
+            const aParentPath = aParts[hlive.diffParts.Path].substring(0, aIndexOf);
+
+            const bParts =  messages[i].split("|");
+            const bIndexOf = bParts[hlive.diffParts.Path].lastIndexOf(">");
+            const bParentPath = bParts[hlive.diffParts.Path].substring(0, bIndexOf);
+
+            // Same, add to buffer
+            if (aParentPath === bParentPath) {
+                deleteMessageBuffer[deleteMessageBuffer.length] = messages[i];
+
+                continue;
+            }
+
+            // Not the same, flush buffer and add delete be after buffer
+            for (let j = 0; j < deleteMessageBuffer.length; j++) {
+                newMessages[newMessages.length] = deleteMessageBuffer[deleteMessageBuffer.length - (j+1)];
+            }
+
+            deleteMessageBuffer = [];
+            // Not a delete, flush buffer if not empty
+        } else if (deleteMessageBuffer.length !== 0) {
+            for (let j = 0; j < deleteMessageBuffer.length; j++) {
+                newMessages[newMessages.length] = deleteMessageBuffer[deleteMessageBuffer.length - (j+1)];
+            }
+
+            deleteMessageBuffer = [];
+        }
+
+        newMessages[newMessages.length] = messages[i];
+    }
+
+    messages = newMessages;
+
+    for (let i = 0; i < messages.length; i++) {
+        if (messages[i] === "") {
+            continue;
+        }
+
+        const parts = messages[i].split("|");
+
+        // DOM Diffs
+        if (parts[hlive.msgPart.Type] === "d") {
+            if (parts.length !== 6) {
+                hlive.log("invalid message format");
+                continue;
+            }
+
+            const target = hlive.findDiffTarget(messages[i]);
+
+            if (target === null) {
+                return;
+            }
+
+            const path = parts[hlive.diffParts.Path].split(">");
+
+            // Text
+            if (parts[hlive.diffParts.ContentType] === "t") {
+                if (parts[hlive.diffParts.DiffType] === "c") {
+                    let element = document.createTextNode(hlive.b64DecodeUnicode(parts[hlive.diffParts.Content]));
+
+                    const index = path[path.length - 1];
+                    if (index < target.childNodes.length) {
+                        target.insertBefore(element.cloneNode(true), target.childNodes[index]);
+                    } else {
+                        target.appendChild(element.cloneNode(true));
+                    }
+                } else {
+                    target.textContent = hlive.b64DecodeUnicode(parts[hlive.diffParts.Content]);
+                }
+            }
+
+            // Tag / HTML
+            if (parts[hlive.diffParts.DiffType] === "c" && parts[hlive.diffParts.ContentType] === "h") {
+                // Only a single root element is allowed
+                let template = document.createElement('template');
+                template.innerHTML = hlive.b64DecodeUnicode(parts[hlive.diffParts.Content]);
+
+                const index = path[path.length - 1];
+                if (index < target.childNodes.length) {
+                    target.insertBefore(template.content.firstChild, target.childNodes[index]);
+                } else {
+                    target.appendChild(template.content.firstChild);
+                }
+            } else if (parts[hlive.diffParts.DiffType] === "u" && parts[hlive.diffParts.ContentType] === "h") {
+                let template = document.createElement('template');
+                template.innerHTML = hlive.b64DecodeUnicode(parts[hlive.diffParts.Content]);
+                target.replaceWith(template.content.firstChild);
+            }
+
+            // Attributes
+            if (parts[hlive.diffParts.ContentType] === "a") {
+                const attrData = hlive.b64DecodeUnicode(parts[hlive.diffParts.Content]);
+
+                // We strictly control this Attribute data format
+                const index = attrData.indexOf("=");
+                const attrName = attrData.substring(0, index).trim();
+                const attrValue = attrData.substring(index + 2, attrData.length - 1);
+
+                if (parts[hlive.diffParts.DiffType] === "c" || parts[hlive.diffParts.DiffType] === "u" ) {
+                    if (attrName === "data-hlive-on" && parts[hlive.diffParts.DiffType] === "u") {
+                        // They'll be set again if only some were removed
+                        hlive.removeEventHandlers(target);
+                    }
+
+                    if (attrName === "value") {
+                        if (target === document.activeElement && attrValue !== "") {
+                            // Don't update when someone is typing
+                        } else {
+                            target.value = attrValue;
+                        }
+                    } else {
+                        target.setAttribute(attrName, attrValue);
+                    }
+                } else if (parts[hlive.diffParts.DiffType] === "d") {
+                    // They'll be set again if only some were removed
+                    hlive.removeEventHandlers(target);
+
+                    target.removeAttribute(attrName);
+                }
+            }
+
+            // Generic delete
+            if (parts[hlive.diffParts.DiffType] === "d" && parts[hlive.diffParts.ContentType] !== "a") {
+                hlive.removeEventHandlers(target);
+                target.remove();
+            }
+        // Sessions
+        } else if (parts[hlive.msgPart.Type] === "s") {
+            if (parts.length === 3) {
+                hlive.sessID = parts[2];
+            }
+        }
+    }
+}
+
+hlive.onopen = (evt) => {
+    hlive.log("con: open");
+    hlive.reconnectCount = 0;
+}
+
+hlive.onmessage = (evt) => {
+    hlive.processMsg(evt);
+    hlive.postMessage();
+}
+
+hlive.onclose = (evt) => {
+    hlive.log("con: closed");
+
+    if (hlive.reconnectCount < hlive.reconnectLimit) {
+        hlive.log("con: reconnect");
+        hlive.reconnectCount++;
+
+        hlive.connect();
+
+        return;
+    }
+
+    let cover = document.createElement("div");
+    const s = "position:fixed;top:0;left:0;background:rgba(0,0,0,0.4);z-index:5;width:100%;height:100%;";
+    cover.setAttribute("style", s);
+
+    document.getElementsByTagName("body")[0].appendChild(cover);
+}
+
+hlive.connect = () => {
+    let ws = "ws";
+    if (location.protocol === 'https:') {
+        ws = "wss";
+    }
+
+    hlive.conn = new WebSocket(ws + "://" + window.location.host + window.location.pathname + "?ws=" + hlive.sessID);
+    hlive.conn.onopen = hlive.onopen
+    hlive.conn.onmessage = hlive.onmessage;
+    hlive.conn.onclose = hlive.onclose;
+}
+
+document.addEventListener("DOMContentLoaded", function(evt) {
     if (window["WebSocket"]) {
-        let ws = "ws";
-        if (location.protocol === 'https:') {
-            ws = "wss";
-        }
-
-        conn = new WebSocket(ws + "://" + window.location.host + window.location.pathname + "?ws=" + sessID);
-        conn.onopen = function (evt) {
-            log("con: open");
-        };
-
-        conn.onclose = function (evt) {
-            log("con: closed");
-
-            let cover = document.createElement("div");
-            const s = "position:fixed;top:0;left:0;background:rgba(0,0,0,0.4);z-index:5;width:100%;height:100%;";
-            cover.setAttribute("style", s);
-
-            document.getElementsByTagName("body")[0].appendChild(cover);
-        };
-
-        conn.onmessage = function (evt) {
-            processMsg(evt);
-            postMessage();
-        };
-
-        function processMsg (evt) {
-            const msgPart = {
-                Type: 0,
-            };
-
-            const diffParts = {
-                DiffType: 1,
-                Root: 2,
-                Path: 3,
-                ContentType: 4,
-                Content: 5,
-            };
-
-            let messages = evt.data.split('\n');
-
-            let newMessages = [];
-            let deleteMessageBuffer = [];
-
-            // Re-order deletes
-            // Example problem:
-            // d|d|doc|1>1>0>0>1>2||
-            // d|d|doc|1>1>0>0>1>3||
-
-            for (let i = 0; i < messages.length; i++) {
-                // Delete diff?
-                if (messages[i].substring(0, 4) === "d|d|") {
-                    // If buffer empty, start the buffer
-                    if (deleteMessageBuffer.length === 0) {
-                        deleteMessageBuffer[deleteMessageBuffer.length] = messages[i];
-
-                        continue;
-                    }
-                    // Is this delete a child of the same parent in the buffer?
-                    const aParts =  deleteMessageBuffer[0].split("|");
-                    const aIndexOf = aParts[diffParts.Path].lastIndexOf(">");
-                    const aParentPath = aParts[diffParts.Path].substring(0, aIndexOf);
-
-                    const bParts =  messages[i].split("|");
-                    const bIndexOf = bParts[diffParts.Path].lastIndexOf(">");
-                    const bParentPath = bParts[diffParts.Path].substring(0, bIndexOf);
-
-                    // Same, add to buffer
-                    if (aParentPath === bParentPath) {
-                        deleteMessageBuffer[deleteMessageBuffer.length] = messages[i];
-
-                        continue;
-                    }
-
-                    // Not the same, flush buffer and add delete be after buffer
-                    for (let j = 0; j < deleteMessageBuffer.length; j++) {
-                        newMessages[newMessages.length] = deleteMessageBuffer[deleteMessageBuffer.length - (j+1)];
-                    }
-
-                    deleteMessageBuffer = [];
-                // Not a delete, flush buffer if not empty
-                } else if (deleteMessageBuffer.length !== 0) {
-                    for (let j = 0; j < deleteMessageBuffer.length; j++) {
-                        newMessages[newMessages.length] = deleteMessageBuffer[deleteMessageBuffer.length - (j+1)];
-                    }
-
-                    deleteMessageBuffer = [];
-                }
-
-                newMessages[newMessages.length] = messages[i];
-            }
-
-            messages = newMessages;
-
-
-            for (let i = 0; i < messages.length; i++) {
-                if (messages[i] === "") {
-                    continue;
-                }
-
-                const parts = messages[i].split("|");
-
-                // DOM Diffs
-                if (parts[msgPart.Type] === "d") {
-                    if (parts.length !== 6) {
-                        log("invalid message format");
-                        continue;
-                    }
-
-                    let target = document
-                    if (parts[diffParts.Root] !== "doc") {
-                        target = document.querySelector('[data-hlive-id="'+parts[diffParts.Root]+'"]');
-                    }
-
-                    if (target === null) {
-                        log("root element not found: " + parts[diffParts.Root]);
-                        continue;
-                    }
-
-                    const path = parts[diffParts.Path].split(">");
-
-                    for (let j = 0; j < path.length; j++) {
-                        // Doesn't exist
-                        if (parts[1] === "c" && (parts[4] === "h" || parts[4] === "t" ) && j === path.length - 1) {
-                            continue;
-                        }
-
-                        // Happens when we start the path for a new component
-                        if (path[j] === "") {
-                            continue;
-                        }
-
-                        if (path[j] >= target.childNodes.length ) {
-                            log("child not found " + parts[diffParts.Root] + ":" + parts[diffParts.Path]);
-
-                            target = null;
-                            break;
-                        }
-
-                        target = target.childNodes[path[j]];
-                    }
-
-                    if (target !== null) {
-                        // Text
-                        if (parts[diffParts.ContentType] === "t") {
-                            if (parts[diffParts.DiffType] === "c") {
-                                let element = document.createTextNode(window.atob(parts[diffParts.Content]));
-
-                                const index = path[path.length - 1];
-                                if (index < target.childNodes.length) {
-                                    target.insertBefore(element.cloneNode(true), target.childNodes[index]);
-                                } else {
-                                    target.appendChild(element.cloneNode(true));
-                                }
-                            } else {
-                                target.textContent = window.atob(parts[diffParts.Content]);
-                            }
-                        }
-
-                        // Tag / HTML
-                        if (parts[diffParts.DiffType] === "c" && parts[diffParts.ContentType] === "h") {
-                            // Only a single root element is allowed
-                            let template = document.createElement('template');
-                            template.innerHTML = window.atob(parts[diffParts.Content]);
-
-                            const index = path[path.length - 1];
-                            if (index < target.childNodes.length) {
-                                target.insertBefore(template.content.firstChild, target.childNodes[index]);
-                            } else {
-                                target.appendChild(template.content.firstChild);
-                            }
-                        } else if (parts[diffParts.DiffType] === "u" && parts[diffParts.ContentType] === "h") {
-                            let template = document.createElement('template');
-                            template.innerHTML = window.atob(parts[diffParts.Content]);
-                            target.replaceWith(template.content.firstChild);
-                        }
-
-                        // Attributes
-                        if (parts[diffParts.ContentType] === "a") {
-                            const attrData = window.atob(parts[diffParts.Content]);
-                            let attrParts = [];
-                            const index = attrData.indexOf("=");
-                            if (index === -1) {
-                                attrParts[0] = attrData;
-                                attrParts[1] = "";
-                            } else {
-                                attrParts[0] = attrData.substring(0, index);
-                                attrParts[1] = attrData.substring(index + 1);
-                            }
-
-                            const name = attrParts[0].trim();
-                            attrParts[0] = attrParts[0].trim()
-                            if (attrParts.length === 2 && attrParts[1] !== "") {
-                                if (attrParts[1].substring(0, 1) === '"') {
-                                    attrParts[1] = attrParts[1].substring(1, attrParts[1].length - 1);
-                                }
-                            } else {
-                                attrParts[1] = "";
-                            }
-
-                            if (parts[diffParts.DiffType] === "c" || parts[diffParts.DiffType] === "u" ) {
-                                if (name === "value") {
-                                    if (target === document.activeElement && attrParts[1] !== "") {
-                                        // Don't update when someone is typing
-                                    } else {
-                                        target.value = attrParts[1];
-                                    }
-                                } else {
-
-                                    target.setAttribute(name, attrParts[1]);
-                                    if (name === "data-hlive-focus") {
-                                        target.focus();
-                                    }
-                                }
-                            } else if (parts[diffParts.DiffType] === "d") {
-                                target.removeAttribute(name);
-                            }
-                        }
-
-                        // Generic delete
-                        if (parts[diffParts.DiffType] === "d" && parts[diffParts.ContentType] !== "a") {
-                            removeEventHandlers(target);
-                            target.remove();
-                        }
-                    }
-
-                    // Sessions
-                } else if (parts[msgPart.Type] === "s") {
-                    if (parts.length === 3) {
-                        sessID = parts[2];
-                    }
-                }
-            }
-        }
-
+        hlive.connect()
     } else {
+        // TODO: do something better
         alert("Your browser does not support WebSockets");
     }
 });

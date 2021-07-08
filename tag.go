@@ -11,7 +11,7 @@ type Tagger interface {
 	// GetAttributes returns all attributes for this tag
 	GetAttributes() []*Attribute
 	// GetNodes returns this tags children nodes, to be rendered inside of this tag
-	GetNodes() []interface{}
+	GetNodes() interface{}
 	// IsVoid indicates if this has a closing tag or not. Void tags don't have a closing tag
 	IsVoid() bool
 }
@@ -50,10 +50,6 @@ func NewTag(name string, elements ...interface{}) *Tag {
 	}
 
 	for i := 0; i < len(elements); i++ {
-		if !IsElement(elements[i]) {
-			panic(fmt.Errorf("element: %#v: %w", elements[i], ErrRenderElement))
-		}
-
 		addElementToTag(t, elements[i])
 	}
 
@@ -126,7 +122,7 @@ func (t *Tag) Add(element ...interface{}) {
 	addElementToTag(t, element)
 }
 
-func (t *Tag) GetNodes() []interface{} {
+func (t *Tag) GetNodes() interface{} {
 	return t.nodes
 }
 
@@ -187,6 +183,11 @@ func (t *Tag) RemoveAttributes(names ...string) {
 }
 
 func addElementToTag(t *Tag, v interface{}) {
+	if _, ok := v.(*EventBinding); ok {
+		panic("You've added an event binding to a 'Tag'. You can only add the to a 'Component'. " +
+			"You can turn any 'Tag' into a 'Component' by using the 'Wrap' or 'W' functions.")
+	}
+
 	if !IsElement(v) {
 		panic(fmt.Errorf("element: %#v: %w", v, ErrInvalidElement))
 	}
@@ -209,6 +210,10 @@ func addElementToTag(t *Tag, v interface{}) {
 			addElementToTag(t, v[i])
 		}
 	case []Tagger:
+		for i := 0; i < len(v); i++ {
+			addElementToTag(t, v[i])
+		}
+	case []UniqueTagger:
 		for i := 0; i < len(v); i++ {
 			addElementToTag(t, v[i])
 		}
@@ -287,6 +292,7 @@ func addCSS(t *Tag, v CSS) {
 	// Update the order
 	// Loop over order and remove all that no longer exists
 	var newOrder []string
+
 	for i := 0; i < len(t.cssOrder); i++ {
 		if t.cssExists[t.cssOrder[i]] {
 			newOrder = append(newOrder, t.cssOrder[i])

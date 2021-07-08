@@ -3,14 +3,13 @@ package main
 import (
 	"context"
 	"net/http"
-	"os"
 
 	l "github.com/SamHennessy/hlive"
 	"github.com/rs/zerolog"
 )
 
 func main() {
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger().Level(zerolog.InfoLevel)
+	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
 
 	http.Handle("/", Home(logger))
 
@@ -23,13 +22,13 @@ func main() {
 
 func Home(logger zerolog.Logger) *l.PageServer {
 	f := func() *l.Page {
-		hoverState := ""
+		hoverState := " "
 
-		hover := l.C("span",
-			l.OnMouseEnter(func(ctx context.Context, e l.Event) {
+		hover := l.C("h1",
+			l.On("mouseEnter", func(ctx context.Context, e l.Event) {
 				hoverState = "Mouse enter"
 			}),
-			l.OnMouseLeave(func(ctx context.Context, e l.Event) {
+			l.On("mouseLeave", func(ctx context.Context, e l.Event) {
 				hoverState = "Mouse leave"
 			}),
 			"Hover over me",
@@ -38,9 +37,11 @@ func Home(logger zerolog.Logger) *l.PageServer {
 		page := l.NewPage()
 		page.SetLogger(logger)
 		page.Title.Add("Hover Example")
+		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+
 		page.Body.Add(
 			l.T("div", hover),
-			l.T("div", &hoverState),
+			l.T("pre", l.T("code", &hoverState)),
 		)
 
 		return page

@@ -171,7 +171,9 @@ func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 		for i := 0; i < len(oldAttrs); i++ {
 			oldAttrsMap[oldAttrs[i].Name] = oldAttrs[i]
 		}
+
 		newAttrsMap := map[string]*Attribute{}
+
 		for i := 0; i < len(newAttrs); i++ {
 			newAttrsMap[newAttrs[i].Name] = newAttrs[i]
 		}
@@ -214,12 +216,23 @@ func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 			path = ""
 		}
 
-		oldKids := v.GetNodes()
-		newKids := newTag.GetNodes()
+		oldKid := v.GetNodes()
+
+		oldKids, ok := oldKid.([]interface{})
+		if !ok {
+			oldKids = []interface{}{oldKid}
+		}
+
+		newKid := newTag.GetNodes()
+
+		newKids, ok := newKid.([]interface{})
+		if !ok {
+			newKids = []interface{}{newKid}
+		}
+
 		// Loop old kids
 		i := 0
 		for ; i < len(oldKids); i++ {
-
 			var newKid interface{}
 			if i < len(newKids) {
 				newKid = newKids[i]
@@ -240,18 +253,6 @@ func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 	}
 
 	return diffs, nil
-}
-
-func eqStrPtr(s1, s2 *string) bool {
-	if s1 == nil && s2 == nil {
-		return true
-	}
-
-	if s1 == nil || s2 == nil {
-		return false
-	}
-
-	return *s1 == *s2
 }
 
 func diffCreate(compID, path string, el interface{}) []Diff {

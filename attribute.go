@@ -16,11 +16,6 @@ type CSS map[string]bool
 // You don't have to use Style to add a style attribute but it's the recommended way to do it.
 type Style map[string]interface{}
 
-// A is a shortcut for NewAttribute
-func A(name string, value ...string) *Attribute {
-	return NewAttribute(name, value...)
-}
-
 // NewAttribute create a new Attribute
 func NewAttribute(name string, value ...string) *Attribute {
 	a := Attribute{Name: name}
@@ -90,7 +85,7 @@ func anyToAttributes(attrs ...interface{}) []*Attribute {
 }
 
 func attrsToAttributes(attrs Attrs) []*Attribute {
-	var newAttrs []*Attribute
+	newAttrs := make([]*Attribute, 0, len(attrs))
 
 	for name, val := range attrs {
 		attr := NewAttribute(name)

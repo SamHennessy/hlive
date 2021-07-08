@@ -21,12 +21,13 @@ func home() *l.Page {
 //
 // 	input := l.NewComponent("input")
 // 	input.Add(l.Attrs{"type": "text"})
-// 	input.On(l.OnKeyUp(func(ctx context.Context, e l.Event) {
+// 	input.On(l.On("keyup", func(ctx context.Context, e l.Event) {
 // 		message = e.Value
 // 	}))
 //
 // 	page := l.NewPage()
 // 	page.Body.Add(l.NewTag("div", input))
+// 	page.Body.Add(l.T("hr"))
 // 	page.Body.Add("Hello, ", &message)
 //
 // 	return page
@@ -38,7 +39,7 @@ func home() *l.Page {
 //
 // 	input := l.C("input",
 // 		l.Attrs{"type": "text"},
-// 		l.OnKeyUp(func(ctx context.Context, e l.Event) {
+// 		l.On("keyup", func(_ context.Context, e l.Event) {
 // 			message = e.Value
 // 		}),
 // 	)
@@ -46,6 +47,7 @@ func home() *l.Page {
 // 	page := l.NewPage()
 // 	page.Body.Add(
 // 		l.T("div", input),
+// 		l.T("hr"),
 // 		"Hello, ", &message,
 // 	)
 //

@@ -3,37 +3,38 @@ package main
 import (
 	"context"
 	"net/http"
-	"os"
 
 	l "github.com/SamHennessy/hlive"
 	"github.com/rs/zerolog"
 )
 
 func main() {
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger().Level(zerolog.InfoLevel)
+	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
 
-	http.Handle("/", Home(logger))
+	http.Handle("/", home(logger))
 
 	logger.Info().Str("addr", ":3000").Msg("listing")
+
 	if err := http.ListenAndServe(":3000", nil); err != nil {
 		logger.Err(err).Msg("http listen and serve")
 	}
 }
 
-func Home(logger zerolog.Logger) *l.PageServer {
+func home(logger zerolog.Logger) *l.PageServer {
 	f := func() *l.Page {
 		count := 0
 
 		page := l.NewPage()
 		page.SetLogger(logger)
 		page.Title.Add("Local GetNodes Example")
+		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+
 		page.Body.Add(
-			l.T("p", "Global GetNodes"),
-			CountBtn(&count),
+			l.T("h2", "Global Render"),
+			newCountBtn(&count),
 			l.Tree("The count is: ", l.T("em", &count), " clicks"),
-			l.T("hr"),
-			l.T("p", "Local GetNodes"),
-			CountBtnLocal(&count),
+			l.T("h2", "Local Render"),
+			newCountBtnLocal(&count),
 			l.Tree("The count is: ", l.T("em", &count), " clicks"),
 		)
 
@@ -49,33 +50,35 @@ type countBtn struct {
 	Count *int
 }
 
-func (c *countBtn) GetNodes() []interface{} {
+func (c *countBtn) GetNodes() interface{} {
 	return l.Tree(c.Count)
 }
 
-func CountBtn(count *int) *countBtn {
+func newCountBtn(count *int) *countBtn {
 	c := &countBtn{
 		Component: l.C("button"),
 		Count:     count,
 	}
 
-	c.On(l.OnClick(func(ctx context.Context, e l.Event) {
+	c.Add(l.On("click", func(ctx context.Context, e l.Event) {
 		*c.Count++
 	}))
 
 	return c
 }
 
-func CountBtnLocal(count *int) *countBtn {
+func newCountBtnLocal(count *int) *countBtn {
 	c := &countBtn{
 		Component: l.C("button"),
 		Count:     count,
 	}
+	// Page will now not render when a binding is triggered
 	c.AutoRender = false
 
-	c.On(l.OnClick(func(ctx context.Context, e l.Event) {
+	c.Add(l.On("click", func(ctx context.Context, e l.Event) {
 		*c.Count++
 
+		// Render the passed component and it's tree
 		l.RenderComponentWS(ctx, c)
 	}))
 

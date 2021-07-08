@@ -3,16 +3,15 @@ package main
 import (
 	"context"
 	"net/http"
-	"os"
 
 	l "github.com/SamHennessy/hlive"
 	"github.com/rs/zerolog"
 )
 
 func main() {
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger().Level(zerolog.InfoLevel)
+	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
 
-	http.Handle("/", Home(logger))
+	http.Handle("/", home(logger))
 
 	logger.Info().Str("addr", ":3000").Msg("listing")
 
@@ -22,19 +21,19 @@ func main() {
 }
 
 func callback(container *l.Component) {
-	container.On(l.OnDiffApply(func(ctx context.Context, e l.Event) {
-		container.Add(l.T("p", "OnDiffApply"))
+	container.Add(l.On(l.DiffApply, func(ctx context.Context, e l.Event) {
+		container.Add(l.T("p", "Diff Apply"))
 		container.RemoveEventBinding(e.Binding.ID)
 	}))
 }
 
-func Home(logger zerolog.Logger) *l.PageServer {
+func home(logger zerolog.Logger) *l.PageServer {
 	f := func() *l.Page {
 		container := l.C("div")
 
-		btn := l.C("button", "Trigger OnClick",
-			l.OnClick(func(ctx context.Context, e l.Event) {
-				container.Add(l.T("p", "OnClick"))
+		btn := l.C("button", "Trigger Click",
+			l.On("click", func(ctx context.Context, e l.Event) {
+				container.Add(l.T("p", "Click"))
 				callback(container)
 			}),
 		)
@@ -42,6 +41,8 @@ func Home(logger zerolog.Logger) *l.PageServer {
 		page := l.NewPage()
 		page.SetLogger(logger)
 		page.Title.Add("Callback Example")
+		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+
 		page.Body.Add(btn, l.T("h1", "Events"), container)
 
 		return page

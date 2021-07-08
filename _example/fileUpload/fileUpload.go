@@ -5,14 +5,13 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
-	"os"
 
 	l "github.com/SamHennessy/hlive"
 	"github.com/rs/zerolog"
 )
 
 func main() {
-	logger := zerolog.New(zerolog.ConsoleWriter{Out: os.Stdout}).With().Timestamp().Logger().Level(zerolog.InfoLevel)
+	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
 
 	http.Handle("/", l.NewPageServer(home(logger)))
 
@@ -40,16 +39,16 @@ func home(logger zerolog.Logger) func() *l.Page {
 
 		fileInput := l.C("input", l.Attrs{"type": "file"})
 		fileInput.Add(
-			l.OnUpload(func(ctx context.Context, e l.Event) {
+			l.On("upload", func(ctx context.Context, e l.Event) {
 				fileDisplay = "box"
 				fileInput.RemoveAttributes(l.AttrUpload)
 				// This is a bad idea, only using as an easy demo.
-				// The reason is it will be in the page tree using a lot of memory
+				// The reason it's a bad idea is it will be in the server page tree using a lot of memory
 				src := fmt.Sprintf("data:%s;base64,%s", e.File.Type, base64.StdEncoding.EncodeToString(e.File.Data))
 
 				iframe.Add(l.Attrs{"src": src})
 			}),
-			l.OnChange(func(ctx context.Context, e l.Event) {
+			l.On("change", func(ctx context.Context, e l.Event) {
 				if e.File != nil {
 					tableDisplay = "box"
 					file = *e.File
@@ -58,7 +57,7 @@ func home(logger zerolog.Logger) func() *l.Page {
 		)
 
 		uploadBtn := l.C("button", "Upload",
-			l.OnClick(func(ctx context.Context, e l.Event) {
+			l.On("click", func(ctx context.Context, e l.Event) {
 				fileInput.Add(l.Attrs{l.AttrUpload: ""})
 			}),
 		)

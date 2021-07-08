@@ -7,15 +7,16 @@ import (
 )
 
 type Event struct {
-	Binding  *EventBinding
-	Value    string
-	Key      string
-	CharCode int
-	KeyCode  int
-	ShiftKey bool
-	AltKey   bool
-	CtrlKey  bool
-	File     *File
+	Binding   *EventBinding
+	IsInitial bool
+	Value     string
+	Key       string
+	CharCode  int
+	KeyCode   int
+	ShiftKey  bool
+	AltKey    bool
+	CtrlKey   bool
+	File      *File
 }
 
 type File struct {
@@ -42,7 +43,6 @@ func NewEventBinding() *EventBinding {
 type EventBinding struct {
 	ID        string
 	Handler   EventHandler
-	Type      EventType
 	Component Componenter
 	Once      bool
 

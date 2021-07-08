@@ -138,12 +138,13 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 	p.wsSend("s|id|" + sess.ID)
 
 	// Do an initial render
-	// The unmounted components will not have an id
-	// Don't think we need a lock, but could be an issue if we have the same concurrent initial request
-	// We need a static render
-	p.tree, err = p.copyTree(setIsNotWebSocket(ctx), p.GetNodes(), false)
-	if err != nil {
-		p.logger.Err(err).Msg("ws static render")
+	if p.tree == nil {
+		p.logger.Trace().Msg("initial render")
+		// We need a static render
+		p.tree, err = p.copyTree(setIsNotWebSocket(ctx), p.GetNodes(), false)
+		if err != nil {
+			p.logger.Err(err).Msg("ws static render")
+		}
 	}
 
 	// Add render function to context
@@ -176,7 +177,7 @@ func (p *Page) wsSend(message string) {
 		return
 	}
 
-	p.logger.Trace().Str("msg", message).Msg("ws send")
+	p.logger.Debug().Str("msg", message).Msg("ws send")
 
 	p.send <- []byte(message)
 }
@@ -235,16 +236,18 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 	shiftKey, _ := strconv.ParseBool(msg.Data["shiftKey"])
 	altKey, _ := strconv.ParseBool(msg.Data["altKey"])
 	ctrlKey, _ := strconv.ParseBool(msg.Data["ctrlKey"])
+	isInitial, _ := strconv.ParseBool(msg.Data["init"])
 
 	e := Event{
-		Value:    msg.Data["value"],
-		Key:      msg.Data["key"],
-		KeyCode:  keyCode,
-		CharCode: charCode,
-		ShiftKey: shiftKey,
-		AltKey:   altKey,
-		CtrlKey:  ctrlKey,
-		File:     msg.File,
+		Value:     msg.Data["value"],
+		IsInitial: isInitial,
+		Key:       msg.Data["key"],
+		KeyCode:   keyCode,
+		CharCode:  charCode,
+		ShiftKey:  shiftKey,
+		AltKey:    altKey,
+		CtrlKey:   ctrlKey,
+		File:      msg.File,
 	}
 
 	ids := strings.Split(msg.ID, ",")
@@ -273,15 +276,15 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 
 		binding.Handler(ctx, e)
 
-		// GetNodes?
-		if binding.Component.IsAutoRender() {
-			p.executeRenderWS(ctx)
-		}
-
-		// Once, do this after calling the handler so the developer can turn off once if they want
+		// Once, do this after calling the handler so the developer can change their mind
 		if binding.Once {
 			delete(p.currentBindings, id)
 			binding.Component.RemoveEventBinding(id)
+		}
+
+		// Auto Render?
+		if binding.Component.IsAutoRender() {
+			p.executeRenderWS(ctx)
 		}
 	}
 }
@@ -307,7 +310,7 @@ func (p *Page) RenderWS(ctx context.Context) ([]Diff, error) {
 	return diffs, nil
 }
 
-func (p *Page) GetNodes() []interface{} {
+func (p *Page) GetNodes() interface{} {
 	return Tree(p.DocType, p.HTML)
 }
 
@@ -360,9 +363,9 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		return strconv.FormatFloat(v, 'f', -1, 64), nil
 	case float32:
 		return strconv.FormatFloat(float64(v), 'f', -1, 32), nil
-	// TODO: stop using printf
+	// TODO: stop using print so we can avoid reflection
 	case int8, int16, int32, uint, uint8, uint16, uint32:
-		return fmt.Sprintf("%v", v), nil
+		return fmt.Sprint(v), nil
 	case *HTML:
 		if v == nil || *v == "" {
 			return nil, nil
@@ -408,7 +411,6 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		}
 
 		kids, err := p.copyTree(ctx, v.GetNodes(), lifeCycle)
-
 		if err != nil {
 			return nil, fmt.Errorf("copy tree on tag children: %s: %w", v.GetName(), err)
 		}
@@ -443,19 +445,7 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 
 		return T(v.GetName(), append(els, kids)), nil
 	case RenderFunc:
-		var newTree []interface{}
-
-		nodes := v()
-		for i := 0; i < len(nodes); i++ {
-			node, err := p.copyTree(ctx, nodes[i], lifeCycle)
-			if err != nil {
-				return nil, err
-			}
-
-			newTree = append(newTree, node)
-		}
-
-		return newTree, nil
+		return p.copyTree(ctx, v(), lifeCycle)
 	case []interface{}:
 		var (
 			newTree       []interface{}
@@ -499,6 +489,19 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 
 		return newTree, nil
 	case []Tagger:
+		var newTree []interface{}
+
+		for i := 0; i < len(v); i++ {
+			node, err := p.copyTree(ctx, v[i], lifeCycle)
+			if err != nil {
+				return nil, err
+			}
+
+			newTree = append(newTree, node)
+		}
+
+		return newTree, nil
+	case []UniqueTagger:
 		var newTree []interface{}
 
 		for i := 0; i < len(v); i++ {
@@ -649,7 +652,6 @@ func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 	if len(diffs) != 0 {
 		p.wsSend(p.diffsToMsg(diffs))
 
-		// TODO: move to Tag
 		oldTag.name = newTag.name
 		oldTag.void = newTag.void
 		oldTag.attributes = newTag.attributes
@@ -754,11 +756,11 @@ func (p *Page) readPump(ctx context.Context, sess *PageSession) {
 			p.logger.Info().Str("log", msg.Data["m"]).Msg("ws log")
 		// Event
 		case "e":
-			// Call handler
 			if len(msg.fileData) != 0 && msg.File != nil {
 				msg.File.Data = msg.fileData
 			}
 
+			// Call handler
 			p.processMsgEvent(ctx, msg)
 		default:
 			p.logger.Error().Str("msg", string(message)).Msg("ws msg recv: unexpected message format")
