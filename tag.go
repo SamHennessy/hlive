@@ -157,6 +157,12 @@ func (t *Tag) SetAttributes(attrs ...interface{}) {
 			t.attributes = append(t.attributes, attributes[i])
 		}
 	}
+
+	for i := 0; i < len(t.attributes); i++ {
+		if t.attributes[i].Value == nil {
+			t.RemoveAttributes(t.attributes[i].Name)
+		}
+	}
 }
 
 func (t *Tag) RemoveAttributes(names ...string) {

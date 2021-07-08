@@ -169,12 +169,25 @@ hlive.setEventHandlers = () => {
 // Looks at the current value of the input and if needed triggers events to sync that value to the backend
 hlive.syncInitialInputValues = () => {
     document.querySelectorAll("[data-hlive-on]").forEach(function (el) {
-        const pairs = el.getAttribute("data-hlive-on").split(",");
-        for (let i = 0; i < pairs.length; i++) {
-            if (el.value !== undefined && el.value === "") {
-                continue
+        // Radio
+        if (el.getAttribute("type") && el.getAttribute("type").toLowerCase() === "radio") {
+           if (el.checked && el.hasAttribute("checked") === false) {
+
+           } else {
+               return
+           }
+        } else {
+            if (el.value === undefined) {
+                return;
             }
 
+            if (el.value === el.getAttribute("value")) {
+                return;
+            }
+        }
+
+        const pairs = el.getAttribute("data-hlive-on").split(",");
+        for (let i = 0; i < pairs.length; i++) {
             const parts = pairs[i].split("|");
             const name = parts[1].toLowerCase();
 

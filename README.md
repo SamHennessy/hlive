@@ -389,8 +389,11 @@ https://reactjs.org/
 - copyTree error wrapping is not very productive
 - Document that browser adds tbody to table
 - Add initial page sync to concepts
+  - An input needs to have binding for this to work
 - Add one page one user to concepts
 - Document how to debug in browser
+- Test, setting a radio, checkbox, select option without clicking them
+- Test, page reload for checkbox, select
 
 Good use case:
  - Interactive code review tool with large diff files. 

@@ -42,7 +42,7 @@ func (a *Attribute) SetValue(value string) {
 }
 
 func (a *Attribute) GetValue() string {
-	if a.Value == nil {
+	if a == nil || a.Value == nil {
 		return ""
 	}
 
