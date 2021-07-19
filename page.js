@@ -1,4 +1,5 @@
 let hlive = {
+    debug: false,
     reconnectLimit: 5,
     reconnectCount: 0,
     conn: null,
@@ -18,6 +19,7 @@ hlive.diffParts = {
     Content: 5,
 };
 
+// Base64 decode with unicode support
 // Ref: https://stackoverflow.com/questions/30106476/using-javascripts-atob-to-decode-base64-doesnt-properly-decode-utf-8-strings
 hlive.b64DecodeUnicode = (str) => {
     // Going backwards: from byte stream, to percent-encoding, to original string.
@@ -77,6 +79,22 @@ hlive.eventHandlerHelper = (e, handlerID, isInitial) => {
         d.value = String(el.value);
         if (isInitial) {
             d.init = "true";
+        }
+    }
+
+    if (el.selected) {
+        msg.s = true;
+    }
+
+    if (el.checked) {
+        msg.s = true;
+    }
+
+    if (el.selectedOptions && el.selectedOptions.length !== 0) {
+        msg.vm = [];
+        for (let i = 0; i < el.selectedOptions.length; i++) {
+            const opt = el.selectedOptions[i]
+            msg.vm.push(opt.value || opt.text);
         }
     }
 
@@ -146,7 +164,10 @@ hlive.sendMsg = (msg) => {
 }
 
 hlive.log = (message) => {
-    console.log(message)
+    if (hlive.debug) {
+        console.log(message);
+    }
+
     if (hlive.conn) {
         let msg = {
             t: "l",
@@ -170,17 +191,32 @@ hlive.setEventHandlers = () => {
 hlive.syncInitialInputValues = () => {
     document.querySelectorAll("[data-hlive-on]").forEach(function (el) {
         // Radio
-        if (el.getAttribute("type") && el.getAttribute("type").toLowerCase() === "radio") {
-           if (el.checked && el.hasAttribute("checked") === false) {
+        const elType = el.getAttribute("type");
 
-           } else {
-               return
-           }
-        } else {
-            if (el.value === undefined) {
+        if (elType === "radio" || elType === "checkbox") {
+            // No sync needed
+            if (el.checked === el.hasAttribute("checked")) {
+                return;
+            }
+        } else if(elType === "select") {
+            let hit = false;
+            for (let i = 0; i < el.selectedOptions.length; i++) {
+                if (el.selectedOptions[i].selected && el.hasAttribute("checked") === false) {
+                    hit = true;
+                    break;
+                }
+            }
+            // No sync needed
+            if (hit === false) {
                 return;
             }
 
+        } else {
+            // How'd this happen :)
+            if (el.value === undefined) {
+                return;
+            }
+            // No needed
             if (el.value === el.getAttribute("value")) {
                 return;
             }
@@ -531,7 +567,8 @@ hlive.connect = () => {
 
 document.addEventListener("DOMContentLoaded", function(evt) {
     if (window["WebSocket"]) {
-        hlive.connect()
+        hlive.log("init");
+        hlive.connect();
     } else {
         // TODO: do something better
         alert("Your browser does not support WebSockets");

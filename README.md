@@ -375,9 +375,6 @@ https://reactjs.org/
 
 ## TODO:
 
-- Better log solution in the JavaScript, need to know if in debug mode?
-  - Send a message to indicate debug mode
-  - Also, could control reconnect on/off and limit
 - Batch message sends and receives in the javascript (https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide)
 - Add a queue for incoming messages on a page session
     - Maybe multiple concurrent requests is okay, maybe we just batch renders?
@@ -394,6 +391,6 @@ https://reactjs.org/
 - Document how to debug in browser
 - Test, setting a radio, checkbox, select option without clicking them
 - Test, page reload for checkbox, select
-
-Good use case:
- - Interactive code review tool with large diff files. 
+- Add log level to client side logging
+- Send config for debug, and log level down to client side
+- Look for a CSS class to show on a failed reconnect

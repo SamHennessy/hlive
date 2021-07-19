@@ -25,6 +25,9 @@ const (
 	// made it to the browser. You can then, if you wish, immediately remove it from the tree to prevent more triggers.
 	// You can also add it as a OnOnce and it wil remove itself.
 	DiffApply = "diffapply"
+	base10    = 10
+	bit32     = 32
+	bit64     = 64
 )
 
 // Defaults

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"strconv"
 
 	"github.com/rs/zerolog"
 )
@@ -37,18 +38,136 @@ func (r *Renderer) HTML(w io.Writer, el interface{}) error {
 		if err := r.text(v, w); err != nil {
 			return err
 		}
-	case *int: // TODO: *int8, *int16, *int32, *int64, *uint, *uint8, *uint16, *uint32, *uint64, *float32, *float64
+	case int:
+		if _, err := w.Write([]byte(strconv.Itoa(v))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case int8:
+		if _, err := w.Write([]byte(strconv.Itoa(int(v)))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case int16:
+		if _, err := w.Write([]byte(strconv.Itoa(int(v)))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case int32:
+		if _, err := w.Write([]byte(strconv.Itoa(int(v)))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case int64:
+		if _, err := w.Write([]byte(strconv.FormatInt(v, base10))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case uint:
+		if _, err := w.Write([]byte(strconv.FormatUint(uint64(v), base10))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case uint8:
+		if _, err := w.Write([]byte(strconv.FormatUint(uint64(v), base10))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case uint16:
+		if _, err := w.Write([]byte(strconv.FormatUint(uint64(v), base10))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case uint32:
+		if _, err := w.Write([]byte(strconv.FormatUint(uint64(v), base10))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case uint64:
+		if _, err := w.Write([]byte(strconv.FormatUint(v, base10))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case float32:
+		if _, err := w.Write([]byte(strconv.FormatFloat(float64(v), 'f', -1, bit32))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case float64:
+		if _, err := w.Write([]byte(strconv.FormatFloat(v, 'f', -1, bit64))); err != nil {
+			return fmt.Errorf("html write: %w", err)
+		}
+	case *int:
 		if v != nil {
-			if err := r.text(fmt.Sprint(*v), w); err != nil {
-				return err
+			if _, err := w.Write([]byte(strconv.Itoa(*v))); err != nil {
+				return fmt.Errorf("html write: %w", err)
 			}
 		}
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
-		if err := r.text(fmt.Sprint(v), w); err != nil {
+	case *int8:
+		if v != nil {
+			if _, err := w.Write([]byte(strconv.Itoa(int(*v)))); err != nil {
+				return fmt.Errorf("html write: %w", err)
+			}
+		}
+	case *int16:
+		if v != nil {
+			if _, err := w.Write([]byte(strconv.Itoa(int(*v)))); err != nil {
+				return fmt.Errorf("html write: %w", err)
+			}
+		}
+	case *int32:
+		if v != nil {
+			if _, err := w.Write([]byte(strconv.Itoa(int(*v)))); err != nil {
+				return fmt.Errorf("html write: %w", err)
+			}
+		}
+	case *int64:
+		if v != nil {
+			if _, err := w.Write([]byte(strconv.FormatInt(*v, base10))); err != nil {
+				return fmt.Errorf("html write: %w", err)
+			}
+		}
+	case *uint:
+		if v != nil {
+			if _, err := w.Write([]byte(strconv.FormatUint(uint64(*v), base10))); err != nil {
+				return fmt.Errorf("html write: %w", err)
+			}
+		}
+	case *uint8:
+		if v != nil {
+			if _, err := w.Write([]byte(strconv.FormatUint(uint64(*v), base10))); err != nil {
+				return fmt.Errorf("html write: %w", err)
+			}
+		}
+	case *uint16:
+		if v != nil {
+			if _, err := w.Write([]byte(strconv.FormatUint(uint64(*v), base10))); err != nil {
+				return fmt.Errorf("html write: %w", err)
+			}
+		}
+	case *uint32:
+		if v != nil {
+			if _, err := w.Write([]byte(strconv.FormatUint(uint64(*v), base10))); err != nil {
+				return fmt.Errorf("html write: %w", err)
+			}
+		}
+	case *uint64:
+		if v != nil {
+			if _, err := w.Write([]byte(strconv.FormatUint(*v, base10))); err != nil {
+				return fmt.Errorf("html write: %w", err)
+			}
+		}
+	case *float32:
+		if v != nil {
+			if _, err := w.Write([]byte(strconv.FormatFloat(float64(*v), 'f', -1, bit32))); err != nil {
+				return fmt.Errorf("html write: %w", err)
+			}
+		}
+	case *float64:
+		if v != nil {
+			if _, err := w.Write([]byte(strconv.FormatFloat(*v, 'f', -1, bit64))); err != nil {
+				return fmt.Errorf("html write: %w", err)
+			}
+		}
+	case *HTML:
+		if v == nil {
+			return nil
+		}
+
+		if _, err := w.Write([]byte(*v)); err != nil {
 			return err
 		}
 	case HTML:
-		if err := r.rawHTML(v, w); err != nil {
+		if _, err := w.Write([]byte(v)); err != nil {
 			return err
 		}
 	case Tagger:
@@ -90,12 +209,6 @@ func (r *Renderer) Attribute(attrs []*Attribute, w io.Writer) error {
 
 func (r *Renderer) text(text string, w io.Writer) error {
 	_, err := w.Write([]byte(html.EscapeString(text)))
-
-	return err
-}
-
-func (r *Renderer) rawHTML(rawHTML HTML, w io.Writer) error {
-	_, err := w.Write([]byte(rawHTML))
 
 	return err
 }

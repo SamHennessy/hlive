@@ -1,5 +1,7 @@
 package hlive
 
+import "strings"
+
 // Attrs is a helper for adding Attributes to nodes
 // You can update an existing Attribute by adding new Attrs but you can't remove an Attribute, use RemoveAttribute.
 type Attrs map[string]interface{}
@@ -18,7 +20,7 @@ type Style map[string]interface{}
 
 // NewAttribute create a new Attribute
 func NewAttribute(name string, value ...string) *Attribute {
-	a := Attribute{Name: name}
+	a := Attribute{Name: strings.ToLower(name)}
 
 	if len(value) != 0 {
 		if len(value) != 1 {
@@ -33,6 +35,7 @@ func NewAttribute(name string, value ...string) *Attribute {
 
 // Attribute represents an HTML attribute e.g. id="submitBtn"
 type Attribute struct {
+	// Name must always be lowercase
 	Name  string
 	Value *string
 }

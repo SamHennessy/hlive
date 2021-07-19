@@ -73,7 +73,6 @@ func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 	}
 
 	// Not the same type, remove current node and replace with new
-	// TODO: won't work if old node is a text node
 	if !diffTreeNodeTypeMatch(old, new) {
 
 		diffs = append(diffs, Diff{
@@ -93,22 +92,6 @@ func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 		newIS := new.([]interface{})
 		indexOffset := 0
 		for i := 0; i < len(v); i++ {
-			// Browser don't recognise this in the doc
-			// h5dt, ok := v[i].(HTML)
-			// if ok && h5dt == HTML5DocType {
-			// 	indexOffset++
-			// 	continue
-			// }
-
-			// TODO: what to do with nils that would mess up the count in the browser?
-			// If both elements are nil then increase offset but what if it's a []interface{} that contains
-			// Nothing would be rendered, so this would throw off the index that's in the browser
-			// Maybe exclude them when doing a tree copy?
-			// if v[i] == nil {
-			// 	indexOffset++
-			// 	continue
-			// }
-
 			var n interface{}
 			if len(newIS) > i {
 				n = newIS[i]
@@ -312,15 +295,19 @@ func diffTreeNodeTypeMatch(old, new interface{}) bool {
 	switch old.(type) {
 	case []interface{}:
 		_, ok := new.([]interface{})
+
 		return ok
 	case string:
 		_, ok := new.(string)
+
 		return ok
 	case HTML:
 		_, ok := new.(HTML)
+
 		return ok
 	case Tagger:
 		_, ok := new.(Tagger)
+
 		return ok
 	case nil:
 		return false

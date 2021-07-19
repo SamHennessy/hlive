@@ -100,11 +100,13 @@ func (p *Page) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type wsMsg struct {
-	Typ      string            `json:"t"`
-	ID       string            `json:"i,omitempty"`
-	Data     map[string]string `json:"d,omitempty"`
-	File     *File             `json:"file,omitempty"`
-	fileData []byte
+	Typ        string            `json:"t"`
+	ID         string            `json:"i,omitempty"`
+	Data       map[string]string `json:"d,omitempty"`
+	File       *File             `json:"file,omitempty"`
+	ValueMulti []string          `json:"vm,omitempty"`
+	Selected   bool              `json:"s,omitempty"`
+	fileData   []byte
 }
 
 func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
@@ -240,6 +242,7 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 
 	e := Event{
 		Value:     msg.Data["value"],
+		Values:    msg.ValueMulti,
 		IsInitial: isInitial,
 		Key:       msg.Data["key"],
 		KeyCode:   keyCode,
@@ -248,6 +251,7 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 		AltKey:    altKey,
 		CtrlKey:   ctrlKey,
 		File:      msg.File,
+		Selected:  msg.Selected,
 	}
 
 	ids := strings.Split(msg.ID, ",")
@@ -347,25 +351,104 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 		if v == "" {
 			return nil, nil
 		}
+
 		return v, nil
-	case *int: // TODO: *int8, *int16, *int32, *int64, *uint, *uint8, *uint16, *uint32, *uint64, *float32, *float64
+	case *int:
 		if v == nil {
 			return nil, nil
 		}
+
 		return strconv.Itoa(*v), nil
+	case *int16:
+		if v == nil {
+			return nil, nil
+		}
+
+		return strconv.FormatInt(int64(*v), base10), nil
+	case *int8:
+		if v == nil {
+			return nil, nil
+		}
+
+		return strconv.FormatInt(int64(*v), base10), nil
+	case *int32:
+		if v == nil {
+			return nil, nil
+		}
+
+		return strconv.FormatInt(int64(*v), base10), nil
+	case *int64:
+		if v == nil {
+			return nil, nil
+		}
+
+		return strconv.FormatInt(*v, base10), nil
+	case *uint:
+		if v == nil {
+			return nil, nil
+		}
+
+		return strconv.FormatUint(uint64(*v), base10), nil
+	case *uint8:
+		if v == nil {
+			return nil, nil
+		}
+
+		return strconv.FormatUint(uint64(*v), base10), nil
+	case *uint16:
+		if v == nil {
+			return nil, nil
+		}
+
+		return strconv.FormatUint(uint64(*v), base10), nil
+	case *uint32:
+		if v == nil {
+			return nil, nil
+		}
+
+		return strconv.FormatUint(uint64(*v), base10), nil
+	case *uint64:
+		if v == nil {
+			return nil, nil
+		}
+
+		return strconv.FormatUint(*v, base10), nil
+	case *float32:
+		if v == nil {
+			return nil, nil
+		}
+
+		return strconv.FormatFloat(float64(*v), 'f', -1, bit32), nil
+	case *float64:
+		if v == nil {
+			return nil, nil
+		}
+
+		return strconv.FormatFloat(*v, 'f', -1, bit64), nil
 	case int:
 		return strconv.Itoa(v), nil
 	case int64:
-		return strconv.FormatInt(v, 10), nil
+		return strconv.FormatInt(v, base10), nil
 	case uint64:
-		return strconv.FormatUint(v, 10), nil
+		return strconv.FormatUint(v, base10), nil
 	case float64:
-		return strconv.FormatFloat(v, 'f', -1, 64), nil
+		return strconv.FormatFloat(v, 'f', -1, bit64), nil
 	case float32:
-		return strconv.FormatFloat(float64(v), 'f', -1, 32), nil
-	// TODO: stop using print so we can avoid reflection
-	case int8, int16, int32, uint, uint8, uint16, uint32:
-		return fmt.Sprint(v), nil
+		return strconv.FormatFloat(float64(v), 'f', -1, bit32), nil
+	case int8:
+		return strconv.FormatInt(int64(v), base10), nil
+	case int16:
+		return strconv.FormatInt(int64(v), base10), nil
+	case int32:
+		return strconv.FormatInt(int64(v), base10), nil
+	case uint:
+		return strconv.FormatUint(uint64(v), base10), nil
+	case uint8:
+		return strconv.FormatUint(uint64(v), base10), nil
+	case uint16:
+		return strconv.FormatUint(uint64(v), base10), nil
+	case uint32:
+		return strconv.FormatUint(uint64(v), base10), nil
 	case *HTML:
 		if v == nil || *v == "" {
 			return nil, nil
@@ -463,10 +546,21 @@ func (p *Page) copyTree(ctx context.Context, oldTree interface{}, lifeCycle bool
 
 			thisNodeStr, thisNodeIsStr = v[i].(string)
 
+			if !thisNodeIsStr {
+				val, ok := v[i].(*string)
+				if ok && val == nil {
+					thisNodeStr, thisNodeIsStr = "", true
+				} else if ok {
+					thisNodeStr, thisNodeIsStr = *val, true
+				}
+			}
+
 			// Combine strings like a browser would
 			if lastNodeIsStr && thisNodeIsStr && len(newTree) > 0 {
+				// update this in case we have another string
+				thisNodeStr = lastNodeStr + thisNodeStr
 				// replace last node
-				newTree[len(newTree)-1] = lastNodeStr + thisNodeStr
+				newTree[len(newTree)-1] = thisNodeStr
 			} else {
 				newTree = append(newTree, node)
 			}

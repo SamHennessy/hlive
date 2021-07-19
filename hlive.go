@@ -19,7 +19,8 @@ func IsNode(node interface{}) bool {
 	case nil, string, HTML, Tagger, RenderFunc,
 		[]interface{}, []*Component, []*Tag, []Componenter, []Tagger, []UniqueTagger,
 		int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64,
-		*int, *string, *HTML:
+		*int, *int8, *int16, *int32, *int64, *uint, *uint8, *uint16, *uint32, *uint64, *float32, *float64,
+		*string, *HTML:
 		return true
 	default:
 		return false

@@ -9,7 +9,7 @@ import (
 	"github.com/rs/zerolog"
 )
 
-// TODO: allow user to adjust tick duration, and allow pausing of the clock?
+// Feature Ideas: allow user to adjust tick duration, and allow pausing of the clock
 
 func main() {
 	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()

@@ -43,7 +43,7 @@ type PageSessionStore struct {
 	GarbageCollectionTick time.Duration
 }
 
-// New PageSession
+// New PageSession.
 func (pss *PageSessionStore) New() *PageSession {
 	// Block
 	pss.newWait()
@@ -141,12 +141,7 @@ func (pss *PageSessionStore) GetSessionCount() int {
 }
 
 func NewPageServer(pf func() *Page) *PageServer {
-	s := &PageServer{
-		pageFunc: pf,
-		Sessions: NewPageSessionStore(),
-	}
-
-	return s
+	return NewPageServerWithSessionStore(pf, NewPageSessionStore())
 }
 
 func NewPageServerWithSessionStore(pf func() *Page, sess *PageSessionStore) *PageServer {
@@ -168,23 +163,32 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if sessID := r.URL.Query().Get("ws"); sessID != "" {
 		var sess *PageSession
 
-		// TODO: check is we already have a page connection?
 		if sessID != "1" {
 			sess = s.Sessions.Get(sessID)
 
-			// TODO: if nil we can't just start a new session, the browser will not be synced.
-			// 		 We would need to trigger a page reload.
+			if sess != nil && sess.Page.connected {
+				sess.Page.logger.Warn().Str("sess id", sessID).Msg("connection blocked as an active connection exists")
+
+				w.WriteHeader(http.StatusNotFound)
+
+				return
+			}
 		}
 
 		// New or not found
-		if sess == nil {
+		if sessID == "1" {
 			sess = s.Sessions.New()
 			sess.Page = s.pageFunc()
 			sess.LastActive = time.Now()
 		}
 
-		sess.Page.ServerWS(w, r.WithContext(context.WithValue(r.Context(), CtxPageSess, sess)))
+		if sess == nil {
+			w.WriteHeader(http.StatusNotFound)
 
+			return
+		}
+
+		sess.Page.ServerWS(w, r.WithContext(context.WithValue(r.Context(), CtxPageSess, sess)))
 		return
 	}
 
