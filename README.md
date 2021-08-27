@@ -187,7 +187,15 @@ Run it and type something into the input. The page should update to display what
 
 ## Examples
 
-TODO: link to each example and explain what they are
+### Simple
+
+#### Click
+
+Click a button see a counter update.
+
+![Click Preview](./_example/_previews/click.mp4)
+
+### Advanced
 
 ## Concepts
 
