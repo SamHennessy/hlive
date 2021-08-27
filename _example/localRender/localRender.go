@@ -72,13 +72,14 @@ func newCountBtnLocal(count *int) *countBtn {
 		Component: l.C("button"),
 		Count:     count,
 	}
-	// Page will now not render when a binding is triggered
+
+	// Don't render this component when an event binding is triggered
 	c.AutoRender = false
 
 	c.Add(l.On("click", func(ctx context.Context, e l.Event) {
 		*c.Count++
 
-		// Render the passed component and it's tree
+		// Will render the passed component and it's subtree
 		l.RenderComponentWS(ctx, c)
 	}))
 

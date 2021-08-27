@@ -11,6 +11,8 @@ It's a great use case for admin interfaces and internal company tools.
 
 **The first version of the API is under active development. Change is likely. Your feedback is welcome.**
 
+Please help the project by building something and giving us your feedback.
+
 ## Table of contents
 - [HLive](#hlive)
   * [Notice](#notice)
@@ -19,8 +21,18 @@ It's a great use case for admin interfaces and internal company tools.
     + [Step 2: Interactive Page](#step-2--interactive-page)
   * [Examples](#examples)
     + [Simple](#simple)
-      - [Click](#click)
+      - [Click](#-click----example-click-clickgo-)
+      - [Hover](#-hover----example-hover-hovergo-)
+      - [Diff Apply](#-diff-apply----example-callback-callbackgo-)
     + [Advanced](#advanced)
+      - [Animation](#-animation----example-animation-animationgo-)
+      - [Clock](#-clock----example-clock-clockgo-)
+      - [File Upload](#-file-upload----example-fileupload-fileuploadgo-)
+      - [Initial Sync](#-initial-sync----example-initialsync-initialsyncgo-)
+      - [Local Render](#-local-render----example-localrender-localrendergo-)
+      - [Session](#-session----example-session-sessiongo-)
+      - [To Do](#-to-do----example-todo-todogo-)
+      - [URL Parameters](#-url-parameters----example-urlparams-urlparamsgo-)
   * [Concepts](#concepts)
     + [Tag](#tag)
     + [Attribute](#attribute)
@@ -54,8 +66,7 @@ It's a great use case for admin interfaces and internal company tools.
     + [Phoenix LiveView](#phoenix-liveview)
     + [gomponents](#gomponents)
     + [ReactJS and JSX](#reactjs-and-jsx)
-  * [TODO:](#todo-)
-
+  * [TODO](#todo)
 
 ## Quick Start Tutorial
 
@@ -191,15 +202,96 @@ Run it and type something into the input. The page should update to display what
 
 ## Examples
 
+The examples can be run from the root of the project using `go run <path_to_example>`. For example:
+
+```shell
+go run _example/click/click.go
+```
+
 ### Simple
 
 #### Click
+
+[_example/click/click.go](./_example/click/click.go)
 
 Click a button see a counter update.
 
 https://user-images.githubusercontent.com/119867/131120937-64091d27-3232-4820-ab20-e579c86cfb92.mp4
 
+#### Hover
+
+[_example/hover/hover.go](./_example/hover/hover.go)
+
+Hover over an element and see another element change
+
+#### Diff Apply
+
+[_example/callback/callback.go](./_example/callback/callback.go)
+
+Trigger a Diff Apply event when a DOM change is applied in the browser. Use it to trigger server side logic.
+
 ### Advanced
+
+#### Animation
+
+[_example/animation/animation.go](./_example/animation/animation.go)
+
+Create a continuously changing animation by chaining Diff Apply callbacks.
+
+#### Clock
+
+[_example/clock/clock.go](./_example/clock/clock.go)
+
+Push browser DOM changes from the server without the need for a user to interact with the page.
+
+#### File Upload
+
+[_example/fileUpload/fileUpload.go](./_example/fileUpload/fileUpload.go)
+
+Use a file input to get information about a file before uploading it. Then trigger a file upload from the server when you're ready.
+
+The file is uploaded via WebSocket as a binary (not base64 encoded) object.
+
+#### Initial Sync
+
+[_example/initialSync/initialSync.go](./_example/initialSync/initialSync.go)
+
+Some browsers, such as FireFox, will not clear data from form fields when the page is reloaded. To the user there is data in the field and if they submit a form they expect that data to be recognised. 
+
+Initial sync is a client side process that will send this data to the server after a page refresh. You can check for this behavior in your event handlers. 
+
+This example also shows how to get multiple values from inputs that support that.
+
+#### Local Render
+
+[_example/localRender/localRender.go](./_example/localRender/localRender.go)
+
+By default, all Components are rendered after each Event Binding that a user triggers. 
+
+You can disable this by turning Auto Render off for a component. You can then render that manually but this will rerender the whole page.
+
+If you only want to re-render a single component, and it's children you can do that instead. It's easy to introduce subtle bugs when using this feature.
+
+#### Session
+
+[_example/session/session.go](./_example/session/session.go)
+
+An example of how to implement a user session using middleware and cookies. It also shows our to pass data from middleware to Components.
+
+Using middleware in HLive is just like any Go app.
+
+#### To Do
+[_example/todo/todo.go](./_example/todo/todo.go)
+
+A simple To Do app.
+
+#### URL Parameters
+
+[_example/urlParams/urlParams.go](./_example/urlParams/urlParams.go)
+
+Passing URL params to Components is not straightforward in HLive. Here is an example of how to do it. 
+
+This is due to the HLive having a two-step process of loading a page and Components are primarily designed to get data from Events.
 
 ## Concepts
 
@@ -365,6 +457,22 @@ HLive is blind to what the actual state of the browser's DOM is. It assumes that
 
 TODO
 
+## Known Issues
+
+### Invalid HTML
+
+If you use invalid HTML typically by using HTML where you should not, the browser will ignore the HTML and not add it to the browsers DOM. If the element were something like a `span` tag then it may not be perceivable that it's happened. If this happens then the path finding for these tags, and it's children will not work or will work strangely. 
+
+We don't have HTML validation rules in HLive, so there is no way of warning you of this being the problem. 
+
+### Browser Quirks
+
+Browsers are complex things and sometimes act in unexpected ways. For example, if you have a table without a table body tag (`tbody`) some browsers will add a `tbody` to the DOM. This breaks HLives element path finding. Another example is that if you have multiple text nodes next to each other, some browsers will combine them. 
+
+We'll try and account for this where we can by mimicking the browser's behavior when doing a Tree Copy. We've done this be the text quirk but not the `tbody` quirk yet. 
+
+
+
 ## Inspiration
 
 ### Phoenix LiveView
@@ -385,7 +493,20 @@ For its component approach and template system.
 
 https://reactjs.org/
 
-## TODO:
+## Similar Projects
+
+### GoLive
+[https://github.com/brendonmatos/golive](https://github.com/brendonmatos/golive)
+
+Live views for GoLang with reactive HTML over WebSockets
+
+### live
+
+[https://github.com/jfyne/live](https://github.com/jfyne/live)
+
+Live views and components for golang
+
+## TODO
 
 - Batch message sends and receives in the javascript (https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide)
 - Add a queue for incoming messages on a page session
@@ -406,5 +527,4 @@ https://reactjs.org/
 - Add log level to client side logging
 - Send config for debug, and log level down to client side
 - Look for a CSS class to show on a failed reconnect
-- Add example of reading url params, maybe post params?
-- Allow adding mount and unmount function ad elements???
+- Allow adding mount and unmount function as elements?
