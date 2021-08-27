@@ -37,7 +37,7 @@ type ComponentMountable struct {
 	teardownFunc func()
 }
 
-// CM is a short cut for NewComponentMountable
+// CM is a shortcut for NewComponentMountable
 func CM(name string, elements ...interface{}) *ComponentMountable {
 	return NewComponentMountable(name, elements...)
 }
@@ -67,5 +67,17 @@ func (c *ComponentMountable) SetTeardown(teardown func()) {
 func (c *ComponentMountable) Teardown() {
 	if c.teardownFunc != nil {
 		c.teardownFunc()
+	}
+}
+
+// WM is a shortcut for WrapMountable.
+func WM(tag *Tag, elements ...interface{}) *ComponentMountable {
+	return WrapMountable(tag, elements...)
+}
+
+// WrapMountable takes a Tag and creates a Component with it.
+func WrapMountable(tag *Tag, elements ...interface{}) *ComponentMountable {
+	return &ComponentMountable{
+		Component: Wrap(tag, elements),
 	}
 }

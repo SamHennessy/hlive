@@ -160,7 +160,7 @@ type PageServer struct {
 
 func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// WebSocket?
-	if sessID := r.URL.Query().Get("ws"); sessID != "" {
+	if sessID := r.URL.Query().Get("hlive"); sessID != "" {
 		var sess *PageSession
 
 		if sessID != "1" {

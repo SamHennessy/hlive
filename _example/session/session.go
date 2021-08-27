@@ -2,7 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"log"
 	"net/http"
 
 	l "github.com/SamHennessy/hlive"
@@ -44,7 +45,7 @@ func home(logger zerolog.Logger, s *service) *l.PageServer {
 
 type ctxKey string
 
-const SessionKey ctxKey = "session"
+const sessionKey ctxKey = "session"
 
 func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 	cookieName := "hlive_session"
@@ -53,25 +54,27 @@ func sessionMiddleware(h http.HandlerFunc) http.HandlerFunc {
 		var sessionID string
 
 		cook, err := r.Cookie(cookieName)
+
 		switch {
-		case err == http.ErrNoCookie:
+		case errors.Is(err, http.ErrNoCookie):
 			sessionID = xid.New().String()
+
 			http.SetCookie(w,
 				&http.Cookie{Name: cookieName, Value: sessionID, Path: "/", SameSite: http.SameSiteStrictMode})
 		case err != nil:
-			fmt.Println("ERROR: get cookie: ", err.Error())
+			log.Println("ERROR: get cookie: ", err.Error())
 		default:
 			sessionID = cook.Value
 		}
 
-		r = r.WithContext(context.WithValue(r.Context(), SessionKey, sessionID))
+		r = r.WithContext(context.WithValue(r.Context(), sessionKey, sessionID))
 
 		h(w, r)
 	}
 }
 
-func GetSessionID(ctx context.Context) string {
-	val, _ := ctx.Value(SessionKey).(string)
+func getSessionID(ctx context.Context) string {
+	val, _ := ctx.Value(sessionKey).(string)
 
 	return val
 }
@@ -99,7 +102,7 @@ func newMessage(service *service) *message {
 	}
 
 	c.Add(l.On("change", func(ctx context.Context, e l.Event) {
-		c.service.SetMessage(GetSessionID(ctx), e.Value)
+		c.service.SetMessage(getSessionID(ctx), e.Value)
 	}))
 
 	return c
@@ -114,7 +117,7 @@ type message struct {
 }
 
 func (c *message) Mount(ctx context.Context) {
-	c.Message = c.service.GetMessage(GetSessionID(ctx))
+	c.Message = c.service.GetMessage(getSessionID(ctx))
 }
 
 func (c *message) GetNodes() interface{} {

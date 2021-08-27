@@ -10,10 +10,16 @@ type Tagger interface {
 	GetName() string
 	// GetAttributes returns all attributes for this tag
 	GetAttributes() []*Attribute
-	// GetNodes returns this tags children nodes, to be rendered inside of this tag
+	// GetNodes returns this tags children nodes, to be rendered inside this tag
 	GetNodes() interface{}
 	// IsVoid indicates if this has a closing tag or not. Void tags don't have a closing tag
 	IsVoid() bool
+}
+
+// Adder interface for inputting elements to Tagger type values
+type Adder interface {
+	// Add elements to a Tagger
+	Add(element ...interface{})
 }
 
 type Tag struct {

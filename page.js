@@ -559,7 +559,15 @@ hlive.connect = () => {
         ws = "wss";
     }
 
-    hlive.conn = new WebSocket(ws + "://" + window.location.host + window.location.pathname + "?ws=" + hlive.sessID);
+    // Add Session ID to query params
+    let q = window.location.search;
+    if (q === "") {
+        q = "?hlive=" + hlive.sessID;
+    } else {
+        q += "&hlive=" + hlive.sessID;
+    }
+
+    hlive.conn = new WebSocket(ws + "://" + window.location.host + window.location.pathname + q);
     hlive.conn.onopen = hlive.onopen
     hlive.conn.onmessage = hlive.onmessage;
     hlive.conn.onclose = hlive.onclose;

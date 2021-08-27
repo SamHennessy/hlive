@@ -394,3 +394,5 @@ https://reactjs.org/
 - Add log level to client side logging
 - Send config for debug, and log level down to client side
 - Look for a CSS class to show on a failed reconnect
+- Add example of reading url params, maybe post params?
+- Allow adding mount and unmount function ad elements???

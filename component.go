@@ -15,7 +15,7 @@ type UniqueTagger interface {
 // Componenter builds on UniqueTagger and adds the ability to handle events.
 type Componenter interface {
 	UniqueTagger
-	// GetEventBinding returns a binding by it's id
+	// GetEventBinding returns a binding by its id
 	GetEventBinding(id string) *EventBinding
 	// GetEventBindings returns all event bindings for this tag
 	GetEventBindings() []*EventBinding
@@ -25,7 +25,7 @@ type Componenter interface {
 	IsAutoRender() bool
 }
 
-// Component is an the default implementation of Componenter.
+// Component is the default implementation of Componenter.
 type Component struct {
 	*Tag
 
