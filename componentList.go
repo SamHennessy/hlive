@@ -3,14 +3,14 @@ package hlive
 import "fmt"
 
 type ComponentList struct {
-	*Component
+	*ComponentMountable
 
 	Items []UniqueTagger
 }
 
 func NewComponentList(name string, elements ...interface{}) *ComponentList {
 	return &ComponentList{
-		Component: C(name, elements...),
+		ComponentMountable: CM(name, elements...),
 	}
 }
 

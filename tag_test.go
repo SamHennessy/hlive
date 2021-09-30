@@ -9,6 +9,8 @@ import (
 )
 
 func TestTag_T(t *testing.T) {
+	t.Parallel()
+
 	tag := l.T("div")
 
 	if tag == nil {
@@ -25,6 +27,8 @@ func TestTag_T(t *testing.T) {
 }
 
 func TestTag_IsVoid(t *testing.T) {
+	t.Parallel()
+
 	div := l.T("div")
 	hr := l.T("hr")
 
@@ -33,41 +37,6 @@ func TestTag_IsVoid(t *testing.T) {
 	}
 
 	if diff := deep.Equal(true, hr.IsVoid()); diff != nil {
-		t.Error(diff)
-	}
-}
-
-func TestTag_Attributes(t *testing.T) {
-	div := l.T("div")
-
-	a := l.NewAttribute("foo", "bar")
-	b := l.NewAttribute("biz", "baz")
-
-	div.SetAttributes(a, b)
-
-	if diff := deep.Equal([]*l.Attribute{a, b}, div.GetAttributes()); diff != nil {
-		t.Error(diff)
-	}
-
-	div.RemoveAttributes("foo")
-
-	if diff := deep.Equal([]*l.Attribute{b}, div.GetAttributes()); diff != nil {
-		t.Error(diff)
-	}
-}
-
-func TestTag_Attrs(t *testing.T) {
-	div := l.T("div", l.Attrs{"foo": "bar"}, l.Attrs{"biz": "baz"})
-
-	a := l.NewAttribute("foo", "bar")
-	b := l.NewAttribute("biz", "baz")
-
-	attrsResult := div.GetAttributes()
-	if diff := deep.Equal(a.Value, attrsResult[0].Value); diff != nil {
-		t.Error(diff)
-	}
-
-	if diff := deep.Equal(b.Value, attrsResult[1].Value); diff != nil {
 		t.Error(diff)
 	}
 }

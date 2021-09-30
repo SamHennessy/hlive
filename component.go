@@ -81,7 +81,7 @@ func (c *Component) IsAutoRender() bool {
 	return c.AutoRender
 }
 
-// GetEventBinding will return an EventBinding that exists directly on this element, it doesn't check it's children.
+// GetEventBinding will return an EventBinding that exists directly on this element, it doesn't check its children.
 // Returns nil is not found.
 func (c *Component) GetEventBinding(id string) *EventBinding {
 	for i := 0; i < len(c.bindings); i++ {
@@ -100,7 +100,7 @@ func (c *Component) GetEventBindings() []*EventBinding {
 
 // RemoveEventBinding removes an EventBinding that matches the passed ID.
 // No error if the passed id doesn't match an EventBinding.
-// It doesn't check it's children.
+// It doesn't check its children.
 func (c *Component) RemoveEventBinding(id string) {
 	var newList []*EventBinding
 

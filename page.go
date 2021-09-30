@@ -136,7 +136,7 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 	// Won't send message until this is true
 	p.connected = true
 
-	// Send session id, it maybe new or have changed
+	// Send session id, it may be new or have changed
 	p.wsSend("s|id|" + sess.ID)
 
 	// Do an initial render

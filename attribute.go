@@ -3,19 +3,20 @@ package hlive
 import "strings"
 
 // Attrs is a helper for adding Attributes to nodes
-// You can update an existing Attribute by adding new Attrs but you can't remove an Attribute, use RemoveAttribute.
+// You can update an existing Attribute by adding new Attrs, it;s also possible to pass a string by reference.
+// You can remove an Attribute by passing a nil value.
 type Attrs map[string]interface{}
 
 // CSS a special Attribute for working with CSS classes on nodes.
 // It supports turning them on and off and allowing overriding.
 // All CSSs are de-duped, overriding a CSS by adding new CSS will result in the old CSS getting updated.
-// You don't have to use CSS to add a class attribute but it's the recommended way to do it.
+// You don't have to use CSS to add a class attribute, but it's the recommended way to do it.
 type CSS map[string]bool
 
 // Style is a special Attribute that allows you to work with CSS styles on nodes.
 // It allows you to override
 // All Styles are de-duped, overriding a Style by adding new Style will result in the old Style getting updated.
-// You don't have to use Style to add a style attribute but it's the recommended way to do it.
+// You don't have to use Style to add a style attribute, but it's the recommended way to do it.
 type Style map[string]interface{}
 
 // NewAttribute create a new Attribute
