@@ -44,7 +44,7 @@ func TestAttribute_SetValueByReference(t *testing.T) {
 	}
 }
 
-func TestAttribute_TagSetAttributesGetAttributes(t *testing.T) {
+func TestAttribute_TagAddAttributesGetAttributes(t *testing.T) {
 	t.Parallel()
 
 	div := l.T("div")
@@ -52,15 +52,15 @@ func TestAttribute_TagSetAttributesGetAttributes(t *testing.T) {
 	a := l.NewAttribute("foo", "bar")
 	b := l.NewAttribute("biz", "baz")
 
-	div.SetAttributes(a, b)
+	div.AddAttributes(a, b)
 
-	if diff := deep.Equal([]*l.Attribute{a, b}, div.GetAttributes()); diff != nil {
+	if diff := deep.Equal([]l.Attributer{a, b}, div.GetAttributes()); diff != nil {
 		t.Error(diff)
 	}
 
 	div.RemoveAttributes("foo")
 
-	if diff := deep.Equal([]*l.Attribute{b}, div.GetAttributes()); diff != nil {
+	if diff := deep.Equal([]l.Attributer{b}, div.GetAttributes()); diff != nil {
 		t.Error(diff)
 	}
 }

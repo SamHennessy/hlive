@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 
 	l "github.com/SamHennessy/hlive"
-	"github.com/rs/zerolog"
 )
 
 const pageStyle l.HTML = `
@@ -22,18 +22,16 @@ const pageStyle l.HTML = `
 `
 
 func main() {
-	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+	http.Handle("/", home())
 
-	http.Handle("/", home(logger))
-
-	logger.Info().Str("addr", ":3000").Msg("listing")
+	log.Println("INFO: listing :3000")
 
 	if err := http.ListenAndServe(":3000", nil); err != nil {
-		logger.Err(err).Msg("http listen and serve")
+		log.Println("ERRO: http listen and serve: ", err)
 	}
 }
 
-func home(logger zerolog.Logger) *l.PageServer {
+func home() *l.PageServer {
 	f := func() *l.Page {
 		animationTarget := l.C("div", l.CSS{"animate__animated": true}, l.CSS{"text": true}, "HLive")
 
@@ -74,7 +72,7 @@ func home(logger zerolog.Logger) *l.PageServer {
 			}),
 			// You can create multiple event bindings for the same event and component
 			l.On("click", func(ctx context.Context, e l.Event) {
-				logger.Info().Msg("Button Clicked")
+				log.Println("INFO: Button Clicked")
 			}),
 		)
 
@@ -90,7 +88,6 @@ func home(logger zerolog.Logger) *l.PageServer {
 		}))
 
 		page := l.NewPage()
-		page.SetLogger(logger)
 		page.Title.Add("Animation Example")
 		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
 		page.Head.Add(l.T("link",
@@ -98,8 +95,11 @@ func home(logger zerolog.Logger) *l.PageServer {
 		page.Head.Add(l.T("style", pageStyle))
 
 		page.Body.Add(
+			l.T("h1", "CSS Animations"),
+			l.T("blockquote", "We can wait for the CSS animation to end before starting the next one"),
 			btn,
 			&current,
+			l.T("hr"),
 			l.T("div", l.CSS{"box": true}, animationTarget),
 		)
 

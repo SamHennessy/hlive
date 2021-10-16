@@ -2,34 +2,37 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 
 	l "github.com/SamHennessy/hlive"
-	"github.com/rs/zerolog"
+	"github.com/SamHennessy/hlive/hlivekit"
 )
 
 func main() {
-	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+	http.Handle("/", home())
 
-	http.Handle("/", home(logger))
-
-	logger.Info().Str("addr", ":3000").Msg("listing")
+	log.Println("INFO: listing :3000")
 
 	if err := http.ListenAndServe(":3000", nil); err != nil {
-		logger.Err(err).Msg("http listen and serve")
+		log.Println("ERRO: http listen and serve: ", err)
 	}
 }
 
 func callback(container *l.Component) {
-	container.Add(l.On(l.DiffApply, func(ctx context.Context, e l.Event) {
-		container.Add(l.T("p", "Diff Apply"))
-		container.RemoveEventBinding(e.Binding.ID)
-	}))
+	container.Add(
+		hlivekit.OnDiffApply(
+			func(ctx context.Context, e l.Event) {
+				container.Add(l.T("p", "Diff Applied"))
+				container.RemoveEventBinding(e.Binding.ID)
+			},
+		),
+	)
 }
 
-func home(logger zerolog.Logger) *l.PageServer {
+func home() *l.PageServer {
 	f := func() *l.Page {
-		container := l.C("div")
+		container := l.C("code")
 
 		btn := l.C("button", "Trigger Click",
 			l.On("click", func(ctx context.Context, e l.Event) {
@@ -39,11 +42,16 @@ func home(logger zerolog.Logger) *l.PageServer {
 		)
 
 		page := l.NewPage()
-		page.SetLogger(logger)
 		page.Title.Add("Callback Example")
 		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
 
-		page.Body.Add(btn, l.T("h1", "Events"), container)
+		page.Body.Add(
+			l.T("h1", "Callback"),
+			l.T("blockquote", "Get notified when a change has been applied in the browser"),
+			btn,
+			l.T("h2", "Events"),
+			l.T("pre", container),
+		)
 
 		return page
 	}

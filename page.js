@@ -1,10 +1,16 @@
 let hlive = {
-    debug: false,
+    debug: true,
     reconnectLimit: 5,
     reconnectCount: 0,
     conn: null,
     isInitialSyncDone: false,
     sessID: 1,
+
+    afterMessage: [],
+    beforeRemoveEventHandlers: [],
+    afterRemoveEventHandlers: [],
+    beforeSendEvent: [],
+    beforeProcessMessage: [],
 };
 
 hlive.msgPart = {
@@ -21,7 +27,7 @@ hlive.diffParts = {
 
 // Base64 decode with unicode support
 // Ref: https://stackoverflow.com/questions/30106476/using-javascripts-atob-to-decode-base64-doesnt-properly-decode-utf-8-strings
-hlive.b64DecodeUnicode = (str) => {
+hlive.base64Decode = (str) => {
     // Going backwards: from byte stream, to percent-encoding, to original string.
     return decodeURIComponent(atob(str).split('').map(function(c) {
         return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
@@ -45,6 +51,18 @@ hlive.eventHandler = (e) => {
 }
 
 hlive.removeEventHandlers = (el) => {
+    for (let i = 0; i < hlive.beforeRemoveEventHandlers.length; i++) {
+        hlive.beforeRemoveEventHandlers[i](el);
+    }
+
+    hlive.removeHLiveEventHandlers(el)
+
+    for (let i = 0; i < hlive.afterRemoveEventHandlers.length; i++) {
+        hlive.afterRemoveEventHandlers[i](el);
+    }
+}
+
+hlive.removeHLiveEventHandlers = (el) => {
     if (!el.getAttribute ) {
         return
     }
@@ -150,6 +168,10 @@ hlive.eventHandlerHelper = (e, handlerID, isInitial) => {
         }
     }
 
+    for (let i = 0; i < hlive.beforeSendEvent.length; i++) {
+        msg = hlive.beforeSendEvent[i](e, msg);
+    }
+
     hlive.sendMsg(msg);
 }
 
@@ -246,14 +268,6 @@ hlive.postMessage = () => {
         hlive.syncInitialInputValues();
     }
 
-    // Give focus
-    document.querySelectorAll("[data-hlive-focus]").forEach(function (el) {
-        el.focus();
-        if (el.selectionStart !== undefined) {
-            setTimeout(function(){ el.selectionStart = el.selectionEnd = 10000; }, 0);
-        }
-    });
-
     // Start file upload
     document.querySelectorAll("[data-hlive-upload]").forEach(function (el) {
         const ids = hlive.getEventHAndlerIDs(el);
@@ -289,21 +303,9 @@ hlive.postMessage = () => {
         }
     });
 
-    // Trigger diffapply, should always be last
-    document.querySelectorAll("[data-hlive-on*=diffapply]").forEach(function (el) {
-        const ids = hlive.getEventHAndlerIDs(el);
-
-        if (!ids["diffapply"]) {
-            return;
-        }
-
-        for (let i = 0; i < ids["diffapply"].length; i++) {
-            hlive.sendMsg({
-                t: "e",
-                i: ids["diffapply"][i],
-            });
-        }
-    });
+    for (let i = 0; i < hlive.afterMessage.length; i++) {
+        hlive.afterMessage[i]();
+    }
 }
 
 hlive.getEventHAndlerIDs = (el) => {
@@ -330,12 +332,12 @@ hlive.getEventHAndlerIDs = (el) => {
 hlive.findDiffTarget = (diff) => {
     const parts = diff.split("|");
 
-    let target = document
+    let target = document;
     if (parts[hlive.diffParts.Root] !== "doc") {
         target = document.querySelector('[data-hlive-id="'+parts[hlive.diffParts.Root]+'"]');
     }
 
-    if (target === null) {
+    if (!target) {
         hlive.log("root element not found: " + parts[hlive.diffParts.Root]);
         return null
     }
@@ -353,7 +355,7 @@ hlive.findDiffTarget = (diff) => {
             continue;
         }
 
-        if (path[j] >= target.childNodes.length ) {
+        if (path[j] >= target.childNodes.length) {
             hlive.log("child not found " + parts[hlive.diffParts.Root] + ":" + parts[hlive.diffParts.Path]);
 
             target = null;
@@ -423,16 +425,26 @@ hlive.processMsg = (evt) => {
     messages = newMessages;
 
     for (let i = 0; i < messages.length; i++) {
-        if (messages[i] === "") {
+        let msg = messages[i];
+
+        if (msg === "") {
             continue;
         }
 
-        const parts = messages[i].split("|");
+        for (let j = 0; j < hlive.beforeProcessMessage.length; j++) {
+            msg = hlive.beforeProcessMessage[j](msg);
+        }
+
+        if (msg === "") {
+            continue;
+        }
+
+        const parts = msg.split("|");
 
         // DOM Diffs
         if (parts[hlive.msgPart.Type] === "d") {
             if (parts.length !== 6) {
-                hlive.log("invalid message format");
+                hlive.log("invalid diff message format");
                 continue;
             }
 
@@ -447,7 +459,7 @@ hlive.processMsg = (evt) => {
             // Text
             if (parts[hlive.diffParts.ContentType] === "t") {
                 if (parts[hlive.diffParts.DiffType] === "c") {
-                    let element = document.createTextNode(hlive.b64DecodeUnicode(parts[hlive.diffParts.Content]));
+                    let element = document.createTextNode(hlive.base64Decode(parts[hlive.diffParts.Content]));
 
                     const index = path[path.length - 1];
                     if (index < target.childNodes.length) {
@@ -456,7 +468,7 @@ hlive.processMsg = (evt) => {
                         target.appendChild(element.cloneNode(true));
                     }
                 } else {
-                    target.textContent = hlive.b64DecodeUnicode(parts[hlive.diffParts.Content]);
+                    target.textContent = hlive.base64Decode(parts[hlive.diffParts.Content]);
                 }
             }
 
@@ -464,7 +476,9 @@ hlive.processMsg = (evt) => {
             if (parts[hlive.diffParts.DiffType] === "c" && parts[hlive.diffParts.ContentType] === "h") {
                 // Only a single root element is allowed
                 let template = document.createElement('template');
-                template.innerHTML = hlive.b64DecodeUnicode(parts[hlive.diffParts.Content]);
+                template.innerHTML = hlive.base64Decode(parts[hlive.diffParts.Content]);
+
+                executeScriptElements(template.content);
 
                 const index = path[path.length - 1];
                 if (index < target.childNodes.length) {
@@ -474,13 +488,13 @@ hlive.processMsg = (evt) => {
                 }
             } else if (parts[hlive.diffParts.DiffType] === "u" && parts[hlive.diffParts.ContentType] === "h") {
                 let template = document.createElement('template');
-                template.innerHTML = hlive.b64DecodeUnicode(parts[hlive.diffParts.Content]);
+                template.innerHTML = hlive.base64Decode(parts[hlive.diffParts.Content]);
                 target.replaceWith(template.content.firstChild);
             }
 
             // Attributes
             if (parts[hlive.diffParts.ContentType] === "a") {
-                const attrData = hlive.b64DecodeUnicode(parts[hlive.diffParts.Content]);
+                const attrData = hlive.base64Decode(parts[hlive.diffParts.Content]);
 
                 // We strictly control this Attribute data format
                 const index = attrData.indexOf("=");
@@ -547,7 +561,7 @@ hlive.onclose = (evt) => {
     }
 
     let cover = document.createElement("div");
-    const s = "position:fixed;top:0;left:0;background:rgba(0,0,0,0.4);z-index:5;width:100%;height:100%;";
+    const s = "position:fixed;top:0;left:0;background:rgba(0,0,0,0.4);z-index:1000;width:100%;height:100%;";
     cover.setAttribute("style", s);
 
     document.getElementsByTagName("body")[0].appendChild(cover);
@@ -578,7 +592,24 @@ document.addEventListener("DOMContentLoaded", function(evt) {
         hlive.log("init");
         hlive.connect();
     } else {
-        // TODO: do something better
+        // TODO: do something better?
         alert("Your browser does not support WebSockets");
     }
 });
+
+// https://stackoverflow.com/a/69190644/1269893
+function executeScriptElements(containerElement) {
+    const scriptElements = containerElement.querySelectorAll("script");
+
+    Array.from(scriptElements).forEach((scriptElement) => {
+        const clonedElement = document.createElement("script");
+
+        Array.from(scriptElement.attributes).forEach((attribute) => {
+            clonedElement.setAttribute(attribute.name, attribute.value);
+        });
+
+        clonedElement.text = scriptElement.text;
+
+        scriptElement.parentNode.replaceChild(clonedElement, scriptElement);
+    });
+}

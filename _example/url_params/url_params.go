@@ -2,42 +2,41 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 
 	l "github.com/SamHennessy/hlive"
-	"github.com/rs/zerolog"
+	"github.com/SamHennessy/hlive/hlivekit"
 )
 
 func main() {
-	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
-
 	http.Handle("/",
 		urlParamsMiddleware(
-			l.NewPageServer(home(logger)).ServeHTTP,
+			home().ServeHTTP,
 		),
 	)
 
-	logger.Info().Str("addr", ":3000").Msg("listing")
+	log.Println("INFO: listing :3000")
 
 	if err := http.ListenAndServe(":3000", nil); err != nil {
-		logger.Err(err).Msg("http listen and serve")
+		log.Println("ERRO: http listen and serve: ", err)
 	}
 }
 
-func home(logger zerolog.Logger) func() *l.Page {
-	return func() *l.Page {
+func home() *l.PageServer {
+	f := func() *l.Page {
 		page := l.NewPage()
-		page.SetLogger(logger)
 		page.Title.Add("URL Params Example")
 		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
 
 		page.Body.Add(l.T("h1", "URL Get Parameter Read Example"),
-			l.T("p", "This example reads the parameters from the URL and prints them in a table. "+
+			l.T("blockquote", "This example reads the parameters from the URL and prints them in a table. "+
 				"You will see the extra 'hlive' parameter that HLive adds on when establishing a WebSocket connection."),
 			l.T("p", "Add your own query parameters to the url and load the page again."),
+			l.T("h2", "Values"),
 		)
 
-		cl := l.List("tbody")
+		cl := hlivekit.List("tbody")
 
 		cm := l.CM("table",
 			l.T("thead",
@@ -62,6 +61,8 @@ func home(logger zerolog.Logger) func() *l.Page {
 
 		return page
 	}
+
+	return l.NewPageServer(f)
 }
 
 type ctxKey string

@@ -2,35 +2,35 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"time"
 
 	l "github.com/SamHennessy/hlive"
-	"github.com/rs/zerolog"
 )
 
-// Feature Ideas: allow user to adjust tick duration, and allow pausing of the clock
-
 func main() {
-	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+	http.Handle("/", home())
 
-	http.Handle("/", home(logger))
-
-	logger.Info().Str("addr", ":3000").Msg("listing")
+	log.Println("INFO: listing :3000")
 
 	if err := http.ListenAndServe(":3000", nil); err != nil {
-		logger.Err(err).Msg("http listen and serve")
+		log.Println("ERRO: http listen and serve: ", err)
 	}
 }
 
-func home(logger zerolog.Logger) *l.PageServer {
+func home() *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.SetLogger(logger)
 		page.Title.Add("Clock Example")
 		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
 
-		page.Body.Add(l.T("pre", newClock(logger)))
+		page.Body.Add(
+
+			l.T("h1", "Clock"),
+			l.T("blockquote", "The time updates are being push from the server every 100ms"),
+			l.T("pre", newClock()),
+		)
 
 		return page
 	}
@@ -42,10 +42,9 @@ func home(logger zerolog.Logger) *l.PageServer {
 	return ps
 }
 
-func newClock(logger zerolog.Logger) *clock {
+func newClock() *clock {
 	return &clock{
 		Component: l.C("code"),
-		logger:    logger,
 		t:         time.Now(),
 	}
 }
@@ -53,33 +52,32 @@ func newClock(logger zerolog.Logger) *clock {
 type clock struct {
 	*l.Component
 
-	logger zerolog.Logger
-	t      time.Time
-	tick   *time.Ticker
-	done   chan bool
+	t    time.Time
+	tick *time.Ticker
+	done chan bool
 }
 
-func (c *clock) GetNodes() interface{} {
-	return "Server Time: " + c.t.String()
+func (c *clock) GetNodes() *l.NodeGroup {
+	return l.G("Server Time: " + c.t.String())
 }
 
 func (c *clock) Mount(ctx context.Context) {
-	c.logger.Info().Msg("start tick")
-	c.tick = time.NewTicker(time.Second / 10)
+	log.Println("DEBU: start tick")
 
+	c.tick = time.NewTicker(100 * time.Millisecond)
 	c.done = make(chan bool)
 
 	go func() {
 		for {
 			select {
 			case <-c.done:
-				c.logger.Info().Msg("tick loop stop")
+				log.Println("DEBU: tick loop stop")
 
 				return
 			case t := <-c.tick.C:
 				c.t = t
 
-				l.RenderWS(ctx)
+				l.RenderComponent(ctx, c)
 			}
 		}
 	}()
@@ -88,7 +86,7 @@ func (c *clock) Mount(ctx context.Context) {
 // Unmount
 // Will be called after the page session is deleted
 func (c *clock) Unmount(_ context.Context) {
-	c.logger.Info().Msg("stop tick")
+	log.Println("DEBU: stop tick")
 	c.done <- true
 
 	if c.tick != nil {

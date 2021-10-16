@@ -2,8 +2,9 @@ package hlive
 
 import (
 	"context"
+	"strings"
 
-	"github.com/rs/xid"
+	"github.com/teris-io/shortid"
 )
 
 type Event struct {
@@ -28,6 +29,8 @@ type Event struct {
 	CtrlKey  bool
 	// Used for file inputs and uploads
 	File *File
+	// Extra, for non-browser related data, for use by plugins
+	Extra map[string]string
 }
 
 type File struct {
@@ -48,7 +51,7 @@ type File struct {
 type EventHandler func(ctx context.Context, e Event)
 
 func NewEventBinding() *EventBinding {
-	return &EventBinding{ID: xid.New().String()}
+	return &EventBinding{ID: shortid.MustGenerate()}
 }
 
 type EventBinding struct {
@@ -62,4 +65,19 @@ type EventBinding struct {
 	Once bool
 	// Name of the JavaScript event that will trigger this binding
 	Name string
+}
+
+func On(name string, handler EventHandler) *EventBinding {
+	binding := NewEventBinding()
+	binding.Handler = handler
+	binding.Name = strings.ToLower(name)
+
+	return binding
+}
+
+func OnOnce(name string, handler EventHandler) *EventBinding {
+	binding := On(name, handler)
+	binding.Once = true
+
+	return binding
 }

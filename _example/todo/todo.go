@@ -2,28 +2,26 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 
 	l "github.com/SamHennessy/hlive"
-	"github.com/rs/zerolog"
+	"github.com/SamHennessy/hlive/hlivekit"
 )
 
 func main() {
-	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+	http.Handle("/", home())
 
-	http.Handle("/", l.NewPageServer(home(logger)))
-
-	logger.Info().Str("addr", ":3000").Msg("listing")
+	log.Println("INFO: listing :3000")
 
 	if err := http.ListenAndServe(":3000", nil); err != nil {
-		logger.Err(err).Msg("http listen and serve")
+		log.Println("ERRO: http listen and serve:", err)
 	}
 }
 
-func home(logger zerolog.Logger) func() *l.Page {
-	return func() *l.Page {
+func home() *l.PageServer {
+	f := func() *l.Page {
 		page := l.NewPage()
-		page.SetLogger(logger)
 		page.Title.Add("Add Remove Example")
 		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
 
@@ -31,12 +29,14 @@ func home(logger zerolog.Logger) func() *l.Page {
 
 		return page
 	}
+
+	return l.NewPageServer(f)
 }
 
 type todoApp struct {
 	newTask      string
 	newTaskInput *l.Component
-	taskList     *l.ComponentListTidy
+	taskList     *hlivekit.ComponentList
 	tree         []l.Tagger
 }
 
@@ -55,7 +55,7 @@ func (a *todoApp) init() {
 func (a *todoApp) initForm() {
 	a.newTaskInput = l.C("input", l.Attrs{"type": "text", "placeholder": "Task E.g: Buy Food, Walk dog, ..."})
 	a.newTaskInput.Add(
-		l.On("keyup", func(_ context.Context, e l.Event) {
+		l.On("input", func(_ context.Context, e l.Event) {
 			a.newTask = e.Value
 			// This is needed to allow us to clear the input on submit
 			// Without this there would be no difference in the tree to trigger a diff
@@ -79,7 +79,7 @@ func (a *todoApp) initForm() {
 }
 
 func (a *todoApp) initList() {
-	a.taskList = l.List("div")
+	a.taskList = hlivekit.List("div")
 	a.tree = append(a.tree,
 		l.T("h1", "To Do"),
 		a.taskList,
@@ -121,14 +121,16 @@ func (a *todoApp) addTask(label string) {
 	container.Add(
 		// Delete button
 		l.C("button", "🗑️", l.On("click", func(_ context.Context, _ l.Event) {
-			a.taskList.RemoveItem(container)
+			a.taskList.RemoveItems(container)
 		})),
 		// Edit button
 		l.C("button", "✏️", l.On("click", func(_ context.Context, _ l.Event) {
 			labelSpan.Add(l.Style{"display": "none"})
 			labelForm.Add(l.Style{"display": nil})
-			labelInput.Add(l.Attrs{l.AttrFocus: ""}, l.OnOnce("focus", func(_ context.Context, _ l.Event) {
-				labelInput.RemoveAttributes(l.AttrFocus)
+			labelInput.Add(hlivekit.Focus(), l.OnOnce("focus", func(ctx context.Context, _ l.Event) {
+				hlivekit.FocusRemove(labelInput)
+
+				l.Render(ctx)
 			}))
 		})),
 		labelSpan,

@@ -89,7 +89,6 @@ import l "github.com/SamHennessy/hlive"
 Let's create our first page:
 
 ```go
-
 func home() *l.Page {
 	page := l.NewPage()
 	page.Body.Add("Hello, world.")
@@ -286,10 +285,10 @@ An example of how to implement a user session using middleware and cookies. It a
 
 Using middleware in HLive is just like any Go app.
 
-#### To Do
+#### To Do List
 [_example/todo/todo.go](./_example/todo/todo.go)
 
-A simple To Do app.
+A simple To Do list app.
 
 #### URL Parameters
 
@@ -329,7 +328,7 @@ The order of the style rules in a single `Style` is NOT respected. If the order 
 
 ### Tag Children
 
-`Tag` has `func GetNodes() interface{}`. This will return can children a `Tag` has.
+`Tag` has `func GetNodes() *l.NodeGroup`. This will return can children a `Tag` has.
 
 This function is called many times and not always when it's time to render. Calls to `GetNodes` must
 be [deterministic](https://en.wikipedia.org/wiki/Deterministic_algorithm). If you've not made a change to the `Tag`
@@ -355,7 +354,7 @@ Depending on the `EventType` you'll have data in the `Event` parameter.
 
 ### Node
 
-A Node is something that can be rendered into an HTML tag. For example, `Tag`, `Component`, or `RenderFunc`. An
+A Node is something that can be rendered into an HTML tag. For example, a string, `Tag`, or `Component`. An
 `Attribute` is not a Node as it can't be rendered to a complete HTML tag.
 
 ### Element
@@ -514,23 +513,213 @@ Live views and components for golang
 
 ## TODO
 
+### API Change
+
+### Bugs
+
+- Initial sync seems to be triggering when it shouldn't
+  - Maybe when the value attribute doesn't exist?
+- Context is already dead when trying calling other services
+- Set the z-index higher than Bulma menu for default disconnect layer
+  - Need to test
+
+### Internal improvements
+
+#### Groups
+
+- Add the Grouper interface
+  - func GetGroup() []interface{}
+  - Add the NoneNodeElementsGroup
+
+#### Page Pipeline
+
+- HTTP request w, r
+
+#### Other
+
 - Batch message sends and receives in the javascript (https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide)
+- If we want to batch sends from the server I think be a problem with out-of-order changes.
+- Add log level to client side logging
+- Send config for debug, and log level down to client side
+- Remove the data- prefix from my attributes?
+  - No one else seems to care
+- Event bubbling
+  - Prevent bubble in browser
+  - Don't bubble events server side
+  - Update Docs
 - Add a queue for incoming messages on a page session
-    - Maybe multiple concurrent requests is okay, maybe we just batch renders?
+  - Maybe multiple concurrent requests is okay, maybe we just batch renders?
+- Use a channel with a single reader to process page events
+- How does it work with grammarly?
+- How does it work with Last Pass?
+- Switch `Page.tree` to a NodeGroup
+- Get rid of the `Page.treeLock` by using a channel
+
+### Tests
+
 - Add JavaScript test for multi child delete
     - E.g.:
-    - d|d|doc|1>1>0>0>1>2||
-    - d|d|doc|1>1>0>0>1>3||
-- Remove isWebSocket from context. Move it out of the context?
-- copyTree error wrapping is not very productive
-- Document that browser adds tbody to table
+      - d|d|doc|1>1>0>0>1>2||
+      - d|d|doc|1>1>0>0>1>3||
+- `Page.Close`
+
+### Docs
+
 - Add initial page sync to concepts
   - An input needs to have binding for this to work
 - Add one page one user to concepts
-- Document how to debug in browser
-- Test, setting a radio, checkbox, select option without clicking them
-- Test, page reload for checkbox, select
-- Add log level to client side logging
-- Send config for debug, and log level down to client side
+- How to debug in browser
+- How on mount render order issues
+  - Try to update an element that has already been processed the diff will not be noticed
+  - Use the dirty tree error?
+- Logging
+- Plugins
+- Preempt pattern
+
+### Security
+
+- Add a CSRF token
+  - https://github.com/gorilla/csrf
+
+### New Features/Improvements
+
 - Look for a CSS class to show on a failed reconnect
 - Allow adding mount and unmount function as elements?
+- How well does [Alpine.JS](https://alpinejs.dev/) work with HLive
+  - https://dockyard.com/blogs/optimizing-user-experience-with-liveview
+
+- Can we add a way for a component like List to inform tree copy not to bother doing a diff and just do a full HTML replacement
+- Form
+  - Bubble up input and change events?
+  - No, no bubble!
+- Cluster
+  - Proxy reconnect, find the session on another node and proxy the connection to that node
+    - https://github.com/koding/websocketproxy
+- Message bus
+  - Async
+  - Page, server, cluster
+  - Plugin based protocol
+  - Simple example protocol
+    - Websocket?
+    - manual node config
+  - Prevent race conditions on the page dom
+  - Have the page sessions listen to server and cluster messages
+- ComponentList
+  - Operations by ID
+    - Get by ID
+    - Remove By ID
+- User friendly HTTP error pages
+  - Display a request ID if it exits
+- Map component ids and event binding ids to a sequential number
+  - Would need to map out and in
+  - Would provide for smaller ids
+  - Could make debugging hard
+
+## HHot
+
+A highly opinionated web framework that use hot reload and code generation.
+
+- You install the hhot binary and when in dev mode you get a web UI to create new things, change config etc.
+- Place models in certain folder, and we'll generate the code to wie them up. Same with HLive Pages
+- Use a DI registry to pass config, logger, DB, Cache, etc. to each page.
+- Use off-the-shelf ORM where possible.
+- Form -> Model -> Database flow
+- Data grid
+- Pagination
+- Navigation
+- User management
+- Permissions
+- Batteries included but swappable
+
+### HHot Ideas
+- Add the HTTP request to the context by default?
+- Create a middleware package
+  - HTTP Request
+  - Security
+- Add HTML dsl (Kit?)
+- Cluster
+  - User management, who's online
+- Page level data store
+  - `map[string]interface{}`
+  - `map[string]Adder`
+  - Available in the context
+  - Mutex lock
+  - Middleware?
+- Asset management
+  - CSS, JS, Font, Images
+  - Allow plugins/component libraries to work with this
+    - Developer would connect them
+  - Mount as a route
+  - Use an api to add the JS and CSS to the page HTML
+    - Cache busting
+  - Watch for change?
+    - If change update cache buster
+  - Development mode, production mode
+- CSS Build Pipeline
+  - Crete an example production quality CSS build pipeline using Tailwind and esbuild that can purse the unused CSS.
+  - Don't use dynamic css class names
+    - https://tailwindcss.com/docs/optimizing-for-production
+  - How would that work for 3rd party components?
+    - Plugin API?
+- Forms
+  - Make having forms easy
+  - Full form validation
+  - Use message bus
+- Form -> Model -> Database flow
+- Automatic TLS via Let’s Encrypt
+- Logging
+
+### Older ideas
+
+- Limit execution by having a worker pool controlled by the page session
+  - That way we have a way to limit RAM and CPU
+
+## Serializable tree/component state
+
+** Maybe this should just be done with traditional user sessions? **
+
+- Can we make it so that tree/component state is, serializable?
+- If so we can store it in a database and allow reconnecting later.
+- If load was getting high we can swap sessions in and out of memory
+- We would need a way to capture and store then rehydrate
+- How do we remount event listeners?
+  - Need to map state to a function that can rehydrate it
+    - Needs to support cold start (we have the data, but we've never seen the component)
+  - Maybe we would need to use reflection
+    - Only the first time 
+- Can't have pointers, outside the components state
+- Maybe all event driven?
+- Encrypt the data by default
+- Could this be a special kind of Page Session?
+
+## Do more with the HTTP Server render
+
+- Think server side render
+- Get the HTTP request easier
+- Easy to cache the response
+
+- CDN ready
+  - Think about what would work well in a CDN
+  - Product page
+    - Good
+      - Pics
+      - Description
+    - Bad
+      - Personal recommendations
+      - Recently viewed items
+
+
+## Multi file upload using WS and HTTP
+
+- Need a count of files
+- Group them together in an event?
+- Make a channel?
+- File upload progress
+
+# Visibility
+
+- Is a component visible?
+- Trigger event when visible?
+- Scroll events
+  - Page position
+  - Viewport

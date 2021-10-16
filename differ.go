@@ -47,66 +47,69 @@ func (d *Differ) SetLogger(logger zerolog.Logger) {
 // Path: childIndex>childIndex
 // Path: 0>1>3
 //
-// After tree copy you only have Tagger (with []Attribute), HTML, and strings. Then can be grouped in []interface{}
-func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, error) {
+// After tree copy you only have Tagger (with []Attribute), HTML, and strings. Then can be grouped in a NodeGroup
+func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]Diff, error) {
 	var diffs []Diff
 
 	d.logger.Trace().Str("sel", selector).Str("path", path).Msg("diffTrees")
 
-	// More nodes in new tree
-	if old == nil && new != nil {
-		diffs = append(diffs, diffCreate(selector, path, new)...)
+	// More nodes in new browserTree
+	if oldNode == nil && newNode != nil {
+		diffs = append(diffs, diffCreate(selector, path, newNode)...)
 
 		return diffs, nil
 	}
 
-	// Old node doesn't exist in new tree
-	if old != nil && new == nil {
+	// Old node doesn't exist in new browserTree
+	if oldNode != nil && newNode == nil {
 		diffs = append(diffs, Diff{
 			Root: selector,
 			Path: path,
 			Type: DiffDelete,
-			Old:  old,
+			Old:  oldNode,
 		})
 
 		return diffs, nil
 	}
 
 	// Not the same type, remove current node and replace with new
-	if !diffTreeNodeTypeMatch(old, new) {
+	if !diffTreeNodeTypeMatch(oldNode, newNode) {
 
 		diffs = append(diffs, Diff{
 			Root: selector,
 			Path: path,
 			Type: DiffDelete,
-			Old:  old,
+			Old:  oldNode,
 		})
 
-		diffs = append(diffs, diffCreate(selector, path, new)...)
+		diffs = append(diffs, diffCreate(selector, path, newNode)...)
 
 		return diffs, nil
 	}
 
-	switch v := old.(type) {
-	case []interface{}:
-		newIS := new.([]interface{})
+	switch v := oldNode.(type) {
+	case *NodeGroup:
+		oldList := v.Get()
+		newNG, _ := newNode.(*NodeGroup)
+		newList := newNG.list
 		indexOffset := 0
-		for i := 0; i < len(v); i++ {
+
+		for i := 0; i < len(oldList); i++ {
 			var n interface{}
-			if len(newIS) > i {
-				n = newIS[i]
+			if len(newList) > i {
+				n = newList[i]
 			}
 
-			subDiffs, err := d.Trees(selector, path+strconv.Itoa(i-indexOffset), v[i], n)
+			subDiffs, err := d.Trees(selector, path+strconv.Itoa(i-indexOffset), oldList[i], n)
 			if err != nil {
-				return nil, fmt.Errorf("diff []interface{}: %w", err)
+				return nil, fmt.Errorf("diff NodeGroup: %w", err)
 			}
 
 			diffs = append(diffs, subDiffs...)
 		}
 		// Any new elements?
 	case string:
-		newStr := new.(string)
+		newStr, _ := newNode.(string)
 
 		// content doesn't match, update content
 		if v != newStr {
@@ -118,7 +121,7 @@ func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 			})
 		}
 	case HTML:
-		newHTML := new.(HTML)
+		newHTML, _ := newNode.(HTML)
 
 		// content doesn't match, update content
 		if v != newHTML {
@@ -130,7 +133,7 @@ func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 			})
 		}
 	case Tagger:
-		newTag := new.(Tagger)
+		newTag, _ := newNode.(Tagger)
 
 		// Different tag?
 		if v.GetName() != newTag.GetName() || v.IsVoid() != newTag.IsVoid() {
@@ -149,23 +152,24 @@ func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 
 		oldAttrs := v.GetAttributes()
 		newAttrs := newTag.GetAttributes()
+
 		// exits maps, helps us know if we should delete or update
-		oldAttrsMap := map[string]*Attribute{}
+		oldAttrsMap := map[string]Attributer{}
 		for i := 0; i < len(oldAttrs); i++ {
-			oldAttrsMap[oldAttrs[i].Name] = oldAttrs[i]
+			oldAttrsMap[oldAttrs[i].GetAttribute().Name] = oldAttrs[i]
 		}
 
-		newAttrsMap := map[string]*Attribute{}
+		newAttrsMap := map[string]Attributer{}
 
 		for i := 0; i < len(newAttrs); i++ {
-			newAttrsMap[newAttrs[i].Name] = newAttrs[i]
+			newAttrsMap[newAttrs[i].GetAttribute().Name] = newAttrs[i]
 		}
 
 		// Update existing or create new
 		for i := 0; i < len(newAttrs); i++ {
-			oldAttr, exits := oldAttrsMap[newAttrs[i].Name]
+			oldAttr, exits := oldAttrsMap[newAttrs[i].GetAttribute().Name]
 
-			if !exits || newAttrs[i].GetValue() != oldAttr.GetValue() {
+			if !exits || newAttrs[i].GetAttribute().GetValue() != oldAttr.GetAttribute().GetValue() {
 				dt := DiffUpdate
 				if !exits {
 					dt = DiffCreate
@@ -175,43 +179,32 @@ func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 					Root:      selector,
 					Path:      path,
 					Type:      dt,
-					Attribute: newAttrs[i],
+					Attribute: newAttrs[i].GetAttribute(),
 				})
 			}
 		}
 
 		// Delete old attrs that have been removed
 		for i := 0; i < len(oldAttrs); i++ {
-			_, exits := newAttrsMap[oldAttrs[i].Name]
+			_, exits := newAttrsMap[oldAttrs[i].GetAttribute().Name]
 			if !exits {
 				diffs = append(diffs, Diff{
 					Root:      selector,
 					Path:      path,
 					Type:      DiffDelete,
-					Attribute: oldAttrs[i],
+					Attribute: oldAttrs[i].GetAttribute(),
 				})
 			}
 		}
 
 		// Is this tag a component?
 		if attr, exits := newAttrsMap[AttrID]; exits {
-			selector = attr.GetValue()
+			selector = attr.GetAttribute().GetValue()
 			path = ""
 		}
 
-		oldKid := v.GetNodes()
-
-		oldKids, ok := oldKid.([]interface{})
-		if !ok {
-			oldKids = []interface{}{oldKid}
-		}
-
-		newKid := newTag.GetNodes()
-
-		newKids, ok := newKid.([]interface{})
-		if !ok {
-			newKids = []interface{}{newKid}
-		}
+		oldKids := v.GetNodes().Get()
+		newKids := newTag.GetNodes().Get()
 
 		// Loop old kids
 		i := 0
@@ -240,10 +233,11 @@ func (d *Differ) Trees(selector, path string, old, new interface{}) ([]Diff, err
 
 func diffCreate(compID, path string, el interface{}) []Diff {
 	switch v := el.(type) {
-	case []interface{}:
+	case *NodeGroup:
+		g := v.Get()
 		var diffs []Diff
-		for i := 0; i < len(v); i++ {
-			diffs = append(diffs, diffCreate(compID, path, v[i])...)
+		for i := 0; i < len(g); i++ {
+			diffs = append(diffs, diffCreate(compID, path, g[i])...)
 		}
 
 		return diffs
@@ -291,27 +285,27 @@ func diffCreate(compID, path string, el interface{}) []Diff {
 	}
 }
 
-func diffTreeNodeTypeMatch(old, new interface{}) bool {
-	switch old.(type) {
-	case []interface{}:
-		_, ok := new.([]interface{})
+func diffTreeNodeTypeMatch(oldNode, newNode interface{}) bool {
+	switch oldNode.(type) {
+	case *NodeGroup:
+		_, ok := newNode.(*NodeGroup)
 
 		return ok
 	case string:
-		_, ok := new.(string)
+		_, ok := newNode.(string)
 
 		return ok
 	case HTML:
-		_, ok := new.(HTML)
+		_, ok := newNode.(HTML)
 
 		return ok
 	case Tagger:
-		_, ok := new.(Tagger)
+		_, ok := newNode.(Tagger)
 
 		return ok
 	case nil:
 		return false
 	default:
-		panic(fmt.Errorf("unexpected type: %#v", old))
+		panic(fmt.Errorf("unexpected type: %#v", oldNode))
 	}
 }

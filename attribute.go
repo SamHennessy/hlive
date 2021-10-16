@@ -1,11 +1,42 @@
 package hlive
 
-import "strings"
+import (
+	"strings"
+)
+
+type Attributer interface {
+	GetAttribute() *Attribute
+}
+
+type AttributePluginer interface {
+	Attributer
+
+	// Initialize will only be called once per attribute name
+	Initialize(page *Page)
+}
 
 // Attrs is a helper for adding Attributes to nodes
 // You can update an existing Attribute by adding new Attrs, it;s also possible to pass a string by reference.
 // You can remove an Attribute by passing a nil value.
 type Attrs map[string]interface{}
+
+func (a Attrs) GetAttributes() []Attributer {
+	newAttrs := make([]Attributer, 0, len(a))
+
+	for name, val := range a {
+		attr := NewAttribute(name)
+		switch v := val.(type) {
+		case string:
+			attr.SetValue(v)
+		case *string:
+			attr.Value = v
+		}
+
+		newAttrs = append(newAttrs, attr)
+	}
+
+	return newAttrs
+}
 
 // CSS a special Attribute for working with CSS classes on nodes.
 // It supports turning them on and off and allowing overriding.
@@ -65,8 +96,12 @@ func (a *Attribute) Clone() *Attribute {
 	return newA
 }
 
-func anyToAttributes(attrs ...interface{}) []*Attribute {
-	var newAttrs []*Attribute
+func (a *Attribute) GetAttribute() *Attribute {
+	return a
+}
+
+func anyToAttributes(attrs ...interface{}) []Attributer {
+	var newAttrs []Attributer
 
 	for i := 0; i < len(attrs); i++ {
 		if attrs[i] == nil {
@@ -74,33 +109,19 @@ func anyToAttributes(attrs ...interface{}) []*Attribute {
 		}
 
 		switch v := attrs[i].(type) {
-		case *Attribute:
-			newAttrs = append(newAttrs, v)
-		case []*Attribute:
-			newAttrs = append(newAttrs, v...)
 		case Attrs:
-			newAttrs = append(newAttrs, attrsToAttributes(v)...)
+			newAttrs = append(newAttrs, v.GetAttributes()...)
+		case Attributer:
+			newAttrs = append(newAttrs, v)
+		case []Attributer:
+			newAttrs = append(newAttrs, v...)
+		case []*Attribute:
+			for j := 0; j < len(v); j++ {
+				newAttrs = append(newAttrs, v[j])
+			}
 		default:
 			panic(ErrInvalidAttribute)
 		}
-	}
-
-	return newAttrs
-}
-
-func attrsToAttributes(attrs Attrs) []*Attribute {
-	newAttrs := make([]*Attribute, 0, len(attrs))
-
-	for name, val := range attrs {
-		attr := NewAttribute(name)
-		switch v := val.(type) {
-		case string:
-			attr.SetValue(v)
-		case *string:
-			attr.Value = v
-		}
-
-		newAttrs = append(newAttrs, attr)
 	}
 
 	return newAttrs

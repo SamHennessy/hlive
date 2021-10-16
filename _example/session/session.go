@@ -8,33 +8,32 @@ import (
 
 	l "github.com/SamHennessy/hlive"
 	"github.com/rs/xid"
-	"github.com/rs/zerolog"
 )
 
 func main() {
-	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
 	s := newService()
 
-	http.HandleFunc("/", sessionMiddleware(home(logger, s).ServeHTTP))
+	http.HandleFunc("/", sessionMiddleware(home(s).ServeHTTP))
 
-	logger.Info().Str("addr", ":3000").Msg("listing")
+	log.Println("INFO: listing :3000")
 
 	if err := http.ListenAndServe(":3000", nil); err != nil {
-		logger.Err(err).Msg("http listen and serve")
+		log.Println("ERRO: http listen and serve: ", err)
 	}
 }
 
-func home(logger zerolog.Logger, s *service) *l.PageServer {
+func home(s *service) *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.SetLogger(logger)
 		page.Title.Add("HTTP Session Example")
 		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
 
 		page.Body.Add(
-			l.T("h1", "Your Message"),
-			l.T("p", "Your message will persist between page reloads but not server reloads"),
+			l.T("h1", "HTTP Session"),
+			l.T("blockquote", "You can use middleware to implement a persistent session. This example uses a cookie and server memory, so will persist between page reloads but not server reloads."),
+			l.T("h2", "Your Message"),
 			newMessage(s),
+			l.T("p", "Once you enter a message, open another tab to see it there too. Changes are not synced between tabs in real-time."),
 		)
 
 		return page
@@ -101,7 +100,7 @@ func newMessage(service *service) *message {
 		service:   service,
 	}
 
-	c.Add(l.On("change", func(ctx context.Context, e l.Event) {
+	c.Add(l.On("input", func(ctx context.Context, e l.Event) {
 		c.service.SetMessage(getSessionID(ctx), e.Value)
 	}))
 
@@ -120,6 +119,6 @@ func (c *message) Mount(ctx context.Context) {
 	c.Message = c.service.GetMessage(getSessionID(ctx))
 }
 
-func (c *message) GetNodes() interface{} {
-	return l.Tree(c.Message)
+func (c *message) GetNodes() *l.NodeGroup {
+	return l.Group(c.Message)
 }

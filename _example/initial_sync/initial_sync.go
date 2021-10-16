@@ -2,29 +2,26 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"strings"
 
 	l "github.com/SamHennessy/hlive"
-	"github.com/rs/zerolog"
 )
 
 func main() {
-	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+	http.Handle("/", home())
 
-	http.Handle("/", l.NewPageServer(home(logger)))
-
-	logger.Info().Str("addr", ":3000").Msg("listing")
+	log.Println("INFO: listing :3000")
 
 	if err := http.ListenAndServe(":3000", nil); err != nil {
-		logger.Err(err).Msg("http listen and serve")
+		log.Println("ERRO: http listen and serve: ", err)
 	}
 }
 
-func home(logger zerolog.Logger) func() *l.Page {
-	return func() *l.Page {
+func home() *l.PageServer {
+	f := func() *l.Page {
 		page := l.NewPage()
-		page.SetLogger(logger)
 		page.Title.Add("Form Data Initial Sync Example")
 		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
 
@@ -34,10 +31,11 @@ func home(logger zerolog.Logger) func() *l.Page {
 		)
 
 		page.Body.Add(
-			l.T("h1", "Form Data Initial Sync Example"),
-			l.T("p", "Browsers will not clear form field data after a reload. "+
+			l.T("h1", "Form Data Initial Sync"),
+			l.T("blockquote", "Some browsers, life FireFox, don't clear form field data after a page reload. "+
 				"HLive will send this data to relevant inputs when this happens."),
-			l.T("p", "To test, change the fields below then reload."),
+			l.T("p", "To test, using FireFox, change the fields below then reload."),
+			l.T("h2", "Form"),
 			l.T("fieldset",
 				l.T("div", l.CSS{"row": true},
 					l.T("div", l.CSS{"col": true},
@@ -212,6 +210,7 @@ func home(logger zerolog.Logger) func() *l.Page {
 					),
 				),
 			),
+			l.T("h2", "Server Side Data"),
 			l.T("table",
 				l.T("thead",
 					l.T("tr",
@@ -260,4 +259,6 @@ func home(logger zerolog.Logger) func() *l.Page {
 
 		return page
 	}
+
+	return l.NewPageServer(f)
 }

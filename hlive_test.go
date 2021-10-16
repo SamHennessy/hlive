@@ -29,10 +29,10 @@ func TestIsValidElement(t *testing.T) {
 		{"component", args{hlive.C("span")}, true},
 	}
 
-	for _, val := range tests {
-		tt := val
+	for _, tt := range tests {
+		tt := tt
 
-		t.Run(val.name, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			if got := hlive.IsElement(tt.args.el); got != tt.want {
 				t.Errorf("IsElement() = %v, want %v", got, tt.want)

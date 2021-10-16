@@ -3,14 +3,8 @@ package hlive
 import (
 	"strings"
 
-	"github.com/rs/xid"
+	"github.com/teris-io/shortid"
 )
-
-type UniqueTagger interface {
-	Tagger
-	// GetID will return a unique id
-	GetID() string
-}
 
 // Componenter builds on UniqueTagger and adds the ability to handle events.
 type Componenter interface {
@@ -35,26 +29,32 @@ type Component struct {
 }
 
 // C is a shortcut for NewComponent.
+//
+// NewComponent is a constructor for Component.
+//
+// You can add zero or many Attributes and Tags
 func C(name string, elements ...interface{}) *Component {
 	return NewComponent(name, elements...)
 }
 
 // NewComponent is a constructor for Component.
-// You can add zero or many Attributes and Tags
+//
+// You can add zero or many Attributes and Tags.
 func NewComponent(name string, elements ...interface{}) *Component {
 	c := &Component{
 		Tag:        T(name),
-		id:         xid.New().String(),
+		id:         shortid.MustGenerate(),
 		AutoRender: true,
 	}
 
-	c.Add(NewAttribute(AttrID, c.GetID()))
-	c.Add(elements...)
+	c.Add(NewAttribute(AttrID, c.GetID()), elements)
 
 	return c
 }
 
 // W is a shortcut for Wrap.
+//
+// Wrap takes a Tag and creates a Component with it.
 func W(tag *Tag, elements ...interface{}) *Component {
 	return Wrap(tag, elements...)
 }
@@ -63,7 +63,7 @@ func W(tag *Tag, elements ...interface{}) *Component {
 func Wrap(tag *Tag, elements ...interface{}) *Component {
 	c := &Component{
 		Tag:        tag,
-		id:         xid.New().String(),
+		id:         shortid.MustGenerate(),
 		AutoRender: true,
 	}
 
@@ -73,10 +73,12 @@ func Wrap(tag *Tag, elements ...interface{}) *Component {
 	return c
 }
 
+// GetID returns this components unique ID
 func (c *Component) GetID() string {
 	return c.id
 }
 
+// IsAutoRender indicates if this component should trigger "Auto Render"
 func (c *Component) IsAutoRender() bool {
 	return c.AutoRender
 }
@@ -99,6 +101,7 @@ func (c *Component) GetEventBindings() []*EventBinding {
 }
 
 // RemoveEventBinding removes an EventBinding that matches the passed ID.
+//
 // No error if the passed id doesn't match an EventBinding.
 // It doesn't check its children.
 func (c *Component) RemoveEventBinding(id string) {
@@ -131,13 +134,25 @@ func (c *Component) RemoveEventBinding(id string) {
 }
 
 // Add an element to this Component.
+//
 // This is an easy way to add anything.
 func (c *Component) Add(elements ...interface{}) {
 	for i := 0; i < len(elements); i++ {
 		switch v := elements[i].(type) {
+		// NoneNodeElements
 		case []interface{}:
 			for j := 0; j < len(v); j++ {
 				c.Add(v[j])
+			}
+		case *NodeGroup:
+			list := v.Get()
+			for j := 0; j < len(list); j++ {
+				c.Add(list[j])
+			}
+		case *ElementGroup:
+			list := v.Get()
+			for j := 0; j < len(list); j++ {
+				c.Add(list[j])
 			}
 		case *EventBinding:
 			c.on(v)
@@ -152,7 +167,7 @@ func (c *Component) on(binding *EventBinding) {
 
 	id := binding.ID
 	if id == "" {
-		id = xid.New().String()
+		id = shortid.MustGenerate()
 	}
 
 	value := id + "|" + binding.Name
@@ -165,21 +180,4 @@ func (c *Component) on(binding *EventBinding) {
 	c.Add(NewAttribute(AttrOn, value))
 
 	c.bindings = append(c.bindings, binding)
-}
-
-func On(name string, handler EventHandler) *EventBinding {
-	binding := NewEventBinding()
-	binding.Handler = handler
-	binding.Name = strings.ToLower(name)
-
-	return binding
-}
-
-func OnOnce(name string, handler EventHandler) *EventBinding {
-	binding := NewEventBinding()
-	binding.Handler = handler
-	binding.Name = strings.ToLower(name)
-	binding.Once = true
-
-	return binding
 }

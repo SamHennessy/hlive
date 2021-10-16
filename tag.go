@@ -5,38 +5,60 @@ import (
 	"strings"
 )
 
+// Tagger represents a static HTML tag.
 type Tagger interface {
-	// GetName returns a tag's name. For example <hr>'s name is hr
+	// GetName returns a tag's name. For example <hr>'s name is hr.
 	GetName() string
-	// GetAttributes returns all attributes for this tag
-	GetAttributes() []*Attribute
-	// GetNodes returns this tags children nodes, to be rendered inside this tag
-	GetNodes() interface{}
-	// IsVoid indicates if this has a closing tag or not. Void tags don't have a closing tag
+	// GetAttributes returns all attributes for this tag.
+	GetAttributes() []Attributer
+	// GetNodes returns this tags children nodes, to be rendered inside this tag.
+	GetNodes() *NodeGroup
+	// IsVoid indicates if this has a closing tag or not. Void tags don't have a closing tag.
 	IsVoid() bool
 }
 
-// Adder interface for inputting elements to Tagger type values
-type Adder interface {
-	// Add elements to a Tagger
-	Add(element ...interface{})
+// UniqueTagger is a Tagger that can be uniquely identified in a DOM Tree.
+type UniqueTagger interface {
+	Tagger
+	// GetID will return a unique id
+	GetID() string
 }
 
+// Adder interface for inputting elements to Tagger type values.
+type Adder interface {
+	// Add elements to a Tagger
+	Add(elements ...interface{})
+}
+
+// UniqueAdder is an Adder that can be uniquely identified in a DOM Tree.
+type UniqueAdder interface {
+	Adder
+	// GetID will return a unique id
+	GetID() string
+}
+
+// Tag is the default HTML tag implementation.
+//
+// Use T or NewTag to create a value.
 type Tag struct {
 	name        string
 	void        bool
-	attributes  []*Attribute
-	nodes       []interface{}
+	attributes  []Attributer
+	nodes       *NodeGroup
 	cssExists   map[string]bool
 	cssOrder    []string
 	styleValues map[string]*string
 	styleOrder  []string
 }
 
+// T is a shortcut for NewTag.
+//
+// NewTag creates a new Tag value.
 func T(name string, elements ...interface{}) *Tag {
 	return NewTag(name, elements...)
 }
 
+// NewTag creates a new Tag value.
 func NewTag(name string, elements ...interface{}) *Tag {
 	name = strings.ToLower(name)
 
@@ -53,32 +75,38 @@ func NewTag(name string, elements ...interface{}) *Tag {
 		void:        void,
 		cssExists:   map[string]bool{},
 		styleValues: map[string]*string{},
+		nodes:       G(),
 	}
 
-	for i := 0; i < len(elements); i++ {
-		addElementToTag(t, elements[i])
-	}
+	addElementToTag(t, elements)
 
 	return t
 }
 
+// SetName sets the tag name, e.g. for a `<div>` it's the `div` part.
 func (t *Tag) SetName(name string) {
 	t.name = name
 }
 
+// GetName get the tag name.
 func (t *Tag) GetName() string {
 	return t.name
 }
 
+// IsVoid indicates if this is a void type tag, e.g. `<hr>`.
 func (t *Tag) IsVoid() bool {
 	return t.void
 }
 
+// SetVoid sets the tag to be a void type tag e.g. `<hr>`.
 func (t *Tag) SetVoid(void bool) {
 	t.void = void
 }
 
-func (t *Tag) GetAttributes() []*Attribute {
+// GetAttributes returns a list of Attributer values that this tag has.
+//
+// Any CSS, Style values are returned here as Attribute values.
+func (t *Tag) GetAttributes() []Attributer {
 	attrs := t.attributes
 
 	if len(t.cssOrder) != 0 {
@@ -103,10 +131,14 @@ func (t *Tag) GetAttributes() []*Attribute {
 	return attrs
 }
 
-func (t *Tag) GetAttribute(name string) *Attribute {
+// GetAttribute returns an Attributer value by its name.
+//
+// This includes attribute values related to CSS, and Style. If an Attributer of the passed name has not been set `nil`
+// it's returned.
+func (t *Tag) GetAttribute(name string) Attributer {
 	attrs := t.GetAttributes()
 	for i := 0; i < len(attrs); i++ {
-		if attrs[i].Name == name {
+		if attrs[i].GetAttribute().Name == name {
 			return attrs[i]
 		}
 	}
@@ -114,21 +146,25 @@ func (t *Tag) GetAttribute(name string) *Attribute {
 	return nil
 }
 
+// GetAttributeValue returns a value for a given Attributer name.
+//
+// If an attribute has not yet been set, then an empty string is returned.
 func (t *Tag) GetAttributeValue(name string) string {
 	a := t.GetAttribute(name)
-	if a == nil || a.Value == nil {
+	if a == nil {
 		return ""
 	}
 
-	return *a.Value
+	return a.GetAttribute().GetValue()
 }
 
-// Add an element to this Tag
+// Add zero or more elements to this Tag.
 func (t *Tag) Add(element ...interface{}) {
 	addElementToTag(t, element)
 }
 
-func (t *Tag) GetNodes() interface{} {
+// GetNodes returns a NodeGroup with any child Nodes that have been added to this Node.
+func (t *Tag) GetNodes() *NodeGroup {
 	return t.nodes
 }
 
@@ -139,23 +175,25 @@ func (t *Tag) addNodes(nodes ...interface{}) {
 		}
 
 		if !IsNode(nodes[i]) {
-			panic(fmt.Errorf("node: %#v: %w", nodes[i], ErrInvalidNode))
+			panic(fmt.Errorf("Tag.addNodes: node: %#v: %w", nodes[i], ErrInvalidNode))
 		}
 
-		t.nodes = append(t.nodes, nodes[i])
+		t.nodes.Add(nodes[i])
 	}
 }
 
-func (t *Tag) SetAttributes(attrs ...interface{}) {
+// AddAttributes will add zero or more attributes types (Attributer, Attribute, Attrs, Style, CSS).
+//
+// Adding an attribute with the same name will override an existing attribute.
+func (t *Tag) AddAttributes(attrs ...interface{}) {
 	attributes := anyToAttributes(attrs...)
-
 	for i := 0; i < len(attributes); i++ {
 		hit := false
 
 		for j := 0; j < len(t.attributes); j++ {
-			if t.attributes[j].Name == attributes[i].Name {
+			if t.attributes[j].GetAttribute().Name == attributes[i].GetAttribute().Name {
 				hit = true
-				t.attributes[j].Value = attributes[i].Value
+				t.attributes[j].GetAttribute().Value = attributes[i].GetAttribute().Value
 			}
 		}
 
@@ -165,21 +203,22 @@ func (t *Tag) SetAttributes(attrs ...interface{}) {
 	}
 
 	for i := 0; i < len(t.attributes); i++ {
-		if t.attributes[i].Value == nil {
-			t.RemoveAttributes(t.attributes[i].Name)
+		if t.attributes[i].GetAttribute().Value == nil {
+			t.RemoveAttributes(t.attributes[i].GetAttribute().Name)
 		}
 	}
 }
 
+// RemoveAttributes remove zero or more Attributer value by their name.
 func (t *Tag) RemoveAttributes(names ...string) {
-	var newAttrs []*Attribute
+	var newAttrs []Attributer
 
 	for j := 0; j < len(t.attributes); j++ {
 		attr := t.attributes[j]
 		hit := false
 
 		for i := 0; i < len(names); i++ {
-			if names[i] == attr.Name {
+			if names[i] == attr.GetAttribute().Name {
 				hit = true
 
 				break
@@ -205,6 +244,16 @@ func addElementToTag(t *Tag, v interface{}) {
 	}
 
 	switch v := v.(type) {
+	case *NodeGroup:
+		g := v.Get()
+		for i := 0; i < len(g); i++ {
+			addElementToTag(t, g[i])
+		}
+	case *ElementGroup:
+		g := v.Get()
+		for i := 0; i < len(g); i++ {
+			addElementToTag(t, g[i])
+		}
 	case []interface{}:
 		for i := 0; i < len(v); i++ {
 			addElementToTag(t, v[i])
@@ -229,8 +278,8 @@ func addElementToTag(t *Tag, v interface{}) {
 		for i := 0; i < len(v); i++ {
 			addElementToTag(t, v[i])
 		}
-	case *Attribute, []*Attribute, Attrs:
-		t.SetAttributes(v)
+	case []Attributer, Attributer, *Attribute, []*Attribute, Attrs:
+		t.AddAttributes(v)
 	case CSS:
 		addCSS(t, v)
 	case Style:
@@ -287,7 +336,7 @@ func addStyle(t *Tag, v Style) {
 	t.styleOrder = newNames
 }
 
-// This does allow duplicates in the same hlive.CSS element
+// This does allow duplicates in the same hlive.CSS element.
 func addCSS(t *Tag, v CSS) {
 	// Update the map
 	for class, enable := range v {

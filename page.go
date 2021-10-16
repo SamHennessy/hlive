@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,6 +17,48 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/rs/zerolog"
 )
+
+type Page struct {
+	// Websocket upgrader
+	Upgrader websocket.Upgrader
+	// HTML renderer
+	Renderer *Renderer
+	// DOM differ
+	Differ *Differ
+	// Root DOM elements
+	DocType HTML
+	HTML    Adder
+	Head    Adder
+	Meta    Adder
+	Title   Adder
+	Body    Adder
+	// Page rendering pipelines
+	PipelineDiff *Pipeline
+	// Page HTML rendering pipeline
+	PipelineRender *Pipeline
+	// Internal debug logger
+	logger zerolog.Logger
+	// What is in the browser
+	browserTree interface{}
+	// Lock the page for writes
+	// TODO: replace with channel
+	pageLock  sync.RWMutex
+	weConn    *websocket.Conn
+	connected bool
+	// Component caches, to prevent walking to tree to find something
+	eventBindings map[string]*EventBinding
+	// We don't need a reference just the id
+	mountables   map[string]struct{}
+	unmountables map[string]Unmounter
+	// Buffered channel of outbound messages.
+	send chan []byte
+	//
+	attributePluginMountedMap map[string]struct{}
+	//
+	HookBeforeEvent []func(ctx context.Context, e Event) (context.Context, Event)
+	HookAfterEvent  []func(ctx context.Context, e Event) (context.Context, Event)
+	HookAfterRender []func(context.Context, []Diff, chan<- []byte)
+}
 
 func NewPage() *Page {
 	p := &Page{
@@ -30,11 +73,13 @@ func NewPage() *Page {
 		Title:   T("title"),
 		Body:    T("body"),
 
-		currentBindings: map[string]*EventBinding{},
-		mountables:      map[string]struct{}{},
-		unmountables:    map[string]Unmounter{},
+		eventBindings: map[string]*EventBinding{},
+		mountables:    map[string]struct{}{},
+		unmountables:  map[string]Unmounter{},
 
 		send: make(chan []byte, 256),
+
+		attributePluginMountedMap: map[string]struct{}{},
 	}
 
 	p.Head.Add(p.Meta, p.Title, T("script", HTML(p.Differ.JavaScript)))
@@ -43,32 +88,35 @@ func NewPage() *Page {
 	p.Renderer.logger = p.logger
 	p.Differ.logger = p.logger
 
+	// Differ Pipeline
+	p.PipelineDiff = NewPipeline(
+		PipelineProcessorEventBindingCache(p.eventBindings),
+		PipelineProcessorMountCache(p.mountables),
+		PipelineProcessorUnmountCache(p.unmountables),
+		PipelineProcessorTeardown(p.mountables, p.unmountables),
+		PipelineProcessorAttributePluginMount(p),
+		PipelineProcessorConvertToString(),
+	)
+	// Render Pipeline
+	p.PipelineRender = NewPipeline(
+		PipelineProcessorAttributePluginMount(p),
+		PipelineProcessorStripHLiveAttrs(),
+		PipelineProcessorConvertToString(),
+		PipelineProcessorRenderer(p.Renderer),
+	)
+
 	return p
 }
 
-type Page struct {
-	Upgrader websocket.Upgrader
-	Renderer *Renderer
-	Differ   *Differ
-	logger   zerolog.Logger
-
-	DocType HTML
-	HTML    *Tag
-	Head    *Tag
-	Meta    *Tag
-	Title   *Tag
-	Body    *Tag
-
-	tree            interface{}
-	treeLock        sync.RWMutex
-	weConn          *websocket.Conn
-	connected       bool
-	currentBindings map[string]*EventBinding
-	mountables      map[string]struct{}
-	unmountables    map[string]Unmounter
-
-	// Buffered channel of outbound messages.
-	send chan []byte
+type wsMsg struct {
+	Typ        string            `json:"t"`
+	ID         string            `json:"i,omitempty"`
+	Data       map[string]string `json:"d,omitempty"`
+	File       *File             `json:"file,omitempty"`
+	ValueMulti []string          `json:"vm,omitempty"`
+	Selected   bool              `json:"s,omitempty"`
+	Extra      map[string]string `json:"e,omitempty"`
+	fileData   []byte
 }
 
 func (p *Page) SetLogger(logger zerolog.Logger) {
@@ -81,7 +129,6 @@ func (p *Page) IsConnected() bool {
 	return p.connected
 }
 
-// TODO: write tests
 func (p *Page) Close(ctx context.Context) {
 	for _, c := range p.unmountables {
 		if c == nil {
@@ -93,24 +140,48 @@ func (p *Page) Close(ctx context.Context) {
 }
 
 func (p *Page) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if err := p.RenderHTML(r.Context(), w); err != nil {
-		p.logger.Err(err).Msg("render page")
+	if err := p.serverHTTP(w, r); err != nil {
+		p.logger.Err(err).Msg("server http")
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
-type wsMsg struct {
-	Typ        string            `json:"t"`
-	ID         string            `json:"i,omitempty"`
-	Data       map[string]string `json:"d,omitempty"`
-	File       *File             `json:"file,omitempty"`
-	ValueMulti []string          `json:"vm,omitempty"`
-	Selected   bool              `json:"s,omitempty"`
-	fileData   []byte
+func (p *Page) serverHTTP(w http.ResponseWriter, r *http.Request) error {
+	p.pageLock.Lock()
+
+	_, err := p.runRenderPipeline(r.Context(), w)
+
+	p.pageLock.Unlock()
+
+	return err
+}
+
+func (p *Page) runRenderPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {
+start:
+	tree, err := p.PipelineRender.run(ctx, w, p.GetNodes())
+
+	// A plugin being added will do this
+	if errors.Is(err, ErrDOMInvalidated) {
+		goto start
+	}
+
+	return tree, err
+}
+
+func (p *Page) runDiffPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {
+start:
+	tree, err := p.PipelineDiff.run(ctx, w, p.GetNodes())
+
+	// Plugins will do this
+	if errors.Is(err, ErrDOMInvalidated) {
+		goto start
+	}
+
+	return tree, err
 }
 
 func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
-	ctx := SetIsWebSocket(r.Context())
+	ctx := r.Context()
 
 	sess := PageSess(ctx)
 	if sess == nil || sess.Page == nil || sess.ID == "" {
@@ -140,12 +211,13 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 	p.wsSend("s|id|" + sess.ID)
 
 	// Do an initial render
-	if p.tree == nil {
+	if p.browserTree == nil {
 		p.logger.Trace().Msg("initial render")
 		// We need a static render
-		p.tree, err = p.copyTree(setIsNotWebSocket(ctx), p.GetNodes(), false)
+		// p.browserTree, err = p.PipelineRender.run(ctx, io.Discard, p.GetNodes())
+		p.browserTree, err = p.runRenderPipeline(r.Context(), io.Discard)
 		if err != nil {
-			p.logger.Err(err).Msg("ws static render")
+			p.logger.Err(err).Msg("ws static render: html pipeline")
 		}
 	}
 
@@ -171,6 +243,10 @@ func (p *Page) executeRenderWS(ctx context.Context) {
 
 	if len(diffs) != 0 {
 		p.wsSend(p.diffsToMsg(diffs))
+	}
+
+	for i := 0; i < len(p.HookAfterRender); i++ {
+		p.HookAfterRender[i](ctx, diffs, p.send)
 	}
 }
 
@@ -212,7 +288,7 @@ func (p *Page) diffsToMsg(diffs []Diff) string {
 		} else if diff.Attribute != nil {
 			message += "a|"
 
-			if err := p.Renderer.Attribute([]*Attribute{diff.Attribute}, bb); err != nil {
+			if err := p.Renderer.Attribute([]Attributer{diff.Attribute}, bb); err != nil {
 				p.logger.Err(err).Msg("diffs to msg: render attribute")
 			}
 		} else if diff.Tag != nil {
@@ -252,6 +328,7 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 		CtrlKey:   ctrlKey,
 		File:      msg.File,
 		Selected:  msg.Selected,
+		Extra:     msg.Extra,
 	}
 
 	ids := strings.Split(msg.ID, ",")
@@ -260,7 +337,7 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 
 		p.logger.Trace().Str("id", id).Msg("call event handler")
 
-		binding := p.currentBindings[id]
+		binding := p.eventBindings[id]
 
 		if binding == nil {
 			p.logger.Error().Str("id", id).Msg("unable to find binding")
@@ -273,98 +350,61 @@ func (p *Page) processMsgEvent(ctx context.Context, msg wsMsg) {
 		if binding.Handler == nil {
 			p.logger.Error().Str("id", id).Msg("unable to find binding handler")
 
-			delete(p.currentBindings, id)
+			delete(p.eventBindings, id)
 
 			return
 		}
 
-		binding.Handler(ctx, e)
+		// Hook
+		for j := 0; j < len(p.HookBeforeEvent); j++ {
+			ctx, e = p.HookBeforeEvent[j](ctx, e)
+		}
+
+		e.Binding.Handler(ctx, e)
+
+		// Hook
+		for j := 0; j < len(p.HookAfterEvent); j++ {
+			ctx, e = p.HookAfterEvent[j](ctx, e)
+		}
 
 		// Once, do this after calling the handler so the developer can change their mind
-		if binding.Once {
-			delete(p.currentBindings, id)
+		if e.Binding.Once {
+			delete(p.eventBindings, id)
 			binding.Component.RemoveEventBinding(id)
 		}
 
 		// Auto Render?
-		if binding.Component.IsAutoRender() {
+		if e.Binding.Component.IsAutoRender() {
 			p.executeRenderWS(ctx)
 		}
 	}
 }
 
 func (p *Page) RenderWS(ctx context.Context) ([]Diff, error) {
-	p.treeLock.Lock()
-	defer p.treeLock.Unlock()
+	p.pageLock.Lock()
+	defer p.pageLock.Unlock()
 
-	p.currentBindings = map[string]*EventBinding{}
-
-	newTree, err := p.CopyTree(ctx, p.GetNodes())
+	// TODO: replace discard with something useful
+	tree, err := p.runDiffPipeline(ctx, io.Discard)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("run pipeline: %w", err)
 	}
 
-	diffs, err := p.Differ.Trees("doc", "", p.tree, newTree)
+	diffs, err := p.Differ.Trees("doc", "", p.browserTree, tree)
 	if err != nil {
 		return nil, fmt.Errorf("diff old and new tag trees: %w", err)
 	}
 
-	p.tree = newTree
+	p.browserTree = tree
 
 	return diffs, nil
 }
 
-func (p *Page) GetNodes() interface{} {
-	return Tree(p.DocType, p.HTML)
+func (p *Page) GetNodes() *NodeGroup {
+	return G(p.DocType, p.HTML)
 }
 
-func (p *Page) RenderHTML(ctx context.Context, w io.Writer) error {
-	var err error
-
-	p.treeLock.Lock()
-	defer p.treeLock.Unlock()
-
-	p.tree, err = p.copyTree(ctx, p.GetNodes(), false)
-	if err != nil {
-		return err
-	}
-
-	return p.Renderer.HTML(w, p.tree)
-}
-
-func isWebSocket(ctx context.Context) bool {
-	is, _ := ctx.Value(CtxIsWS).(bool)
-
-	return is
-}
-
-func SetIsWebSocket(ctx context.Context) context.Context {
-	return context.WithValue(ctx, CtxIsWS, true)
-}
-
-func setIsNotWebSocket(ctx context.Context) context.Context {
-	return context.WithValue(ctx, CtxIsWS, false)
-}
-
-func RenderWS(ctx context.Context) {
-	render, ok := ctx.Value(CtxRender).(func(context.Context))
-
-	if !ok {
-		panic("ERROR: RenderWS not found in context")
-	}
-
-	render(ctx)
-}
-
-func RenderComponentWS(ctx context.Context, comp Componenter) {
-	render, ok := ctx.Value(CtxRenderComponent).(func(context.Context, Componenter))
-	if !ok {
-		panic("ERROR: RenderComponentWS not found in context")
-	}
-
-	render(ctx, comp)
-}
-
+// Will fail if plugins invalidate the tree
 func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 	if p == nil {
 		p.logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("render component on dead page")
@@ -380,18 +420,14 @@ func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 		return
 	}
 
-	newTreeNode, err := p.copyTree(ctx, comp, true)
-	if err != nil {
-		p.logger.Err(err).Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("render component ws: copy tree")
-
-		return
-	}
+	// TODO: replace discard
+	newTreeNode, err := p.PipelineDiff.runNode(ctx, io.Discard, comp)
 
 	var newTag *Tag
 
-	newTags, ok := newTreeNode.([]interface{})
-	if ok && len(newTags) != 0 {
-		newTag, ok = newTags[0].(*Tag)
+	newTags, ok := newTreeNode.(*NodeGroup)
+	if ok && len(newTags.Get()) != 0 {
+		newTag, ok = newTags.Get()[0].(*Tag)
 	} else {
 		newTag, ok = newTreeNode.(*Tag)
 	}
@@ -420,15 +456,20 @@ func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 	}
 }
 
+func (p *Page) GetBrowserNodeByID(id string) *Tag {
+	return p.findComponent(id, p.browserTree)
+}
+
 func (p *Page) findComponentInTree(id string) *Tag {
-	return p.findComponent(id, p.tree)
+	return p.findComponent(id, p.browserTree)
 }
 
 func (p *Page) findComponent(id string, tree interface{}) *Tag {
 	switch v := tree.(type) {
-	case []interface{}:
-		for i := 0; i < len(v); i++ {
-			c := p.findComponent(id, v[i])
+	case *NodeGroup:
+		g := v.Get()
+		for i := 0; i < len(g); i++ {
+			c := p.findComponent(id, g[i])
 			if c != nil {
 				return c
 			}

@@ -1,137 +1,110 @@
 package hlive_test
 
 import (
-	"bytes"
-	"context"
-	"fmt"
 	"testing"
 
-	"github.com/PuerkitoBio/goquery"
-	"github.com/SamHennessy/hlive"
+	l "github.com/SamHennessy/hlive"
 	"github.com/go-test/deep"
 )
 
-type countBtn struct {
-	*hlive.Component
-
-	Count int
-}
-
-func CountBtn() *countBtn {
-	return &countBtn{
-		Component: hlive.C("span"),
-	}
-}
-
-func (c *countBtn) GetNodes() interface{} {
-	return hlive.NewTag("button", c.Count)
-}
-
-func TestPage_RenderElementComponent(t *testing.T) {
+func TestComponent_GetID(t *testing.T) {
 	t.Parallel()
 
-	el := hlive.C("span")
-	buff := bytes.NewBuffer(nil)
+	c := l.C("div")
+	b := l.C("div")
 
-	if err := hlive.NewRender().HTML(buff, el); err != nil {
-		t.Fatal(err)
+	if c.GetID() == "" || b.GetID() == "" {
+		t.Error("id is an empty string")
 	}
 
-	expect := fmt.Sprintf(`<span data-hlive-id="%s"></span>`, el.GetID())
+	if c.GetID() == b.GetID() {
+		t.Error("id not unique")
+	}
 
-	if diff := deep.Equal(expect, buff.String()); diff != nil {
+	if diff := deep.Equal(c.GetID(), c.GetAttributeValue(l.AttrID)); diff != nil {
 		t.Error(diff)
 	}
 }
 
-func pageToDoc(t *testing.T, ctx context.Context, page *hlive.Page) *goquery.Document {
-	t.Helper()
-
-	buff := bytes.NewBuffer(nil)
-
-	if err := page.RenderHTML(ctx, buff); err != nil {
-		t.Fatal(err)
-	}
-
-	doc, err := goquery.NewDocumentFromReader(buff)
-	if err != nil {
-		t.Fatal("goquery:", err)
-	}
-
-	return doc
-}
-
-func TestPage_ComponentEventOnClickRender(t *testing.T) {
+func TestComponent_IsAutoRender(t *testing.T) {
 	t.Parallel()
 
-	page := hlive.NewPage()
-	comp := hlive.C("span")
-	handler := func(ctx context.Context, e hlive.Event) {}
+	c := l.C("div")
 
-	comp.Add(hlive.Attrs{"id": "content"}, hlive.On("click", handler))
+	if !c.IsAutoRender() {
+		t.Error("auto render not true by default")
+	}
 
-	page.Body.Add(comp)
+	c.AutoRender = false
 
-	ctx := context.Background()
-	ctx = hlive.SetIsWebSocket(ctx)
+	if c.IsAutoRender() {
+		t.Error("not able to set auto render")
+	}
+}
 
-	doc := pageToDoc(t, ctx, page)
+func TestComponent_AddAttribute(t *testing.T) {
+	t.Parallel()
 
-	val, _ := doc.Find("#content").Attr(hlive.AttrID)
-	if diff := deep.Equal(comp.GetID(), val); diff != nil {
+	c := l.C("div")
+
+	eb1 := l.On("input", nil)
+	eb2 := l.On("click", nil)
+
+	if c.GetAttributeValue(l.AttrOn) != "" {
+		t.Errorf("unexpected value for %s = %s", l.AttrOn, c.GetAttributeValue(l.AttrOn))
+	}
+
+	c.Add(eb1)
+
+	expected := eb1.ID + "|" + eb1.Name
+	if diff := deep.Equal(expected, c.GetAttributeValue(l.AttrOn)); diff != nil {
 		t.Error(diff)
 	}
 
-	val, exists := doc.Find("#content").Attr(hlive.AttrOn)
-	if !exists {
-		t.Error(hlive.AttrOn + " attribute not found ")
-	} else {
-		// TODO: fix
-		// parts := strings.Split(val, "|")
-		// a := comp.GetEventBinding(parts[1])
-		//
-		// if diff := deep.Equal(hlive.EventHandler(handler), a.Handler); diff != nil {
-		// 	t.Error(diff)
-		// }
+	c.Add(eb2)
+
+	expected = eb1.ID + "|" + eb1.Name + "," + eb2.ID + "|" + eb2.Name
+	if diff := deep.Equal(expected, c.GetAttributeValue(l.AttrOn)); diff != nil {
+		t.Error(diff)
 	}
 }
 
-// TODO: make work
-// func TestPage_ComponentEventOnClick(t *testing.T) {
-// 	t.Parallel()
-//
-// 	// Create counting button component
-// 	el := CountBtn()
-// 	el.Add(hlive.Attrs{"id": "content"})
-// 	// Assign a handler that will increment it's counter
-// 	el.Add(hlive.On("click", func(ctx context.Context, e hlive.Event) {
-// 		el.Count++
-// 	}))
-// 	// Add to a page
-// 	page := hlive.NewPage()
-// 	page.Body.Add(el)
-// 	// HTML page
-// 	ctx := hlive.SetIsWebSocket(context.Background())
-// 	doc := pageToDoc(t, ctx, page)
-// 	// TODO: I don't need to get this from the page any more but maybe I should?
-// 	// Get the binding id
-// 	val, exists := doc.Find("#content").Attr(hlive.AttrOn)
-// 	if !exists {
-// 		t.Fatal(hlive.AttrOn + " attribute not found ")
-// 	}
-// 	// Get the binding
-// 	binding := el.GetEventBinding(val)
-// 	// Test data
-// 	if diff := deep.Equal("0", doc.Find("#content").First().Text()); diff != nil {
-// 		t.Error(diff)
-// 	}
-// 	// Call handler, increment counter
-// 	binding.Handler(context.Background(), hlive.Event{})
-// 	// Rerender
-// 	// HTML page
-// 	doc = pageToDoc(t, context.Background(), page)
-// 	// Test data again
-// 	if diff := deep.Equal("1", doc.Find("#content").First().Text()); diff != nil {
-// 		t.Error(diff)
-// 	}
-// }
+func TestComponent_AddGetEventBinding(t *testing.T) {
+	t.Parallel()
+
+	eb1 := l.On("input", nil)
+
+	c := l.C("div", eb1)
+
+	if c.GetEventBinding(eb1.ID) == nil {
+		t.Error("event binding not found")
+	}
+}
+
+func TestComponent_AddRemoveEventBinding(t *testing.T) {
+	t.Parallel()
+
+	eb1 := l.On("input", nil)
+	eb2 := l.On("click", nil)
+
+	c := l.C("div", eb1, eb2)
+
+	c.RemoveEventBinding(eb1.ID)
+
+	if c.GetEventBinding(eb1.ID) != nil {
+		t.Error("event binding not removed")
+	}
+
+	if c.GetEventBinding(eb2.ID) == nil {
+		t.Error("event binding not found")
+	}
+}
+
+func TestComponent_Wrap(t *testing.T) {
+	tag := l.T("div")
+	c := l.W(tag)
+
+	if c.Tag != tag {
+		t.Error("tag not wrapped")
+	}
+}

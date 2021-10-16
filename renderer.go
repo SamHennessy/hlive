@@ -177,8 +177,13 @@ func (r *Renderer) HTML(w io.Writer, el interface{}) error {
 			}
 		}
 	case []interface{}:
-		for i := 0; i < len(v); i++ {
-			if err := r.HTML(w, v[i]); err != nil {
+		if err := r.HTML(w, G(v...)); err != nil {
+			return err
+		}
+	case *NodeGroup:
+		g := v.Get()
+		for i := 0; i < len(g); i++ {
+			if err := r.HTML(w, g[i]); err != nil {
 				return err
 			}
 		}
@@ -191,13 +196,13 @@ func (r *Renderer) HTML(w io.Writer, el interface{}) error {
 
 // Attribute renders an Attribute to it's HTML string representation
 // While it's possible to have attributes without values it simplifies things if we always have a value
-func (r *Renderer) Attribute(attrs []*Attribute, w io.Writer) error {
+func (r *Renderer) Attribute(attrs []Attributer, w io.Writer) error {
 	if len(attrs) == 0 {
 		return nil
 	}
 
 	for i := 0; i < len(attrs); i++ {
-		attrStr := fmt.Sprintf(` %s="%s"`, attrs[i].Name, attrs[i].GetValue())
+		attrStr := fmt.Sprintf(` %s="%s"`, attrs[i].GetAttribute().Name, attrs[i].GetAttribute().GetValue())
 
 		if _, err := w.Write([]byte(attrStr)); err != nil {
 			return fmt.Errorf("write: %w", err)

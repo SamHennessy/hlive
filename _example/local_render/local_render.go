@@ -2,40 +2,42 @@ package main
 
 import (
 	"context"
+	"log"
 	"net/http"
 
 	l "github.com/SamHennessy/hlive"
-	"github.com/rs/zerolog"
 )
 
 func main() {
-	logger := zerolog.New(zerolog.NewConsoleWriter()).Level(zerolog.InfoLevel).With().Timestamp().Logger()
+	http.Handle("/", home())
 
-	http.Handle("/", home(logger))
-
-	logger.Info().Str("addr", ":3000").Msg("listing")
+	log.Println("INFO: listing :3000")
 
 	if err := http.ListenAndServe(":3000", nil); err != nil {
-		logger.Err(err).Msg("http listen and serve")
+		log.Println("ERRO: http listen and serve: ", err)
 	}
 }
 
-func home(logger zerolog.Logger) *l.PageServer {
+func home() *l.PageServer {
 	f := func() *l.Page {
 		count := 0
 
 		page := l.NewPage()
-		page.SetLogger(logger)
 		page.Title.Add("Local GetNodes Example")
 		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
 
 		page.Body.Add(
+			l.T("h1", "Local Render"),
+			l.T("blockquote", "By default, the whole page if checked for differance after an event. "+
+				"You can override that behaviour and chose to only render a component and it's children."),
 			l.T("h2", "Global Render"),
+			l.T("h4", "Everything will update"),
 			newCountBtn(&count),
-			l.Tree("The count is: ", l.T("em", &count), " clicks"),
+			l.Group("The count is: ", l.T("em", &count), " clicks"),
 			l.T("h2", "Local Render"),
+			l.T("h4", "Only the button will update"),
 			newCountBtnLocal(&count),
-			l.Tree("The count is: ", l.T("em", &count), " clicks"),
+			l.Group("The count is: ", l.T("em", &count), " clicks"),
 		)
 
 		return page
@@ -50,8 +52,8 @@ type countBtn struct {
 	Count *int
 }
 
-func (c *countBtn) GetNodes() interface{} {
-	return l.Tree(c.Count)
+func (c *countBtn) GetNodes() *l.NodeGroup {
+	return l.G(c.Count)
 }
 
 func newCountBtn(count *int) *countBtn {
@@ -80,7 +82,7 @@ func newCountBtnLocal(count *int) *countBtn {
 		*c.Count++
 
 		// Will render the passed component and it's subtree
-		l.RenderComponentWS(ctx, c)
+		l.RenderComponent(ctx, c)
 	}))
 
 	return c
