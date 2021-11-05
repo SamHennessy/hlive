@@ -5,6 +5,7 @@ linters:
   enable-all: true
   disable:
     - exhaustivestruct
+    - wsl
     # Deprecated
     - interfacer
     - maligned

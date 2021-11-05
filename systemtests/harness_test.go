@@ -27,8 +27,10 @@ func setup(t *testing.T, pageFn func() *l.Page) harness {
 	}
 
 	h.teardown = func() {
-		if err := h.pwpage.Close(); err != nil {
-			t.Error(err)
+		if !h.pwpage.IsClosed() {
+			if err := h.pwpage.Close(); err != nil {
+				t.Error(err)
+			}
 		}
 	}
 

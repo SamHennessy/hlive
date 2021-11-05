@@ -7,13 +7,15 @@ import (
 )
 
 type Server struct {
-	PageServer *l.PageServer
-	HTTPServer *httptest.Server
+	PageServer       *l.PageServer
+	PageSessionStore *l.PageSessionStore
+	HTTPServer       *httptest.Server
 }
 
 func NewServer(pageFn func() *l.Page) *Server {
 	s := &Server{}
-	s.PageServer = l.NewPageServer(addAck(pageFn))
+	s.PageSessionStore = l.NewPageSessionStore()
+	s.PageServer = l.NewPageServerWithSessionStore(addAck(pageFn), s.PageSessionStore)
 	s.HTTPServer = httptest.NewServer(s.PageServer)
 
 	return s

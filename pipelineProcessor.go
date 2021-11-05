@@ -5,6 +5,7 @@ import (
 	"io"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const (
@@ -12,10 +13,13 @@ const (
 	PipelineProcessorKeyRenderer             = "hlive_renderer"
 	PipelineProcessorKeyEventBindingCache    = "hlive_eb"
 	PipelineProcessorKeyAttributePluginMount = "hlive_attr_mount"
+	PipelineProcessorKeyPubSubMount          = "hlive_ps_mount"
+	PipelineProcessorKeyMount                = "hlive_mount"
+	PipelineProcessorKeyUnmount              = "hlive_unmount"
 )
 
 type PipelineProcessor struct {
-	// Will replace an existing processor with the same key. An empty string is okay.
+	// Will replace an existing processor with the same key. An empty string won't error.
 	Key             string
 	Disabled        bool
 	BeforeWalk      PipeNodeHandler
@@ -50,10 +54,14 @@ func PipelineProcessorStripHLiveAttrs() *PipelineProcessor {
 func PipelineProcessorEventBindingCache(cache map[string]*EventBinding) *PipelineProcessor {
 	pp := NewPipelineProcessor(PipelineProcessorKeyEventBindingCache)
 
+	var lock sync.Mutex
+
 	pp.BeforeWalk = func(ctx context.Context, w io.Writer, node interface{}) (interface{}, error) {
+		lock.Lock()
 		for key := range cache {
 			delete(cache, key)
 		}
+		lock.Unlock()
 
 		return node, nil
 	}
@@ -61,11 +69,14 @@ func PipelineProcessorEventBindingCache(cache map[string]*EventBinding) *Pipelin
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag Tagger) (Tagger, error) {
 		if comp, ok := tag.(Componenter); ok {
 			bindings := comp.GetEventBindings()
+
+			lock.Lock()
 			for i := 0; i < len(bindings); i++ {
 				if _, exists := cache[bindings[i].ID]; !exists {
 					cache[bindings[i].ID] = bindings[i]
 				}
 			}
+			lock.Unlock()
 		}
 
 		return tag, nil
@@ -74,31 +85,31 @@ func PipelineProcessorEventBindingCache(cache map[string]*EventBinding) *Pipelin
 	return pp
 }
 
-func PipelineProcessorMountCache(cache map[string]struct{}) *PipelineProcessor {
-	pp := NewPipelineProcessor(PipelineProcessorKeyEventBindingCache)
+func PipelineProcessorMount() *PipelineProcessor {
+	pp := NewPipelineProcessor(PipelineProcessorKeyMount)
+
+	cache := map[string]struct{}{}
+
+	// TODO: temp
+	var lock sync.Mutex
 
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag Tagger) (Tagger, error) {
 		if comp, ok := tag.(Mounter); ok {
+			lock.Lock()
 			if _, exists := cache[comp.GetID()]; !exists {
 				comp.Mount(ctx)
 
 				cache[comp.GetID()] = struct{}{}
 			}
-		}
+			lock.Unlock()
 
-		return tag, nil
-	}
-
-	return pp
-}
-
-func PipelineProcessorUnmountCache(cache map[string]Unmounter) *PipelineProcessor {
-	pp := NewPipelineProcessor(PipelineProcessorKeyEventBindingCache)
-
-	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag Tagger) (Tagger, error) {
-		if comp, ok := tag.(Unmounter); ok {
-			if _, exists := cache[comp.GetID()]; !exists {
-				cache[comp.GetID()] = comp
+			// A way to remove the key when you delete a Component
+			if comp, ok := tag.(Teardowner); ok {
+				comp.AddTeardown(func() {
+					lock.Lock()
+					delete(cache, comp.GetID())
+					lock.Unlock()
+				})
 			}
 		}
 
@@ -108,15 +119,40 @@ func PipelineProcessorUnmountCache(cache map[string]Unmounter) *PipelineProcesso
 	return pp
 }
 
-func PipelineProcessorTeardown(mountCache map[string]struct{}, unmountCache map[string]Unmounter) *PipelineProcessor {
-	pp := NewPipelineProcessor(PipelineProcessorKeyEventBindingCache)
+func PipelineProcessorUnmount(page *Page) *PipelineProcessor {
+	cache := map[string]Unmounter{}
+
+	// TODO: temp
+	var lock sync.Mutex
+
+	page.HookClose = append(page.HookClose, func(ctx context.Context, page *Page) {
+		for _, c := range cache {
+			if c == nil {
+				continue
+			}
+
+			c.Unmount(ctx)
+		}
+	})
+
+	pp := NewPipelineProcessor(PipelineProcessorKeyUnmount)
 
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag Tagger) (Tagger, error) {
-		if comp, ok := tag.(Teardowner); ok {
-			comp.SetTeardown(func() {
-				delete(mountCache, comp.GetID())
-				delete(unmountCache, comp.GetID())
-			})
+		if comp, ok := tag.(Unmounter); ok {
+			lock.Lock()
+			if _, exists := cache[comp.GetID()]; !exists {
+				cache[comp.GetID()] = comp
+			}
+			lock.Unlock()
+
+			// A way to remove the key when you delete a Component
+			if comp, ok := tag.(Teardowner); ok {
+				comp.AddTeardown(func() {
+					lock.Lock()
+					delete(cache, comp.GetID())
+					lock.Unlock()
+				})
+			}
 		}
 
 		return tag, nil
@@ -269,9 +305,13 @@ func PipelineProcessorConvertToString() *PipelineProcessor {
 func PipelineProcessorAttributePluginMount(page *Page) *PipelineProcessor {
 	pp := NewPipelineProcessor(PipelineProcessorKeyAttributePluginMount)
 
-	pp.BeforeAttribute = func(ctx context.Context, w io.Writer, attr Attributer) (Attributer, error) {
-		var err error
+	// TODO: ????
+	// cache, will plugins be okay with running for SSR, Simulated SSR and DOM init?
+	// cache := map[string]struct{}{}
 
+	pp.BeforeAttribute = func(ctx context.Context, w io.Writer, attr Attributer) (Attributer, error) {
+
+		var err error
 		if ap, ok := attr.(AttributePluginer); ok {
 			if _, exits := page.attributePluginMountedMap[ap.GetAttribute().Name]; !exits {
 				// TODO: need to be sure we have the page exclusively

@@ -7,8 +7,6 @@ import (
 	"io"
 )
 
-// TODO: avoid a lock by using a channel
-
 var ErrDOMInvalidated = errors.New("dom invalidated")
 
 type (
@@ -29,6 +27,7 @@ type Pipeline struct {
 	afterTaggerCache  []*PipelineProcessor
 	beforeAttrCache   []*PipelineProcessor
 	afterAttrCache    []*PipelineProcessor
+	// Add new caches to RemoveAll
 }
 
 func NewPipeline(pps ...*PipelineProcessor) *Pipeline {
@@ -70,6 +69,49 @@ func (p *Pipeline) Add(processors ...*PipelineProcessor) {
 			p.afterAttrCache = append(p.afterAttrCache, processors[i])
 		}
 	}
+}
+
+func (p *Pipeline) RemoveAll() {
+	p.processors = nil
+
+	p.processorMap = map[string]*PipelineProcessor{}
+
+	p.onSimpleNodeCache = nil
+	p.afterWalkCache = nil
+	p.beforeTaggerCache = nil
+	p.afterTaggerCache = nil
+	p.beforeAttrCache = nil
+	p.afterAttrCache = nil
+}
+
+func (p *Pipeline) AddAfter(processorKey string, processors ...*PipelineProcessor) {
+	var newProcessors []*PipelineProcessor
+
+	for i := 0; i < len(p.processors); i++ {
+		newProcessors = append(newProcessors, p.processors[i])
+
+		if processors[i].Key == processorKey {
+			newProcessors = append(newProcessors, processors...)
+		}
+	}
+
+	p.RemoveAll()
+	p.Add(newProcessors...)
+}
+
+func (p *Pipeline) AddBefore(processorKey string, processors ...*PipelineProcessor) {
+	var newProcessors []*PipelineProcessor
+
+	for i := 0; i < len(p.processors); i++ {
+		if p.processors[i].Key == processorKey {
+			newProcessors = append(newProcessors, processors...)
+		}
+
+		newProcessors = append(newProcessors, p.processors[i])
+	}
+
+	p.RemoveAll()
+	p.Add(newProcessors...)
 }
 
 func (p *Pipeline) onSimpleNode(ctx context.Context, w io.Writer, node interface{}) (interface{}, error) {

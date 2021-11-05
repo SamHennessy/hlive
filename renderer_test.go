@@ -8,7 +8,7 @@ import (
 	"github.com/go-test/deep"
 )
 
-func TestRenderer_CSS(t *testing.T) {
+func TestRenderer_RenderElementTagCSS(t *testing.T) {
 	t.Parallel()
 
 	el := l.T("hr",
@@ -22,12 +22,127 @@ func TestRenderer_CSS(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	css := el.GetAttribute("class")
-	if css == nil {
-		t.Fatal("attribute not found")
+	if diff := deep.Equal(`<hr class="c3 c1">`, buff.String()); diff != nil {
+		t.Error(diff)
+	}
+}
+
+func TestRenderer_RenderElementText(t *testing.T) {
+	t.Parallel()
+
+	buff := bytes.NewBuffer(nil)
+	if err := l.NewRender().HTML(buff, "<h1>text_test</h1>"); err != nil {
+		t.Fatal(err)
 	}
 
-	if diff := deep.Equal("c3 c1", css.GetAttribute().GetValue()); diff != nil {
+	if diff := deep.Equal("&lt;h1&gt;text_test&lt;/h1&gt;", buff.String()); diff != nil {
+		t.Error(diff)
+	}
+}
+
+func TestRenderer_RenderElementRawHTML(t *testing.T) {
+	t.Parallel()
+
+	el := l.HTML("<h1>html_test</h1>")
+	buff := bytes.NewBuffer(nil)
+
+	if err := l.NewRender().HTML(buff, el); err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := deep.Equal("<h1>html_test</h1>", buff.String()); diff != nil {
+		t.Error(diff)
+	}
+}
+
+func TestRenderer_RenderElementTag(t *testing.T) {
+	t.Parallel()
+
+	el := l.NewTag("a")
+	buff := bytes.NewBuffer(nil)
+
+	if err := l.NewRender().HTML(buff, el); err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := deep.Equal("<a></a>", buff.String()); diff != nil {
+		t.Error(diff)
+	}
+}
+
+func TestRenderer_RenderElementTagAttr(t *testing.T) {
+	t.Parallel()
+
+	el := l.NewTag("a", l.NewAttribute("href", "https://example.com"))
+	buff := bytes.NewBuffer(nil)
+
+	if err := l.NewRender().HTML(buff, el); err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := deep.Equal(`<a href="https://example.com"></a>`, buff.String()); diff != nil {
+		t.Error(diff)
+	}
+}
+
+func TestRenderer_RenderElementTagAttrs(t *testing.T) {
+	t.Parallel()
+
+	el := l.NewTag("a", l.Attrs{"href": "https://example.com"})
+	buff := bytes.NewBuffer(nil)
+
+	if err := l.NewRender().HTML(buff, el); err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := deep.Equal(`<a href="https://example.com"></a>`, buff.String()); diff != nil {
+		t.Error(diff)
+	}
+}
+
+func TestRenderer_RenderElementTagChildText(t *testing.T) {
+	t.Parallel()
+
+	el := l.NewTag("a", "<h1>text_test</h1>")
+	buff := bytes.NewBuffer(nil)
+
+	if err := l.NewRender().HTML(buff, el); err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := deep.Equal(`<a>&lt;h1&gt;text_test&lt;/h1&gt;</a>`, buff.String()); diff != nil {
+		t.Error(diff)
+	}
+}
+
+func TestRenderer_RenderElementTagChildTag(t *testing.T) {
+	t.Parallel()
+
+	el := l.NewTag("a",
+		l.NewTag("h1", "text_test"),
+	)
+	buff := bytes.NewBuffer(nil)
+
+	if err := l.NewRender().HTML(buff, el); err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := deep.Equal(`<a><h1>text_test</h1></a>`, buff.String()); diff != nil {
+		t.Error(diff)
+	}
+}
+
+func TestRenderer_RenderElementTagVoid(t *testing.T) {
+	t.Parallel()
+
+	el := l.T("hr", l.Attrs{"foo": "bar"})
+	buff := bytes.NewBuffer(nil)
+
+	if err := l.NewRender().HTML(buff, el); err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := deep.Equal(`<hr foo="bar">`, buff.String()); diff != nil {
 		t.Error(diff)
 	}
 }

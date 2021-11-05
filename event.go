@@ -20,6 +20,7 @@ type Event struct {
 	// Selected is true, for the element interacted with, if a radio or checkbox is checked or a select option is selected.
 	// Most relevant for checkbox as it always has a value, this lets you know if they are currently checked or not.
 	Selected bool
+	// TODO: move to nillable value
 	// Key related values are only used on keyboard related events
 	Key      string
 	CharCode int

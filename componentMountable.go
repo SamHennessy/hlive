@@ -23,8 +23,8 @@ type Unmounter interface {
 // function to clean up their references.
 type Teardowner interface {
 	UniqueTagger
-	// SetTeardown set teardown function
-	SetTeardown(teardown func())
+	// AddTeardown adds a teardown function
+	AddTeardown(teardown func())
 	// Teardown call the set teardown function passed in SetTeardown
 	Teardown()
 }
@@ -32,9 +32,9 @@ type Teardowner interface {
 type ComponentMountable struct {
 	*Component
 
-	MountFunc    func(ctx context.Context)
-	UnmountFunc  func(ctx context.Context)
-	teardownFunc func()
+	MountFunc   func(ctx context.Context)
+	UnmountFunc func(ctx context.Context)
+	teardowns   []func()
 }
 
 // CM is a shortcut for NewComponentMountable
@@ -60,13 +60,13 @@ func (c *ComponentMountable) Unmount(ctx context.Context) {
 	}
 }
 
-func (c *ComponentMountable) SetTeardown(teardown func()) {
-	c.teardownFunc = teardown
+func (c *ComponentMountable) AddTeardown(teardown func()) {
+	c.teardowns = append(c.teardowns, teardown)
 }
 
 func (c *ComponentMountable) Teardown() {
-	if c.teardownFunc != nil {
-		c.teardownFunc()
+	for i := 0; i < len(c.teardowns); i++ {
+		c.teardowns[i]()
 	}
 }
 

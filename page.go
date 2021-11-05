@@ -21,6 +21,8 @@ import (
 type Page struct {
 	// Websocket upgrader
 	Upgrader websocket.Upgrader
+	// Session is this Page value's session
+	Session *PageSession
 	// HTML renderer
 	Renderer *Renderer
 	// DOM differ
@@ -47,9 +49,6 @@ type Page struct {
 	connected bool
 	// Component caches, to prevent walking to tree to find something
 	eventBindings map[string]*EventBinding
-	// We don't need a reference just the id
-	mountables   map[string]struct{}
-	unmountables map[string]Unmounter
 	// Buffered channel of outbound messages.
 	send chan []byte
 	//
@@ -58,6 +57,7 @@ type Page struct {
 	HookBeforeEvent []func(ctx context.Context, e Event) (context.Context, Event)
 	HookAfterEvent  []func(ctx context.Context, e Event) (context.Context, Event)
 	HookAfterRender []func(context.Context, []Diff, chan<- []byte)
+	HookClose       []func(context.Context, *Page)
 }
 
 func NewPage() *Page {
@@ -74,9 +74,9 @@ func NewPage() *Page {
 		Body:    T("body"),
 
 		eventBindings: map[string]*EventBinding{},
-		mountables:    map[string]struct{}{},
-		unmountables:  map[string]Unmounter{},
 
+		// TODO: remove buffer?
+		// If I don't want to block on a ws send use a go routine?
 		send: make(chan []byte, 256),
 
 		attributePluginMountedMap: map[string]struct{}{},
@@ -85,15 +85,11 @@ func NewPage() *Page {
 	p.Head.Add(p.Meta, p.Title, T("script", HTML(p.Differ.JavaScript)))
 	p.HTML.Add(p.Head, p.Body)
 
-	p.Renderer.logger = p.logger
-	p.Differ.logger = p.logger
-
 	// Differ Pipeline
 	p.PipelineDiff = NewPipeline(
 		PipelineProcessorEventBindingCache(p.eventBindings),
-		PipelineProcessorMountCache(p.mountables),
-		PipelineProcessorUnmountCache(p.unmountables),
-		PipelineProcessorTeardown(p.mountables, p.unmountables),
+		PipelineProcessorMount(),
+		PipelineProcessorUnmount(p),
 		PipelineProcessorAttributePluginMount(p),
 		PipelineProcessorConvertToString(),
 	)
@@ -130,12 +126,8 @@ func (p *Page) IsConnected() bool {
 }
 
 func (p *Page) Close(ctx context.Context) {
-	for _, c := range p.unmountables {
-		if c == nil {
-			continue
-		}
-
-		c.Unmount(ctx)
+	for i := 0; i < len(p.HookClose); i++ {
+		p.HookClose[i](ctx, p)
 	}
 }
 
@@ -190,6 +182,8 @@ func (p *Page) ServerWS(w http.ResponseWriter, r *http.Request) {
 
 		return
 	}
+
+	p.Session = sess
 
 	sess.LastActive = time.Now()
 

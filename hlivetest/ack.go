@@ -3,6 +3,7 @@ package hlivetest
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"testing"
 
 	l "github.com/SamHennessy/hlive"
@@ -56,7 +57,7 @@ func ackAfterRender(ctx context.Context, diffs []l.Diff, send chan<- []byte) {
 }
 
 // TODO: detect timeout and errors
-func AckWatcher(t *testing.T, page playwright.Page, selector string) <-chan bool {
+func AckWatcher(t *testing.T, page playwright.Page, selector string) <-chan error {
 	t.Helper()
 
 	id := shortid.MustGenerate()
@@ -66,14 +67,16 @@ func AckWatcher(t *testing.T, page playwright.Page, selector string) <-chan bool
 		t.Fatal(err)
 	}
 
-	done := make(chan bool)
+	done := make(chan error)
 
 	go func() {
 		if _, err := page.WaitForFunction("hliveTestAck.received[\""+id+"\"] === true", nil); err != nil {
-			t.Fatal("wait for function:", err)
+			done <- fmt.Errorf("wait for function: %w", err)
+
+			return
 		}
 
-		done <- true
+		done <- nil
 	}()
 
 	return done

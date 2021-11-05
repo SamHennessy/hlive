@@ -114,7 +114,7 @@ func (pss *PageSessionStore) GarbageCollection() {
 			if sess.Page.IsConnected() {
 				continue
 			}
-			// Allow to stay until the exceed the timeout
+			// Keep until it exceeds the timeout
 			if now.Sub(sess.LastActive) > pss.DisconnectTimeout {
 				sess.Page.Close(context.Background())
 				pss.mapDelete(id)
