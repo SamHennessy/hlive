@@ -43,11 +43,11 @@ func home() func() *l.Page {
 		pubSub := hlivekit.NewPubSub()
 
 		page := l.NewPage()
-		page.HTML.Add(hlivekit.InstallPubSub(pubSub))
-		page.Title.Add("PubSub Example")
-		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+		page.DOM.HTML.Add(hlivekit.InstallPubSub(pubSub))
+		page.DOM.Title.Add("PubSub Example")
+		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
 
-		page.Body.Add(
+		page.DOM.Body.Add(
 			l.T("h1", "PubSub"),
 			l.T("blockquote", "Use the PubSub system to allow for decoupled components."),
 			l.T("hr"),
@@ -71,7 +71,7 @@ func home() func() *l.Page {
 
 // Error messages
 
-func newErrorMessages() l.Componenter {
+func newErrorMessages() *errorMessages {
 	c := &errorMessages{
 		Component: l.C("div"),
 		inputMap:  map[string]inputValue{},
@@ -126,7 +126,7 @@ func (c *errorMessages) onInput(message hlivekit.QueueMessage) {
 }
 
 func (c *errorMessages) initDOM() {
-	c.Add(l.CSS{"card": true}, l.Style{"display": "none"},
+	c.Add(l.ClassBool{"card": true}, l.Style{"display": "none"},
 		l.T("h4", "Errors"),
 		l.T("hr"),
 		l.T("p", &c.errMessage),
@@ -150,14 +150,14 @@ func (c *errorMessages) formatErrMessage() {
 
 // User form
 
-func newUserForm(nodes ...interface{}) l.Componenter {
-	c := userForm{
+func newUserForm(nodes ...interface{}) *userForm {
+	c := &userForm{
 		Component: l.C("form", nodes...),
 	}
 
 	c.initDOM()
 
-	return &c
+	return c
 }
 
 type userForm struct {
@@ -170,7 +170,7 @@ type userForm struct {
 func (c *userForm) PubSubMount(pubSub *hlivekit.PubSub) {
 	c.pubSub = pubSub
 
-	// If ant errors then we can't submit
+	// If any errors, then we can't submit
 	pubSub.Subscribe(hlivekit.NewSub(func(message hlivekit.QueueMessage) {
 		c.isInvalid = true
 	}), pstInputInvalid)
@@ -198,7 +198,7 @@ func (c *userForm) onSubmit(_ context.Context, _ l.Event) {
 
 // Input, name
 
-func newInputName() l.Componenter {
+func newInputName() *inputName {
 	c := &inputName{
 		Component: l.NewComponent("span"),
 		input:     inputValue{name: "name"},
@@ -276,7 +276,7 @@ func (c *inputName) validate() {
 
 // Input, email
 
-func newInputEmail() l.Componenter {
+func newInputEmail() *inputEmail {
 	c := &inputEmail{
 		Component: l.NewComponent("span"),
 		input:     inputValue{name: "email"},
@@ -348,7 +348,7 @@ func (c *inputEmail) validate() {
 
 // Form output
 
-func newFormOutput() l.Componenter {
+func newFormOutput() *formOutput {
 	c := &formOutput{
 		Component: l.C("table"),
 		inputs:    map[string]inputValue{},

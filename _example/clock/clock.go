@@ -22,14 +22,17 @@ func main() {
 func home() *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.Title.Add("Clock Example")
-		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+		page.DOM.Title.Add("Clock Example")
+		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.Body.Add(
-
-			l.T("h1", "Clock"),
-			l.T("blockquote", "The time updates are being push from the server every 100ms"),
-			l.T("pre", newClock()),
+		page.DOM.Body.Add(
+			l.T("header",
+				l.T("h1", "Clock"),
+				l.T("p", "The time updates are being push from the server every 10ms"),
+			),
+			l.T("main",
+				l.T("pre", newClock()),
+			),
 		)
 
 		return page
@@ -64,7 +67,7 @@ func (c *clock) GetNodes() *l.NodeGroup {
 func (c *clock) Mount(ctx context.Context) {
 	log.Println("DEBU: start tick")
 
-	c.tick = time.NewTicker(100 * time.Millisecond)
+	c.tick = time.NewTicker(10 * time.Millisecond)
 	c.done = make(chan bool)
 
 	go func() {

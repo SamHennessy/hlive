@@ -22,7 +22,7 @@ func IsElement(el interface{}) bool {
 
 func IsNonNodeElement(el interface{}) bool {
 	switch el.(type) {
-	case []Attributer, []*Attribute, Attributer, *Attribute, Attrs, CSS, Style,
+	case []Attributer, []*Attribute, Attributer, *Attribute, Attrs, ClassBool, Style, ClassList, ClassListOff, Class, ClassOff,
 		*EventBinding:
 		return true
 	default:
@@ -88,7 +88,7 @@ func (g *NodeGroup) Get() []interface{} {
 
 // E is shorthand for Elements.
 //
-// Elements groups zero or more Element values.
+// Groups zero or more Element values.
 //
 // Will panic if something that is not an Element is passed.
 func E(elements ...interface{}) *ElementGroup {

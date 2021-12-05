@@ -23,7 +23,7 @@ func home() *l.PageServer {
 		hoverState := " "
 
 		hover := l.C("h2",
-			l.Style{"background-color": "#7fc3c3", "border-radius": "4px", "padding": "4px"},
+			l.Style{"padding": "1em", "text-align": "center", "border": "solid"},
 			l.On("mouseEnter", func(ctx context.Context, e l.Event) {
 				hoverState = "Mouse enter"
 			}),
@@ -34,15 +34,19 @@ func home() *l.PageServer {
 		)
 
 		page := l.NewPage()
-		page.Title.Add("Hover Example")
-		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+		page.DOM.Title.Add("Hover Example")
+		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.Body.Add(
-			l.T("h1", "Hover"),
-			l.T("blockquote", "React to hover events on the server"),
-			l.T("div", hover),
-			l.T("hr"),
-			l.T("pre", l.T("code", &hoverState)),
+		page.DOM.Body.Add(
+			l.T("header",
+				l.T("h1", "Hover"),
+				l.T("p", "React to hover events on the server"),
+			),
+			l.T("main",
+				l.T("div", hover),
+				l.T("hr"),
+				l.T("pre", l.T("code", &hoverState)),
+			),
 		)
 
 		return page

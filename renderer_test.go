@@ -12,10 +12,10 @@ func TestRenderer_RenderElementTagCSS(t *testing.T) {
 	t.Parallel()
 
 	el := l.T("hr",
-		l.CSS{"c3": true},
-		l.CSS{"c2": true},
-		l.CSS{"c1": true},
-		l.CSS{"c2": false})
+		l.ClassBool{"c3": true},
+		l.ClassBool{"c2": true},
+		l.ClassBool{"c1": true},
+		l.ClassBool{"c2": false})
 	buff := bytes.NewBuffer(nil)
 
 	if err := l.NewRender().HTML(buff, el); err != nil {

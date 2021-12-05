@@ -21,7 +21,7 @@ func TestUnmount_CloseTab(t *testing.T) {
 
 	page := l.NewPage()
 
-	page.Body.Add(c)
+	page.DOM.Body.Add(c)
 
 	pageFn := func() *l.Page {
 		return page
@@ -36,10 +36,6 @@ func TestUnmount_CloseTab(t *testing.T) {
 
 	// No wait after disconnect
 	h.server.PageSessionStore.DisconnectTimeout = 0
-
-	if page.Session == nil {
-		t.Fatal("session not set")
-	}
 
 	hlivetest.FatalOnErr(t, h.pwpage.Close())
 

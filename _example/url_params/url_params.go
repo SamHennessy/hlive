@@ -26,14 +26,18 @@ func main() {
 func home() *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.Title.Add("URL Params Example")
-		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+		page.DOM.Title.Add("URL Params Example")
+		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.Body.Add(l.T("h1", "URL Get Parameter Read Example"),
-			l.T("blockquote", "This example reads the parameters from the URL and prints them in a table. "+
-				"You will see the extra 'hlive' parameter that HLive adds on when establishing a WebSocket connection."),
-			l.T("p", "Add your own query parameters to the url and load the page again."),
-			l.T("h2", "Values"),
+		page.DOM.Body.Add(
+			l.T("header",
+				l.T("h1", "URL Get Parameter Read Example"),
+				l.T("p", "This example reads the parameters from the URL and prints them in a table."),
+			),
+			l.T("main",
+				l.T("p", "Add your own query parameters to the url and load the page again."),
+				l.T("h2", "Values"),
+			),
 		)
 
 		cl := hlivekit.List("tbody")
@@ -57,7 +61,10 @@ func home() *l.PageServer {
 			}
 		}
 
-		page.Body.Add(cm)
+		page.DOM.Body.Add(
+			cm,
+			l.T("p", "You will see the extra 'hlive' parameter that HLive adds on when establishing a WebSocket connection."),
+		)
 
 		return page
 	}

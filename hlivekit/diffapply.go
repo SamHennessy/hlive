@@ -16,6 +16,7 @@ func OnDiffApply(handler l.EventHandler) *l.ElementGroup {
 	return l.E(eb, attr)
 }
 
+// TODO: how we remove the attribute once done?
 func OnDiffApplyOnce(handler l.EventHandler) *l.ElementGroup {
 	eb := l.On(DiffApplyEvent, handler)
 	eb.Once = true
@@ -39,7 +40,7 @@ const diffApplyJS = `
 // Trigger diffapply, should always be last
 function diffApply() {
     document.querySelectorAll("[data-hlive-on*=diffapply]").forEach(function (el) {
-        const ids = hlive.getEventHAndlerIDs(el);
+        const ids = hlive.getEventHandlerIDs(el);
 
         if (!ids["diffapply"]) {
             return;
@@ -59,5 +60,9 @@ hlive.afterMessage.push(diffApply);
 `
 
 func (a *DiffApplyAttribute) Initialize(page *l.Page) {
-	page.Head.Add(l.T("script", l.HTML(diffApplyJS)))
+	page.DOM.Head.Add(l.T("script", l.HTML(diffApplyJS)))
+}
+
+func (a *DiffApplyAttribute) InitializeSSR(page *l.Page) {
+	page.DOM.Head.Add(l.T("script", l.HTML(diffApplyJS)))
 }

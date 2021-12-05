@@ -4,6 +4,7 @@ import (
 	_ "embed"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/rs/zerolog"
 )
@@ -53,14 +54,14 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 
 	d.logger.Trace().Str("sel", selector).Str("path", path).Msg("diffTrees")
 
-	// More nodes in new browserTree
+	// More nodes in new node
 	if oldNode == nil && newNode != nil {
 		diffs = append(diffs, diffCreate(selector, path, newNode)...)
 
 		return diffs, nil
 	}
 
-	// Old node doesn't exist in new browserTree
+	// Old node doesn't exist in new node
 	if oldNode != nil && newNode == nil {
 		diffs = append(diffs, Diff{
 			Root: selector,
@@ -74,7 +75,6 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 
 	// Not the same type, remove current node and replace with new
 	if !diffTreeNodeTypeMatch(oldNode, newNode) {
-
 		diffs = append(diffs, Diff{
 			Root: selector,
 			Path: path,
@@ -148,12 +148,12 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 		}
 
 		// Attributes
-		// The browser doesn't care about the order as we use setAttribute and removeAttribute. It would be
+		// The browser doesn't care about the order as we use setAttribute and removeAttribute.
 
 		oldAttrs := v.GetAttributes()
 		newAttrs := newTag.GetAttributes()
 
-		// exits maps, helps us know if we should delete or update
+		// exists maps helps us know if we should delete or update
 		oldAttrsMap := map[string]Attributer{}
 		for i := 0; i < len(oldAttrs); i++ {
 			oldAttrsMap[oldAttrs[i].GetAttribute().Name] = oldAttrs[i]
@@ -198,6 +198,7 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 		}
 
 		// Is this tag a component?
+		// TODO: add tests to ensure this always works
 		if attr, exits := newAttrsMap[AttrID]; exits {
 			selector = attr.GetAttribute().GetValue()
 			path = ""
@@ -217,6 +218,58 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 			kidDiffs, err := d.Trees(selector, path+">"+strconv.Itoa(i), oldKids[i], newKid)
 			if err != nil {
 				return nil, fmt.Errorf("tag diff kids: %w", err)
+			}
+
+			// Reverse order delete batches
+			// TODO: make tests
+			if len(kidDiffs) > 1 {
+				var (
+					newKids     = make([]Diff, 0, len(kidDiffs))
+					deleteBatch []Diff
+				)
+
+				for j := 0; j < len(kidDiffs); j++ {
+					// Vars
+					var (
+						// this diff
+						isEndOfLoop   = len(kidDiffs)-1 == j
+						thisDiffIsDel = kidDiffs[j].Type == DiffDelete
+
+						// Init for next diff
+						nextPathGreater = false
+						nextDiffIsDel   = false
+						// other
+						batchStarted = len(deleteBatch) != 0
+					)
+					// Next diff vars
+					if !isEndOfLoop {
+						nextPathGreater = pathGreater(kidDiffs[j+1].Path, kidDiffs[j].Path)
+						nextDiffIsDel = kidDiffs[j+1].Type == DiffDelete
+					}
+
+					// Next in batch
+					if batchStarted {
+						deleteBatch = append(deleteBatch, kidDiffs[j])
+						// Start of a batch?
+					} else if thisDiffIsDel && nextDiffIsDel && nextPathGreater {
+						deleteBatch = append(deleteBatch, kidDiffs[j])
+					} else {
+						newKids = append(newKids, kidDiffs[j])
+					}
+
+					// end of a batch?
+					if batchStarted && (!nextDiffIsDel || !nextPathGreater) {
+						// Reverse
+						for k := len(deleteBatch) - 1; k >= 0; k-- {
+							newKids = append(newKids, deleteBatch[k])
+						}
+						// Clear batch
+						deleteBatch = nil
+						// Add normally
+					}
+				}
+
+				kidDiffs = newKids
 			}
 
 			diffs = append(diffs, kidDiffs...)
@@ -308,4 +361,80 @@ func diffTreeNodeTypeMatch(oldNode, newNode interface{}) bool {
 	default:
 		panic(fmt.Errorf("unexpected type: %#v", oldNode))
 	}
+}
+
+// Is path a great than path b
+func pathGreater(pathA, pathB string) bool {
+	aPartsStr := strings.Split(pathA, ">")
+	aParts := make([]int, len(aPartsStr))
+	for i := 0; i < len(aPartsStr); i++ {
+		aParts[i], _ = strconv.Atoi(aPartsStr[i])
+	}
+
+	bPartsStr := strings.Split(pathB, ">")
+	bParts := make([]int, len(bPartsStr))
+	for i := 0; i < len(bPartsStr); i++ {
+		bParts[i], _ = strconv.Atoi(bPartsStr[i])
+	}
+
+	return pathGreaterLoop(aParts, bParts)
+}
+
+func pathGreaterLoop(pathA, pathB []int) bool {
+	if len(pathA) != 0 && len(pathB) == 0 {
+		return false
+	}
+
+	if len(pathA) == 0 {
+		return false
+	}
+
+	if pathA[0] > pathB[0] {
+		return true
+	}
+
+	if pathA[0] < pathB[0] {
+		return false
+	}
+
+	// If we are here then this level of the path is equal, go to the next level
+	return pathGreaterLoop(pathA[1:], pathB[1:])
+}
+
+// Is path a great than path b
+func pathLesser(pathA, pathB string) bool {
+	aPartsStr := strings.Split(pathA, ">")
+	aParts := make([]int, len(aPartsStr))
+	for i := 0; i < len(aPartsStr); i++ {
+		aParts[i], _ = strconv.Atoi(aPartsStr[i])
+	}
+
+	bPartsStr := strings.Split(pathB, ">")
+	bParts := make([]int, len(bPartsStr))
+	for i := 0; i < len(bPartsStr); i++ {
+		bParts[i], _ = strconv.Atoi(bPartsStr[i])
+	}
+
+	return pathLesserLoop(aParts, bParts)
+}
+
+func pathLesserLoop(pathA, pathB []int) bool {
+	if len(pathA) != 0 && len(pathB) == 0 {
+		return true
+	}
+
+	if len(pathA) == 0 {
+		return false
+	}
+
+	if pathA[0] > pathB[0] {
+		return false
+	}
+
+	if pathA[0] < pathB[0] {
+		return true
+	}
+
+	// If we are here then this level of the path is equal, go to the next level
+	return pathLesserLoop(pathA[1:], pathB[1:])
 }

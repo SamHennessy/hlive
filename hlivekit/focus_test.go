@@ -18,7 +18,7 @@ func TestFocus(t *testing.T) {
 
 		input := l.T("input", l.Attrs{"id": "in_f"})
 
-		page.Body.Add(
+		page.DOM.Body.Add(
 			input,
 			l.C("button", l.Attrs{"id": "btn_f"}, l.On("click", func(ctx context.Context, e l.Event) {
 				input.Add(hlivekit.Focus())

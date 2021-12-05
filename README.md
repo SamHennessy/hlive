@@ -14,65 +14,84 @@ It's a great use case for admin interfaces and internal company tools.
 Please help the project by building something and giving us your feedback.
 
 ## Table of contents
-- [HLive](#hlive)
-  * [Notice](#notice)
-  * [Quick Start Tutorial](#quick-start-tutorial)
-    + [Step 1: Static Page](#step-1--static-page)
-    + [Step 2: Interactive Page](#step-2--interactive-page)
-  * [Examples](#examples)
-    + [Simple](#simple)
-      - [Click](#click)
-      - [Hover](#hover)
-      - [Diff Apply](#diff-apply)
-    + [Advanced](#advanced)
-      - [Animation](#animation)
-      - [Clock](#clock)
-      - [File Upload](#file-upload)
-      - [Initial Sync](#initial-sync)
-      - [Local Render](#local-render)
-      - [Session](#session)
-      - [To Do](#to-do)
-      - [URL Parameters](#url-parameters)
-  * [Concepts](#concepts)
-    + [Tag](#tag)
-    + [Attribute](#attribute)
-      - [CSS Classes](#css-classes)
-      - [Style Attribute](#style-attribute)
-    + [Tag Children](#tag-children)
-    + [Components](#components)
-      - [EventBinding](#eventbinding)
-      - [EventHandler](#eventhandler)
-    + [Node](#node)
-    + [Element](#element)
-    + [Page](#page)
-      - [HTML vs WebSocket](#html-vs-websocket)
-    + [PageSession](#pagesession)
-    + [PageServer](#pageserver)
-    + [Middleware](#middleware)
-    + [PageSessionStore](#pagesessionstore)
-    + [HTTP vs WebSocket Render](#http-vs-websocket-render)
-    + [Tree and Tree Copy](#tree-and-tree-copy)
-    + [WebSocket Render and Tree Diffing](#websocket-render-and-tree-diffing)
-    + [First WebSocket Render](#first-websocket-render)
-    + [AutoRender and Manuel Render](#autorender-and-manuel-render)
-    + [Local Render](#local-render-1)
-    + [Differ](#differ)
-    + [Render](#render)
-    + [HTML Type](#html-type)
-    + [JavaScript](#javascript)
-    + [Virtual DOM, Browser DOM](#virtual-dom--browser-dom)
-    + [Lifecycle](#lifecycle)
-  * [Known Issues](#known-issues)
-    + [Invalid HTML](#invalid-html)
-    + [Browser Quirks](#browser-quirks)
-  * [Inspiration](#inspiration)
-    + [Phoenix LiveView](#phoenix-liveview)
-    + [gomponents](#gomponents)
-    + [ReactJS and JSX](#reactjs-and-jsx)
-  * [Similar Projects](#similar-projects)
-    + [GoLive](#golive)
-    + [live](#live)
-  * [TODO](#todo)
+- [Quick Start Tutorial](#quick-start-tutorial)
+  * [Step 1: Static Page](#step-1--static-page)
+  * [Step 2: Interactive Page](#step-2--interactive-page)
+- [Examples](#examples)
+  * [Simple](#simple)
+    + [Click](#click)
+    + [Hover](#hover)
+    + [Diff Apply](#diff-apply)
+  * [Advanced](#advanced)
+    + [Animation](#animation)
+    + [Clock](#clock)
+    + [File Upload](#file-upload)
+    + [Initial Sync](#initial-sync)
+    + [Local Render](#local-render)
+    + [Session](#session)
+    + [To Do List](#to-do-list)
+    + [URL Parameters](#url-parameters)
+- [Concepts](#concepts)
+  * [Tag](#tag)
+  * [Attribute](#attribute)
+    + [CSS Classes](#css-classes)
+    + [Style Attribute](#style-attribute)
+  * [Tag Children](#tag-children)
+  * [Components](#components)
+    + [EventBinding](#eventbinding)
+    + [EventHandler](#eventhandler)
+  * [Node](#node)
+  * [Element](#element)
+  * [Page](#page)
+    + [HTML vs WebSocket](#html-vs-websocket)
+  * [PageSession](#pagesession)
+  * [PageServer](#pageserver)
+  * [Middleware](#middleware)
+  * [PageSessionStore](#pagesessionstore)
+  * [HTTP vs WebSocket Render](#http-vs-websocket-render)
+  * [Tree and Tree Copy](#tree-and-tree-copy)
+  * [WebSocket Render and Tree Diffing](#websocket-render-and-tree-diffing)
+  * [First WebSocket Render](#first-websocket-render)
+  * [AutoRender and Manuel Render](#autorender-and-manuel-render)
+  * [Local Render](#local-render-1)
+  * [Differ](#differ)
+  * [Render](#render)
+  * [HTML Type](#html-type)
+  * [JavaScript](#javascript)
+  * [Virtual DOM, Browser DOM](#virtual-dom--browser-dom)
+  * [Lifecycle](#lifecycle)
+- [Known Issues](#known-issues)
+  * [Invalid HTML](#invalid-html)
+  * [Browser Quirks](#browser-quirks)
+- [Inspiration](#inspiration)
+  * [Phoenix LiveView](#phoenix-liveview)
+  * [gomponents](#gomponents)
+  * [ReactJS and JSX](#reactjs-and-jsx)
+- [Similar Projects](#similar-projects)
+  * [GoLive](#golive)
+  * [live](#live)
+- [TODO](#todo)
+  * [API Change](#api-change)
+  * [Bugs](#bugs)
+  * [Internal improvements](#internal-improvements)
+    + [Groups](#groups)
+    + [Page Pipeline](#page-pipeline)
+    + [Other](#other)
+  * [Tests](#tests)
+  * [Docs](#docs)
+  * [Security](#security)
+  * [New Features/Improvements](#new-features-improvements)
+- [HHot](#hhot)
+  * [HHot Ideas](#hhot-ideas)
+  * [Older ideas](#older-ideas)
+    + [Serializable tree/component state](#serializable-tree-component-state)
+    + [Do more with the HTTP Server render](#do-more-with-the-http-server-render)
+    + [Multi file upload using WS and HTTP](#multi-file-upload-using-ws-and-http)
+    + [Visibility](#visibility)
+- [Contributing](#contributing)
+  * [Run tests](#run-tests)
+    + [Setup](#setup)
+    + [Run](#run)
 
 ## Quick Start Tutorial
 
@@ -91,7 +110,7 @@ Let's create our first page:
 ```go
 func home() *l.Page {
 	page := l.NewPage()
-	page.Body.Add("Hello, world.")
+	page.DOM.Body.Add("Hello, world.")
 
 	return page
 }
@@ -144,10 +163,10 @@ We want to set the input to a text type. We do this adding a`Attrs` map to our `
 	input.Add(l.Attrs{"type": "text"})
 ```
 
-Here we add an `EventBinding` to listen to "keyup" JavaScript events. When triggered, the handler function will be called. Our handler will update `message`. It does this by using the data in the passed `Event` parameter.
+Here we add an `EventBinding` to listen to "keyup" JavaScript events. When triggered, the handler function will be called. Our handler will update `message`. It does this by using the data passed in the `Event` parameter.
 
 ```go
-	input.On(l.On("keyup", func(ctx context.Context, e l.Event) {
+	input.Add(l.On("keyup", func(ctx context.Context, e l.Event) {
 		message = e.Value
 	}))
 ```
@@ -161,14 +180,14 @@ We create a new `Page` like before:
 Here we add our `input` to the body but first we wrap it in a `div` tag.
 
 ```go
-	page.Body.Add(l.T("div", input))
+	page.DOM.Body.Add(l.T("div", input))
 ```
 
 Next, we will display our message. Notice that we're passing `message` by reference. That's key for making this example work. We'll also add an "hr" tag to stop it being squashed todeather.
 
 ```go
-	page.Body.Add(l.T("hr"))
-	page.Body.Add("Hello, ", &message)
+	page.DOM.Body.Add(l.T("hr"))
+	page.DOM.Body.Add("Hello, ", &message)
 ```
 
 Finally, we return the `Page` we created.
@@ -191,7 +210,7 @@ func home() *l.Page {
 	)
 
 	page := l.NewPage()
-	page.Body.Add(
+	page.DOM.Body.Add(
 		l.T("div", input),
 		l.T("hr"),
 		"Hello, ", &message,
@@ -302,27 +321,27 @@ This is due to the HLive having a two-step process of loading a page and Compone
 
 ### Tag
 
-A static HTML tag. A Tag has a name (e.g., an `<p></p>`'s name is `hr`). A Tag can have zero or more Attributes. A Tag can have child Tags nested inside it. A Tag may be Void, which means it doesn't have a closing tag (e.g., `<hr>`). Void tags can't have child Tags.
+A static HTML tag. A Tag has a name (e.g., an `<p></p>`'s name is `p`). A Tag can have zero or more Attributes. A Tag can have child Tags nested inside it. A Tag may be Void, which means it doesn't have a closing tag (e.g., `<hr>`). Void tags can't have child Tags.
 
 ### Attribute
 
-An Attribute has a name and an optional value.  (e.g., `href="https://example.com"` or `disabled`).
+An Attribute has a name and a value.  (e.g., `href="https://example.com"` or `disabled=""`).
 
 #### CSS Classes
 
-The HLive implementation of Tag has an optional special way to work with the `class` attribute.
+The HLive implementation of Tag has an optional special way to work with the `class` attribute. These types are all designed to make toggling CSS classes on and off easy. 
 
-HLive's `CSS` is a `map[string]bool` type. The key is a CSS class, and the value enables the class for rending if true. This allows you to turn a class on and off.
+HLive's `ClassBool` is a `map[string]bool` type. The key is a CSS class, and the value enables the class for rending if true. This allows you to turn a class on and off. (e.g. `l.ClassBool{"foo": true, "bar": true, "fizz": true}`). The order of the class names in a single `ClassBool` is NOT respected. If the order of class names is significant, you can add them as separate `ClassBool` elements, and the order will be respected. You can add a new `ClassBool` elements with the same class name, and the original `ClassBool` element will be updated.
 
-The order of the class names in a single `CSS` is NOT respected. If the order of class names is significant, you can add them as separate `CSS` elements, and the order will be respected.
+Even better is `Class`, this is a string type that converts into a CSSBool. (e.g. `l.Class("foo bar fizz")`). The order of the class names is respected. Each class can still be turned off individually using a `ClassBool` of the `ClassOff` string type.
 
-You can add new `CSS` elements with the same class name, and the original `CSS` element will be updated. Using this type allows you to turn classes on and off (e.g., show and hide) without growing the Tag's data.
+`ClassList` and `ClassListOff` are string slices that will enable or disable respectively CSS classes. (e.g. `l.ClassList{"foo", "bar", "fizz"}`)
 
 #### Style Attribute
 
 The HLive implementation of Tag has an optional special way to work with the `style` attribute.
 
-HLive's `Style` is a `map[string]interface{}` type. The key is the CSS rule, and the value is the value of the rule. The value can be a `string` or `nil`. If `nil`, the style rule gets removed.
+HLive's `Style` is a `map[string]interface{}` type. The key is the CSS style rule, and the value is the value of the rule. The value can be a `string` or `nil`. If `nil`, the style rule gets removed.
 
 The order of the style rules in a single `Style` is NOT respected. If the order of rules is significant, you can add them as separate `Style` elements, and the order will be respected.
 
@@ -334,7 +353,7 @@ This function is called many times and not always when it's time to render. Call
 be [deterministic](https://en.wikipedia.org/wiki/Deterministic_algorithm). If you've not made a change to the `Tag`
 the output is expected to be the same.
 
-This function must never get or change data. No calls to a remote API or database.
+This function should not get or change data. For example, no calls to a remote API or database should happen in this function.
 
 ### Components
 
@@ -371,11 +390,11 @@ A `Page` is the root element in HLive. There will be a single page instance for 
 
 When a user requests a page, there are two requests. First is the initial request that generates the pages HTML. Then the second request is to establish a WebSocket connection.
 
-HLive considers the initial HTML generation a throwaway process. We make no assumptions that there will be a WebSocket connection for that exact HTML page.
+HLive considers the initial HTML is can be though of as the Server Side Rendering phase (SSR). This SSR request will not be used when processing WebSocket requests. This render is a good candidate for use in a CDN.
 
-When an HLive HTML page is loaded in a browser, the HLive JavaScript library will kick into action.
+When an HLive SSR page is loaded in a browser, the HLive JavaScript library will kick into action.
 
-The first thing the JavaScript will do is establish a WebSocket connection to the server. This connection is made using the same URL with `?ws=1` added to the URL. Due to typical load balancing strategies, the server that HLive establishes a Websocket connection to may not be the one that generated the initial HTML.
+The first thing the JavaScript will do is establish a WebSocket connection to the server. This connection is made using the same URL with `?hlive=1` added to the URL. Due to typical load balancing strategies, the server that HLive establishes a Websocket connection to may not be the one that generated the SSR Page.
 
 ### PageSession
 
@@ -385,10 +404,9 @@ A `PageSession` represents a single instance of a `Page`. There will be a single
 
 ### PageServer
 
-The `PageServer` is what handles incoming HTTP requests. It's an `http.Handler`, so it can be using in your router of choice. When `PageServer` receives a request, if the request has the `ws=1` query parameter, it will start the WebSocket flow. It will create a new instance of your `Page`. It will then make a new `PageSession`. Finally, it will pass the request to `Page` `ServerWS` function.
+The `PageServer` is what handles incoming HTTP requests. It's an `http.Handler`, so it can be used in your router of choice. When `PageServer` receives a request, if the request has the `hlive=1` query parameter, it will start the WebSocket flow. It will create a new instance of your `Page`. It will then make a new `PageSession`. Finally, it will pass the request to `Page` `ServerWS` function.
 
-
-If not, then it will create a new `Page`, generate a complete HTML page render and return that and discard that `Page`.
+If not, then it will create a new `Page`, generate a complete a SSR page render and return that and discard that `Page`.
 
 ### Middleware
 
@@ -396,14 +414,13 @@ It's possible to wrap `PageServer` in middleware. You can add data to the contex
 
 ### PageSessionStore
 
-To manage your all the `PageSession`s `PageServer` uses a `PageSessionStore`. By default, each page gets its own `PageSessionStore`, but it's recommended that you have a single `PageSessionStore` that's shared by all your `Page`s.
+To manage your all the `PageSession`s `PageServer` uses a `PageSessionStore`. By default, each page gets its own `PageSessionStore`, but it's recommended that you have a single `PageSessionStore` that's shared by all your `Page`s on a server.
 
 `PageSessionStore` can control the number of active `PageSession`s you have at one time. This control can prevent your servers from becoming overloaded. Once the `PageSession` limit is reached, `PageSessionStore` will make incoming WebSocket requests wait for an existing connection to disconnect.
 
-
 ### HTTP vs WebSocket Render
 
-`Mount` is not called on HTTP requests but is called on WebSocket requests.
+`Mount` is not called on SSR requests but is called on WebSocket requests.
 
 ### Tree and Tree Copy
 
@@ -415,26 +432,25 @@ Tree copy is a critical process that takes your `Page`'s Tree and makes a simpli
 
 When it's time to do a WebSocket render, no HTML is rendered *(1)*. What happens is a new Tree Copy is created from the `Page`. This Tree is compared to the Tree that's in that should be in the browser. The differences are calculated, and instructions are sent to the browser on updating its DOM with our new Tree.
 
-
 *(1) except Attributes, but that's just convenient data format.*
 
 ### First WebSocket Render
 
-When a WebSocket connection is successfully established, we need to do 2 `Page` renders. The first is to duplicate what should be in the browser. This render will be creating a Tree Copy as if it were going to be rendered to HTML. This Tree is then set as the "current" Tree. Then a WebSocket Tree Copy is made. This copy will contain several attributes not present in the HTML Tree. Also, each `Component` in the Tree that implements `Mounter` will be called with the context, meaning the Tree may also have more detail based on any data fetched. This render will then be diffed against the "current" Tree and the diff instructions sent to the browser like normal.
+When a WebSocket connection is successfully established, we need to do 2 `Page` renders. The first is to duplicate what should be in the browser. This render will be creating a Tree Copy as if it were going to be an SSR render. This Tree is then set as the "current" Tree. Then a WebSocket Tree Copy is made. This copy will contain several attributes not present in the HTML Tree. Also, each `Component` in the Tree that implements `Mounter` will be called with the context, meaning the Tree may also have more detail based on any data fetched. This render will then be diffed against the "current" Tree and the diff instructions sent to the browser like normal.
 
 For an initial, successful `Page` load there will be 3 renders, 2 HTML renders and a WebSocket render.
 
 ### AutoRender and Manuel Render
 
-By default, HLive's `Component` will trigger a WebSocket render every time an `EventBinding` is triggered.
+By default, HLive's `Component` will do a render every time an `EventBinding` is triggered.
 
 This behaviour can be turned off on `Component` by setting `AutoRender` to `false`.
 
-If you set `AutoRender` to `false` you can manually trigger a WebSocket render by calling `hlive.RenderWS(ctx context.Context)` with the context passed to your handler.
+If you set `AutoRender` to `false` you can manually trigger a WebSocket render by calling `hlive.Render(ctx context.Context)` with the context passed to your handler.
 
 ### Local Render
 
-If you want only to render a single `Component` and not the whole page, you can call `hlive.RenderComponentWS(ctx context.Context, comp Componenter)` you will also want to set any relevant `Component`s to `AutoRender` `false`.
+If you want only to render a single `Component` and not the whole page, you can call `hlive.RenderComponent(ctx context.Context, comp Componenter)` you will also want to set any relevant `Component`s to `AutoRender` `false`.
 
 ### Differ
 
@@ -452,7 +468,7 @@ HLive's `HTML` type is a special `string` type that will render what you've set.
 
 The goal of HLive is not to require the developer to need to write any JavaScript. As such, we have unique solutions for things like giving fields focus.
 
-Nothing is preventing the developer from adding their JavaScript. If JavaScript changes the DOM in the browser, you could cause HLive's diffing to stop working.
+Nothing is preventing the developer from adding their JavaScript. If JavaScript changes the DOM in the browser, you could cause HLive's diffing to stop working. This is also [true in libraries like ReactJS](https://reactjs.org/docs/integrating-with-other-libraries.html#integrating-with-dom-manipulation-plugins).
 
 ### Virtual DOM, Browser DOM
 
@@ -552,8 +568,7 @@ Live views and components for golang
 - Use a channel with a single reader to process page events
 - How does it work with grammarly?
 - How does it work with Last Pass?
-- Switch `Page.tree` to a NodeGroup
-- Get rid of the `Page.treeLock` by using a channel
+- Get rid of the `Page.treeLock` by using a channel?
 
 ### Tests
 
@@ -589,21 +604,16 @@ Live views and components for golang
   - https://dockyard.com/blogs/optimizing-user-experience-with-liveview
 
 - Can we add a way for a component like List to inform tree copy not to bother doing a diff and just do a full HTML replacement
-- Form
-  - Bubble up input and change events?
-  - No, no bubble!
 - Cluster
   - Proxy reconnect, find the session on another node and proxy the connection to that node
     - https://github.com/koding/websocketproxy
 - Message bus
-  - Async
-  - Page, server, cluster
+  - Cluster level
   - Plugin based protocol
   - Simple example protocol
     - Websocket?
     - manual node config
   - Prevent race conditions on the page dom
-  - Have the page sessions listen to server and cluster messages
 - ComponentList
   - Operations by ID
     - Get by ID
@@ -620,7 +630,7 @@ Live views and components for golang
 A highly opinionated web framework that use hot reload and code generation.
 
 - You install the hhot binary and when in dev mode you get a web UI to create new things, change config etc.
-- Place models in certain folder, and we'll generate the code to wie them up. Same with HLive Pages
+- Place models in certain folder, and we'll generate the code to wire them up. Same with HLive Pages
 - Use a DI registry to pass config, logger, DB, Cache, etc. to each page.
 - Use off-the-shelf ORM where possible.
 - Form -> Model -> Database flow
@@ -674,7 +684,7 @@ A highly opinionated web framework that use hot reload and code generation.
 - Limit execution by having a worker pool controlled by the page session
   - That way we have a way to limit RAM and CPU
 
-## Serializable tree/component state
+#### Serializable tree/component state
 
 ** Maybe this should just be done with traditional user sessions? **
 
@@ -692,7 +702,7 @@ A highly opinionated web framework that use hot reload and code generation.
 - Encrypt the data by default
 - Could this be a special kind of Page Session?
 
-## Do more with the HTTP Server render
+#### Do more with the HTTP Server render
 
 - Think server side render
 - Get the HTTP request easier
@@ -709,17 +719,37 @@ A highly opinionated web framework that use hot reload and code generation.
       - Recently viewed items
 
 
-## Multi file upload using WS and HTTP
+#### Multi file upload using WS and HTTP
 
 - Need a count of files
 - Group them together in an event?
 - Make a channel?
 - File upload progress
 
-# Visibility
+#### Visibility
 
 - Is a component visible?
 - Trigger event when visible?
 - Scroll events
   - Page position
   - Viewport
+
+## Contributing
+
+Contributions welcome
+
+### Run tests
+
+#### Setup
+
+Install Play wright Go
+
+```shell
+go get github.com/mxschmitt/playwright-go
+```
+
+#### Run
+
+```shell
+go test ./...
+```

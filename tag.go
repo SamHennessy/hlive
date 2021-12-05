@@ -3,6 +3,7 @@ package hlive
 import (
 	"fmt"
 	"strings"
+	"sync"
 )
 
 // Tagger represents a static HTML tag.
@@ -15,6 +16,11 @@ type Tagger interface {
 	GetNodes() *NodeGroup
 	// IsVoid indicates if this has a closing tag or not. Void tags don't have a closing tag.
 	IsVoid() bool
+	// IsNil returns true if pointer is nil.
+	//
+	// It's easy to create something like `var t *Tag` but forget to give it a value.
+	// This allows us to not have panics in that case.
+	IsNil() bool
 }
 
 // UniqueTagger is a Tagger that can be uniquely identified in a DOM Tree.
@@ -49,6 +55,7 @@ type Tag struct {
 	cssOrder    []string
 	styleValues map[string]*string
 	styleOrder  []string
+	lock        sync.RWMutex
 }
 
 // T is a shortcut for NewTag.
@@ -83,6 +90,11 @@ func NewTag(name string, elements ...interface{}) *Tag {
 	return t
 }
 
+// IsNil returns true if pointer is nil
+func (t *Tag) IsNil() bool {
+	return t == nil
+}
+
 // SetName sets the tag name, e.g. for a `<div>` it's the `div` part.
 func (t *Tag) SetName(name string) {
 	t.name = name
@@ -105,7 +117,7 @@ func (t *Tag) SetVoid(void bool) {
 
 // GetAttributes returns a list of Attributer values that this tag has.
 //
-// Any CSS, Style values are returned here as Attribute values.
+// Any Class, Style values are returned here as Attribute values.
 func (t *Tag) GetAttributes() []Attributer {
 	attrs := t.attributes
 
@@ -133,7 +145,7 @@ func (t *Tag) GetAttributes() []Attributer {
 
 // GetAttribute returns an Attributer value by its name.
 //
-// This includes attribute values related to CSS, and Style. If an Attributer of the passed name has not been set `nil`
+// This includes attribute values related to Class, and Style. If an Attributer of the passed name has not been set `nil`
 // it's returned.
 func (t *Tag) GetAttribute(name string) Attributer {
 	attrs := t.GetAttributes()
@@ -160,7 +172,13 @@ func (t *Tag) GetAttributeValue(name string) string {
 
 // Add zero or more elements to this Tag.
 func (t *Tag) Add(element ...interface{}) {
+	if t.IsNil() {
+		return
+	}
+
+	t.lock.Lock()
 	addElementToTag(t, element)
+	t.lock.Unlock()
 }
 
 // GetNodes returns a NodeGroup with any child Nodes that have been added to this Node.
@@ -182,40 +200,68 @@ func (t *Tag) addNodes(nodes ...interface{}) {
 	}
 }
 
-// AddAttributes will add zero or more attributes types (Attributer, Attribute, Attrs, Style, CSS).
+// AddAttributes will add zero or more attributes types (Attributer, Attribute, Attrs, Style, ClassBool).
 //
 // Adding an attribute with the same name will override an existing attribute.
 func (t *Tag) AddAttributes(attrs ...interface{}) {
-	attributes := anyToAttributes(attrs...)
-	for i := 0; i < len(attributes); i++ {
+	if t.IsNil() {
+		return
+	}
+
+	t.lock.Lock()
+	t.addAttributes(attrs...)
+	t.lock.Unlock()
+}
+
+func (t *Tag) addAttributes(attrs ...interface{}) {
+	newAttributes := anyToAttributes(attrs...)
+	newAttrsCount := len(newAttributes)
+	for i := 0; i < newAttrsCount; i++ {
 		hit := false
 
+		// TODO: why does this panic sometimes?
+		// Maybe when we had nil tags possible
 		for j := 0; j < len(t.attributes); j++ {
-			if t.attributes[j].GetAttribute().Name == attributes[i].GetAttribute().Name {
+			if t.attributes[j].GetAttribute().Name == newAttributes[i].GetAttribute().Name {
 				hit = true
-				t.attributes[j].GetAttribute().Value = attributes[i].GetAttribute().Value
+				t.attributes[j].GetAttribute().Value = newAttributes[i].GetAttribute().Value
 			}
 		}
 
 		if !hit {
-			t.attributes = append(t.attributes, attributes[i])
+			t.attributes = append(t.attributes, newAttributes[i])
 		}
 	}
 
 	for i := 0; i < len(t.attributes); i++ {
 		if t.attributes[i].GetAttribute().Value == nil {
-			t.RemoveAttributes(t.attributes[i].GetAttribute().Name)
+			t.removeAttributes(t.attributes[i].GetAttribute().Name)
 		}
 	}
 }
 
-// RemoveAttributes remove zero or more Attributer value by their name.
 func (t *Tag) RemoveAttributes(names ...string) {
+	if t.IsNil() {
+		return
+	}
+
+	t.lock.Lock()
+	t.removeAttributes(names...)
+	t.lock.Unlock()
+}
+
+// RemoveAttributes remove zero or more Attributer value by their name.
+func (t *Tag) removeAttributes(names ...string) {
 	var newAttrs []Attributer
 
 	for j := 0; j < len(t.attributes); j++ {
 		attr := t.attributes[j]
 		hit := false
+
+		// TODO: Why is this possible?
+		if attr == nil {
+			continue
+		}
 
 		for i := 0; i < len(names); i++ {
 			if names[i] == attr.GetAttribute().Name {
@@ -235,8 +281,8 @@ func (t *Tag) RemoveAttributes(names ...string) {
 
 func addElementToTag(t *Tag, v interface{}) {
 	if _, ok := v.(*EventBinding); ok {
-		panic("You've added an event binding to a 'Tag'. You can only add the to a 'Component'. " +
-			"You can turn any 'Tag' into a 'Component' by using the 'Wrap' or 'W' functions.")
+		panic("You've added an event binding to a Tag. You can only add these to a Component. " +
+			"You can turn any Tag into a Component by using the Wrap or W functions.")
 	}
 
 	if !IsElement(v) {
@@ -245,11 +291,19 @@ func addElementToTag(t *Tag, v interface{}) {
 
 	switch v := v.(type) {
 	case *NodeGroup:
+		if v == nil {
+			return
+		}
+
 		g := v.Get()
 		for i := 0; i < len(g); i++ {
 			addElementToTag(t, g[i])
 		}
 	case *ElementGroup:
+		if v == nil {
+			return
+		}
+
 		g := v.Get()
 		for i := 0; i < len(g); i++ {
 			addElementToTag(t, g[i])
@@ -279,8 +333,34 @@ func addElementToTag(t *Tag, v interface{}) {
 			addElementToTag(t, v[i])
 		}
 	case []Attributer, Attributer, *Attribute, []*Attribute, Attrs:
-		t.AddAttributes(v)
-	case CSS:
+		t.addAttributes(v)
+	case Class:
+		classes := strings.Split(string(v), " ")
+		for i := 0; i < len(classes); i++ {
+			if classes[i] == "" {
+				continue
+			}
+
+			addCSS(t, ClassBool{classes[i]: true})
+		}
+	case ClassOff:
+		classes := strings.Split(string(v), " ")
+		for i := 0; i < len(classes); i++ {
+			if classes[i] == "" {
+				continue
+			}
+
+			addCSS(t, ClassBool{classes[i]: false})
+		}
+	case ClassList:
+		for i := 0; i < len(v); i++ {
+			addCSS(t, ClassBool{v[i]: true})
+		}
+	case ClassListOff:
+		for i := 0; i < len(v); i++ {
+			addCSS(t, ClassBool{v[i]: false})
+		}
+	case ClassBool:
 		addCSS(t, v)
 	case Style:
 		addStyle(t, v)
@@ -336,8 +416,8 @@ func addStyle(t *Tag, v Style) {
 	t.styleOrder = newNames
 }
 
-// This does allow duplicates in the same hlive.CSS element.
-func addCSS(t *Tag, v CSS) {
+// This does allow duplicates in the same hlive.ClassBool element.
+func addCSS(t *Tag, v ClassBool) {
 	// Update the map
 	for class, enable := range v {
 		if enable {

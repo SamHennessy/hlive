@@ -34,7 +34,7 @@ type ack struct {
 func (a *ack) Initialize(page *l.Page) {
 	page.HookBeforeEvent = append(page.HookBeforeEvent, ackBeforeEvent)
 	page.HookAfterRender = append(page.HookAfterRender, ackAfterRender)
-	page.Head.Add(l.T("script", l.HTML(ackJavaScript)))
+	page.DOM.Head.Add(l.T("script", l.HTML(ackJavaScript)))
 }
 
 // Look in the extra data for ack id and add the value to the context if found
@@ -47,13 +47,13 @@ func ackBeforeEvent(ctx context.Context, e l.Event) (context.Context, l.Event) {
 }
 
 // If ack id in context then send a message
-func ackAfterRender(ctx context.Context, diffs []l.Diff, send chan<- []byte) {
+func ackAfterRender(ctx context.Context, diffs []l.Diff, send chan<- l.MessageWS) {
 	ackID, ok := ctx.Value(ackCtxKey).(string)
 	if !ok || ackID == "" {
 		return
 	}
 
-	send <- []byte("ack|" + ackID + "\n")
+	send <- l.MessageWS{Message: []byte("ack|" + ackID + "\n")}
 }
 
 // TODO: detect timeout and errors

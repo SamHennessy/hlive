@@ -23,7 +23,7 @@ func TestIsValidElement(t *testing.T) {
 		{"string", args{"test"}, true},
 		{"html", args{hlive.HTML("<h1>title</h1>")}, true},
 		{"tag", args{hlive.T("h1")}, true},
-		{"css", args{hlive.CSS{"c1": true}}, true},
+		{"css", args{hlive.ClassBool{"c1": true}}, true},
 		{"attribute", args{hlive.NewAttribute("disabled")}, true},
 		{"attrs", args{hlive.Attrs{"href": "https://foo.com"}}, true},
 		{"component", args{hlive.C("span")}, true},

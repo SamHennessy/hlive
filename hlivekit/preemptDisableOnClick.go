@@ -14,7 +14,7 @@ const (
 //go:embed preemptDisableOnClick.js
 var PreemptDisableOnClickJavaScript []byte
 
-// Once?
+// TODO: Once?
 func PreemptDisableOn(eb *l.EventBinding) *l.ElementGroup {
 	sourceAttr := &PreemptDisableAttribute{
 		Attribute: l.NewAttribute(PreemptDisableAttributeName, eb.Name),
@@ -50,5 +50,9 @@ type PreemptDisableAttribute struct {
 
 func (a *PreemptDisableAttribute) Initialize(page *l.Page) {
 	a.page = page
-	page.Head.Add(l.T("script", l.HTML(PreemptDisableOnClickJavaScript)))
+	page.DOM.Head.Add(l.T("script", l.HTML(PreemptDisableOnClickJavaScript)))
+}
+
+func (a *PreemptDisableAttribute) InitializeSSR(_ *l.Page) {
+	// Nop
 }

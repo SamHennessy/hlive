@@ -22,10 +22,18 @@ func main() {
 func home() *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.Title.Add("Add Remove Example")
-		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+		page.DOM.Title.Add("To Do Example")
+		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.Body.Add(newTodoApp().tree)
+		page.DOM.Body.Add(
+			l.T("header",
+				l.T("h1", "To Do App Example"),
+				l.T("p", "A simple app where you can add and remove elements"),
+			),
+			l.T("main",
+				newTodoApp().tree,
+			),
+		)
 
 		return page
 	}
@@ -70,8 +78,8 @@ func (a *todoApp) initForm() {
 			a.newTask = ""
 			a.newTaskInput.Add(l.Attrs{"value": ""})
 		}),
-		l.T("div", "Task Label"),
-		a.newTaskInput,
+		l.T("p", "Task Label"),
+		a.newTaskInput, " ",
 		l.T("button", "Add"),
 	)
 
@@ -81,7 +89,7 @@ func (a *todoApp) initForm() {
 func (a *todoApp) initList() {
 	a.taskList = hlivekit.List("div")
 	a.tree = append(a.tree,
-		l.T("h1", "To Do"),
+		l.T("h3", "To Do List:"),
 		a.taskList,
 	)
 }
@@ -114,7 +122,7 @@ func (a *todoApp) addTask(label string) {
 			labelSpan.Add(l.Style{"display": nil})
 		}),
 
-		labelInput,
+		labelInput, " ",
 		l.T("button", "Update"),
 	)
 
@@ -122,7 +130,7 @@ func (a *todoApp) addTask(label string) {
 		// Delete button
 		l.C("button", "🗑️", l.On("click", func(_ context.Context, _ l.Event) {
 			a.taskList.RemoveItems(container)
-		})),
+		})), " ",
 		// Edit button
 		l.C("button", "✏️", l.On("click", func(_ context.Context, _ l.Event) {
 			labelSpan.Add(l.Style{"display": "none"})
@@ -132,7 +140,7 @@ func (a *todoApp) addTask(label string) {
 
 				l.Render(ctx)
 			}))
-		})),
+		})), " ",
 		labelSpan,
 		labelForm,
 	)

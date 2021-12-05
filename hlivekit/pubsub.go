@@ -16,12 +16,17 @@ type QueueMessage struct {
 
 type QueueSubscriber interface {
 	GetID() string
-	OnMessage(item QueueMessage)
+	OnMessage(message QueueMessage)
 }
 
 type PubSubMounter interface {
 	GetID() string
-	PubSubMount(*PubSub)
+	PubSubMount(context.Context, *PubSub)
+}
+
+type PubSubSSRMounter interface {
+	GetID() string
+	PubSubSSRMount(context.Context, *PubSub)
 }
 
 type PubSub struct {
@@ -36,6 +41,14 @@ func NewPubSub() *PubSub {
 }
 
 func (ps *PubSub) Subscribe(sub QueueSubscriber, topics ...string) {
+	if len(topics) == 0 {
+		panic("no topics passed")
+	}
+
+	if sub == nil {
+		return
+	}
+
 	ps.subsLock.Lock()
 	defer ps.subsLock.Unlock()
 
@@ -44,7 +57,23 @@ func (ps *PubSub) Subscribe(sub QueueSubscriber, topics ...string) {
 	}
 }
 
+func (ps *PubSub) SubscribeFunc(subFunc func(message QueueMessage), topics ...string) SubscribeFunc {
+	sub := NewSub(subFunc)
+
+	ps.Subscribe(sub, topics...)
+
+	return sub
+}
+
 func (ps *PubSub) Unsubscribe(sub QueueSubscriber, topics ...string) {
+	if len(topics) == 0 {
+		panic("no topics passed")
+	}
+
+	if sub == nil {
+		return
+	}
+
 	ps.subsLock.Lock()
 	defer ps.subsLock.Unlock()
 
@@ -52,7 +81,7 @@ func (ps *PubSub) Unsubscribe(sub QueueSubscriber, topics ...string) {
 		var newList []QueueSubscriber
 
 		for j := 0; j < len(ps.subscribers[topics[i]]); j++ {
-			if ps.subscribers[topics[i]][j] == sub {
+			if ps.subscribers[topics[i]][j].GetID() == sub.GetID() {
 				continue
 			}
 
@@ -70,43 +99,48 @@ func (ps *PubSub) Publish(topic string, value interface{}) {
 	}
 }
 
-type subFN struct {
+type SubscribeFunc struct {
 	fn func(message QueueMessage)
 	id string
 }
 
-func (s subFN) OnMessage(item QueueMessage) {
-	s.fn(item)
+func (s SubscribeFunc) OnMessage(message QueueMessage) {
+	s.fn(message)
 }
 
-func (s subFN) GetID() string {
+func (s SubscribeFunc) GetID() string {
 	return s.id
 }
 
-func NewSub(onMessageFn func(message QueueMessage)) QueueSubscriber {
-	return subFN{onMessageFn, shortid.MustGenerate()}
+func NewSub(onMessageFn func(message QueueMessage)) SubscribeFunc {
+	return SubscribeFunc{onMessageFn, shortid.MustGenerate()}
 }
 
-func PipelineProcessorPubSub(pubSub *PubSub) *hlive.PipelineProcessor {
-	pp := hlive.NewPipelineProcessor(hlive.PipelineProcessorKeyPubSubMount)
+const PipelineProcessorKeyPubSubMount = "hlivekit_ps_mount"
 
-	// Will memory leak is you don't use a Teardowner when deleting Components
-	cache := map[string]struct{}{}
+func (a *PubSubAttribute) PipelineProcessorPubSub() *hlive.PipelineProcessor {
+	pp := hlive.NewPipelineProcessor(PipelineProcessorKeyPubSubMount)
 
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag hlive.Tagger) (hlive.Tagger, error) {
 		if comp, ok := tag.(PubSubMounter); ok {
-			if _, exists := cache[comp.GetID()]; !exists {
-				cache[comp.GetID()] = struct{}{}
+			a.lock.Lock()
 
-				comp.PubSubMount(pubSub)
+			if _, exists := a.mountedMap[comp.GetID()]; !exists {
+				a.mountedMap[comp.GetID()] = struct{}{}
+
+				comp.PubSubMount(ctx, a.pubSub)
 			}
 
 			// A way to remove the key when you delete a Component
 			if comp, ok := tag.(hlive.Teardowner); ok {
 				comp.AddTeardown(func() {
-					delete(cache, comp.GetID())
+					a.lock.Lock()
+					delete(a.mountedMap, comp.GetID())
+					a.lock.Unlock()
 				})
 			}
+
+			a.lock.Unlock()
 		}
 
 		return tag, nil
@@ -119,8 +153,9 @@ const PubSubAttributeName = "data-hlive-pubsub"
 
 func InstallPubSub(pubSub *PubSub) hlive.Attributer {
 	attr := &PubSubAttribute{
-		Attribute: hlive.NewAttribute(PubSubAttributeName, ""),
-		pubSub:    pubSub,
+		Attribute:  hlive.NewAttribute(PubSubAttributeName, ""),
+		pubSub:     pubSub,
+		mountedMap: map[string]struct{}{},
 	}
 
 	return attr
@@ -130,9 +165,15 @@ type PubSubAttribute struct {
 	*hlive.Attribute
 
 	pubSub *PubSub
+	// Will memory leak is you don't use a Teardowner when deleting Components
+	mountedMap map[string]struct{}
+	lock       sync.Mutex
 }
 
 func (a *PubSubAttribute) Initialize(page *hlive.Page) {
-	page.PipelineDiff.AddBefore(hlive.PipelineProcessorKeyEventBindingCache, PipelineProcessorPubSub(a.pubSub))
-	page.PipelineRender.AddBefore(hlive.PipelineProcessorKeyEventBindingCache, PipelineProcessorPubSub(a.pubSub))
+	page.PipelineDiff.Add(a.PipelineProcessorPubSub())
+}
+
+func (a *PubSubAttribute) InitializeSSR(page *hlive.Page) {
+	// Nop
 }

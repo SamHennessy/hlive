@@ -87,12 +87,20 @@ func (p *Pipeline) RemoveAll() {
 func (p *Pipeline) AddAfter(processorKey string, processors ...*PipelineProcessor) {
 	var newProcessors []*PipelineProcessor
 
+	var hit bool
+
 	for i := 0; i < len(p.processors); i++ {
 		newProcessors = append(newProcessors, p.processors[i])
 
-		if processors[i].Key == processorKey {
+		if p.processors[i].Key == processorKey {
+			hit = true
+
 			newProcessors = append(newProcessors, processors...)
 		}
+	}
+
+	if !hit {
+		newProcessors = append(newProcessors, processors...)
 	}
 
 	p.RemoveAll()
@@ -102,12 +110,19 @@ func (p *Pipeline) AddAfter(processorKey string, processors ...*PipelineProcesso
 func (p *Pipeline) AddBefore(processorKey string, processors ...*PipelineProcessor) {
 	var newProcessors []*PipelineProcessor
 
+	var hit bool
+
 	for i := 0; i < len(p.processors); i++ {
 		if p.processors[i].Key == processorKey {
+			hit = true
 			newProcessors = append(newProcessors, processors...)
 		}
 
 		newProcessors = append(newProcessors, p.processors[i])
+	}
+
+	if !hit {
+		newProcessors = append(newProcessors, processors...)
 	}
 
 	p.RemoveAll()
@@ -228,9 +243,7 @@ func (p *Pipeline) run(ctx context.Context, w io.Writer, tree *NodeGroup) (*Node
 		newGroup.Add(newNode)
 	}
 
-	tree = newGroup
-
-	newGroup, err := p.afterWalk(ctx, w, tree)
+	newGroup, err := p.afterWalk(ctx, w, newGroup)
 	if err != nil {
 		return nil, fmt.Errorf("run full tree: %w", err)
 	}
@@ -256,7 +269,7 @@ func (p *Pipeline) walk(ctx context.Context, w io.Writer, node interface{}) (int
 		return p.onSimpleNode(ctx, w, node)
 	// All Taggers wil be converted to a Tag
 	case Tagger:
-		if v == nil {
+		if v.IsNil() {
 			return nil, nil
 		}
 
@@ -294,12 +307,12 @@ func (p *Pipeline) walk(ctx context.Context, w io.Writer, node interface{}) (int
 		tag := T(v.GetName(), attrs, kids)
 		tag.SetVoid(tag.IsVoid())
 
-		newTag, err := p.afterTagger(ctx, w, tag)
+		tag, err = p.afterTagger(ctx, w, tag)
 		if err != nil {
 			return tag, err
 		}
 
-		return newTag, nil
+		return tag, nil
 	// Lists
 	case *NodeGroup:
 		if v == nil || len(v.Get()) == 0 {

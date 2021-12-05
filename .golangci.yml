@@ -6,6 +6,7 @@ linters:
   disable:
     - exhaustivestruct
     - wsl
+    - varnamelen
     # Deprecated
     - interfacer
     - maligned
@@ -16,4 +17,4 @@ output:
   sort-results: true
 
 service:
-  golangci-lint-version: 1.40.x # use the fixed version to not introduce new linters unexpectedly
+  golangci-lint-version: 1.43.x # use the fixed version to not introduce new linters unexpectedly

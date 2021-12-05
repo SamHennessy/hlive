@@ -14,7 +14,7 @@ var (
 
 func NewBrowserPage() playwright.Page {
 	browserOnce.Do(func() {
-		pw, err := playwright.Run()
+		pw, err := playwright.Run(&playwright.RunOptions{SkipInstallBrowsers: true})
 		if err != nil {
 			panic(fmt.Errorf("launch playwrite: %w", err))
 		}

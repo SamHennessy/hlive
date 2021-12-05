@@ -110,7 +110,7 @@ func TestTag_AddElementTypes(t *testing.T) {
 		{"*Attribute", l.NewAttribute("value")},
 		{"[]*Attribute", []*l.Attribute{}},
 		{"Attrs", l.Attrs{}},
-		{"CSS", l.CSS{}},
+		{"ClassBool", l.ClassBool{}},
 		{"Style", l.Style{}},
 	}
 

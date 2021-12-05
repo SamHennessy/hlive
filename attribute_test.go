@@ -183,25 +183,25 @@ func TestAttribute_TagNewAttributeUpdateValue(t *testing.T) {
 func TestAttribute_CSS(t *testing.T) {
 	t.Parallel()
 
-	div := l.T("div", l.CSS{"foo": true})
+	div := l.T("div", l.ClassBool{"foo": true})
 
 	if diff := deep.Equal("foo", div.GetAttributeValue("class")); diff != nil {
 		t.Error(diff)
 	}
 
-	div.Add("div", l.CSS{"bar": true})
+	div.Add("div", l.ClassBool{"bar": true})
 
 	if diff := deep.Equal("foo bar", div.GetAttributeValue("class")); diff != nil {
 		t.Error(diff)
 	}
 
-	div.Add("div", l.CSS{"foo": false})
+	div.Add("div", l.ClassBool{"foo": false})
 
 	if diff := deep.Equal("bar", div.GetAttributeValue("class")); diff != nil {
 		t.Error(diff)
 	}
 
-	div.Add("div", l.CSS{"foo": true})
+	div.Add("div", l.ClassBool{"foo": true})
 
 	if diff := deep.Equal("bar foo", div.GetAttributeValue("class")); diff != nil {
 		t.Error(diff)
@@ -211,7 +211,7 @@ func TestAttribute_CSS(t *testing.T) {
 func TestAttribute_CSSMultiUnordered(t *testing.T) {
 	t.Parallel()
 
-	div := l.T("div", l.CSS{"foo": true, "bar": true, "fizz": true})
+	div := l.T("div", l.ClassBool{"foo": true, "bar": true, "fizz": true})
 
 	if !strings.Contains(div.GetAttributeValue("class"), "foo") {
 		t.Error("foo not found")
@@ -225,7 +225,7 @@ func TestAttribute_CSSMultiUnordered(t *testing.T) {
 		t.Error("fizz not found")
 	}
 
-	div.Add(l.CSS{"bar": false})
+	div.Add(l.ClassBool{"bar": false})
 
 	if strings.Contains(div.GetAttributeValue("class"), "bar") {
 		t.Error("bar found")
@@ -235,13 +235,13 @@ func TestAttribute_CSSMultiUnordered(t *testing.T) {
 func TestAttribute_CSSMultiOrdered(t *testing.T) {
 	t.Parallel()
 
-	div := l.T("div", l.CSS{"foo": true}, l.CSS{"bar": true}, l.CSS{"fizz": true})
+	div := l.T("div", l.ClassBool{"foo": true}, l.ClassBool{"bar": true}, l.ClassBool{"fizz": true})
 
 	if diff := deep.Equal("foo bar fizz", div.GetAttributeValue("class")); diff != nil {
 		t.Error(diff)
 	}
 
-	div.Add(l.CSS{"bar": false})
+	div.Add(l.ClassBool{"bar": false})
 
 	if diff := deep.Equal("foo fizz", div.GetAttributeValue("class")); diff != nil {
 		t.Error(diff)

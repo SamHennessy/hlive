@@ -11,8 +11,10 @@ type Attributer interface {
 type AttributePluginer interface {
 	Attributer
 
-	// Initialize will only be called once per attribute name
+	// Initialize will only be called once per attribute name for diff render
 	Initialize(page *Page)
+	// InitializeSSR will only be called once per attribute name for server side render
+	InitializeSSR(page *Page)
 }
 
 // Attrs is a helper for adding Attributes to nodes
@@ -38,13 +40,22 @@ func (a Attrs) GetAttributes() []Attributer {
 	return newAttrs
 }
 
-// CSS a special Attribute for working with CSS classes on nodes.
-// It supports turning them on and off and allowing overriding.
-// All CSSs are de-duped, overriding a CSS by adding new CSS will result in the old CSS getting updated.
-// You don't have to use CSS to add a class attribute, but it's the recommended way to do it.
-type CSS map[string]bool
+// ClassBool a special Attribute for working with CSS classes on nodes using a bool to toggle them on and off.
+// It supports turning them on and off and allowing overriding. Due to how Go maps work the order of the classes in
+// the map is not preserved.
+// All Classes are de-duped, overriding a Class by adding new ClassBool will result in the old Class getting updated.
+// You don't have to use ClassBool to add a class attribute, but it's the recommended way to do it.
+type ClassBool map[string]bool
 
-// Style is a special Attribute that allows you to work with CSS styles on nodes.
+// TODO: add tests and docs
+type (
+	Class        string
+	ClassOff     string
+	ClassList    []string
+	ClassListOff []string
+)
+
+// Style is a special Attribute that allows you to work with ClassBool styles on nodes.
 // It allows you to override
 // All Styles are de-duped, overriding a Style by adding new Style will result in the old Style getting updated.
 // You don't have to use Style to add a style attribute, but it's the recommended way to do it.

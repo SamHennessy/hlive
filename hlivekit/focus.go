@@ -28,5 +28,9 @@ type FocusAttribute struct {
 }
 
 func (a *FocusAttribute) Initialize(page *l.Page) {
-	page.Head.Add(l.T("script", l.HTML(FocusJavaScript)))
+	page.DOM.Head.Add(l.T("script", l.HTML(FocusJavaScript)))
+}
+
+func (a *FocusAttribute) InitializeSSR(page *l.Page) {
+	page.DOM.Head.Add(l.T("script", l.HTML(FocusJavaScript)))
 }

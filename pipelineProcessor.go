@@ -5,7 +5,8 @@ import (
 	"io"
 	"strconv"
 	"strings"
-	"sync"
+
+	"github.com/cornelk/hashmap"
 )
 
 const (
@@ -13,7 +14,6 @@ const (
 	PipelineProcessorKeyRenderer             = "hlive_renderer"
 	PipelineProcessorKeyEventBindingCache    = "hlive_eb"
 	PipelineProcessorKeyAttributePluginMount = "hlive_attr_mount"
-	PipelineProcessorKeyPubSubMount          = "hlive_ps_mount"
 	PipelineProcessorKeyMount                = "hlive_mount"
 	PipelineProcessorKeyUnmount              = "hlive_unmount"
 )
@@ -51,17 +51,12 @@ func PipelineProcessorStripHLiveAttrs() *PipelineProcessor {
 	return pp
 }
 
-func PipelineProcessorEventBindingCache(cache map[string]*EventBinding) *PipelineProcessor {
+func PipelineProcessorEventBindingCache(cache *hashmap.HashMap) *PipelineProcessor {
 	pp := NewPipelineProcessor(PipelineProcessorKeyEventBindingCache)
 
-	var lock sync.Mutex
-
 	pp.BeforeWalk = func(ctx context.Context, w io.Writer, node interface{}) (interface{}, error) {
-		lock.Lock()
-		for key := range cache {
-			delete(cache, key)
-		}
-		lock.Unlock()
+		// TODO: test this works
+		*cache = *hashmap.New(10)
 
 		return node, nil
 	}
@@ -70,13 +65,9 @@ func PipelineProcessorEventBindingCache(cache map[string]*EventBinding) *Pipelin
 		if comp, ok := tag.(Componenter); ok {
 			bindings := comp.GetEventBindings()
 
-			lock.Lock()
 			for i := 0; i < len(bindings); i++ {
-				if _, exists := cache[bindings[i].ID]; !exists {
-					cache[bindings[i].ID] = bindings[i]
-				}
+				cache.Insert(bindings[i].ID, bindings[i])
 			}
-			lock.Unlock()
 		}
 
 		return tag, nil
@@ -86,30 +77,23 @@ func PipelineProcessorEventBindingCache(cache map[string]*EventBinding) *Pipelin
 }
 
 func PipelineProcessorMount() *PipelineProcessor {
+	cache := hashmap.HashMap{}
+
 	pp := NewPipelineProcessor(PipelineProcessorKeyMount)
-
-	cache := map[string]struct{}{}
-
-	// TODO: temp
-	var lock sync.Mutex
 
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag Tagger) (Tagger, error) {
 		if comp, ok := tag.(Mounter); ok {
-			lock.Lock()
-			if _, exists := cache[comp.GetID()]; !exists {
+			id := comp.GetID()
+
+			if _, loaded := cache.GetOrInsert(id, nil); !loaded {
 				comp.Mount(ctx)
 
-				cache[comp.GetID()] = struct{}{}
-			}
-			lock.Unlock()
-
-			// A way to remove the key when you delete a Component
-			if comp, ok := tag.(Teardowner); ok {
-				comp.AddTeardown(func() {
-					lock.Lock()
-					delete(cache, comp.GetID())
-					lock.Unlock()
-				})
+				// A way to remove the key when you delete a Component
+				if comp, ok := tag.(Teardowner); ok {
+					comp.AddTeardown(func() {
+						cache.Del(id)
+					})
+				}
 			}
 		}
 
@@ -120,13 +104,12 @@ func PipelineProcessorMount() *PipelineProcessor {
 }
 
 func PipelineProcessorUnmount(page *Page) *PipelineProcessor {
-	cache := map[string]Unmounter{}
-
-	// TODO: temp
-	var lock sync.Mutex
+	cache := hashmap.HashMap{}
 
 	page.HookClose = append(page.HookClose, func(ctx context.Context, page *Page) {
-		for _, c := range cache {
+		for keyVal := range cache.Iter() {
+			c, _ := keyVal.Value.(Unmounter)
+
 			if c == nil {
 				continue
 			}
@@ -139,19 +122,15 @@ func PipelineProcessorUnmount(page *Page) *PipelineProcessor {
 
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag Tagger) (Tagger, error) {
 		if comp, ok := tag.(Unmounter); ok {
-			lock.Lock()
-			if _, exists := cache[comp.GetID()]; !exists {
-				cache[comp.GetID()] = comp
-			}
-			lock.Unlock()
+			id := comp.GetID()
 
-			// A way to remove the key when you delete a Component
-			if comp, ok := tag.(Teardowner); ok {
-				comp.AddTeardown(func() {
-					lock.Lock()
-					delete(cache, comp.GetID())
-					lock.Unlock()
-				})
+			if _, loaded := cache.GetOrInsert(id, comp); !loaded {
+				// A way to remove the key when you delete a Component
+				if comp, ok := tag.(Teardowner); ok {
+					comp.AddTeardown(func() {
+						cache.Del(id)
+					})
+				}
 			}
 		}
 
@@ -303,21 +282,36 @@ func PipelineProcessorConvertToString() *PipelineProcessor {
 }
 
 func PipelineProcessorAttributePluginMount(page *Page) *PipelineProcessor {
+	var cache hashmap.HashMap
+
 	pp := NewPipelineProcessor(PipelineProcessorKeyAttributePluginMount)
 
-	// TODO: ????
-	// cache, will plugins be okay with running for SSR, Simulated SSR and DOM init?
-	// cache := map[string]struct{}{}
-
 	pp.BeforeAttribute = func(ctx context.Context, w io.Writer, attr Attributer) (Attributer, error) {
-
 		var err error
 		if ap, ok := attr.(AttributePluginer); ok {
-			if _, exits := page.attributePluginMountedMap[ap.GetAttribute().Name]; !exits {
-				// TODO: need to be sure we have the page exclusively
-				page.attributePluginMountedMap[ap.GetAttribute().Name] = struct{}{}
-
+			if set := cache.Insert(ap.GetAttribute().Name, nil); set {
 				ap.Initialize(page)
+
+				err = ErrDOMInvalidated
+			}
+		}
+
+		return attr, err
+	}
+
+	return pp
+}
+
+func PipelineProcessorAttributePluginMountSSR(page *Page) *PipelineProcessor {
+	var cache hashmap.HashMap
+
+	pp := NewPipelineProcessor(PipelineProcessorKeyAttributePluginMount)
+
+	pp.BeforeAttribute = func(ctx context.Context, w io.Writer, attr Attributer) (Attributer, error) {
+		var err error
+		if ap, ok := attr.(AttributePluginer); ok {
+			if _, loaded := cache.GetOrInsert(ap.GetAttribute().Name, nil); !loaded {
+				ap.InitializeSSR(page)
 
 				err = ErrDOMInvalidated
 			}

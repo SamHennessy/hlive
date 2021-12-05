@@ -125,7 +125,6 @@ func (c *Component) RemoveEventBinding(id string) {
 	}
 
 	value = strings.TrimRight(value, ",")
-
 	if value == "" {
 		c.RemoveAttributes(AttrOn)
 	} else {
@@ -137,6 +136,10 @@ func (c *Component) RemoveEventBinding(id string) {
 //
 // This is an easy way to add anything.
 func (c *Component) Add(elements ...interface{}) {
+	if c.IsNil() {
+		return
+	}
+
 	for i := 0; i < len(elements); i++ {
 		switch v := elements[i].(type) {
 		// NoneNodeElements
@@ -145,16 +148,28 @@ func (c *Component) Add(elements ...interface{}) {
 				c.Add(v[j])
 			}
 		case *NodeGroup:
+			if v == nil {
+				continue
+			}
+
 			list := v.Get()
 			for j := 0; j < len(list); j++ {
 				c.Add(list[j])
 			}
 		case *ElementGroup:
+			if v == nil {
+				continue
+			}
+
 			list := v.Get()
 			for j := 0; j < len(list); j++ {
 				c.Add(list[j])
 			}
 		case *EventBinding:
+			if v == nil {
+				continue
+			}
+
 			c.on(v)
 		default:
 			c.Tag.Add(v)

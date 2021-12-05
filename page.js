@@ -1,9 +1,9 @@
 let hlive = {
-    debug: true,
+    debug: false,
     reconnectLimit: 5,
     reconnectCount: 0,
     conn: null,
-    isInitialSyncDone: false,
+    initSyncDone: false,
     sessID: 1,
 
     afterMessage: [],
@@ -15,21 +15,17 @@ let hlive = {
 
 hlive.msgPart = {
     Type: 0,
-};
+}
 
 hlive.diffParts = {
-    DiffType: 1,
-    Root: 2,
-    Path: 3,
-    ContentType: 4,
-    Content: 5,
-};
+    DiffType: 1, Root: 2, Path: 3, ContentType: 4, Content: 5,
+}
 
 // Base64 decode with unicode support
 // Ref: https://stackoverflow.com/questions/30106476/using-javascripts-atob-to-decode-base64-doesnt-properly-decode-utf-8-strings
 hlive.base64Decode = (str) => {
     // Going backwards: from byte stream, to percent-encoding, to original string.
-    return decodeURIComponent(atob(str).split('').map(function(c) {
+    return decodeURIComponent(atob(str).split('').map(function (c) {
         return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
     }).join(''));
 }
@@ -39,9 +35,7 @@ hlive.eventHandler = (e) => {
         return
     }
 
-    const el = e.currentTarget;
-
-    const pairs = el.getAttribute("data-hlive-on").split(",");
+    const pairs = e.currentTarget.getAttribute("data-hlive-on").split(",");
     for (let i = 0; i < pairs.length; i++) {
         const parts = pairs[i].split("|");
         if (parts[1].toLowerCase() === e.type.toLowerCase()) {
@@ -55,7 +49,7 @@ hlive.removeEventHandlers = (el) => {
         hlive.beforeRemoveEventHandlers[i](el);
     }
 
-    hlive.removeHLiveEventHandlers(el)
+    hlive.removeHLiveEventHandlers(el);
 
     for (let i = 0; i < hlive.afterRemoveEventHandlers.length; i++) {
         hlive.afterRemoveEventHandlers[i](el);
@@ -63,20 +57,20 @@ hlive.removeEventHandlers = (el) => {
 }
 
 hlive.removeHLiveEventHandlers = (el) => {
-    if (!el.getAttribute ) {
-        return
+    if (!el.getAttribute) {
+        return;
     }
 
-    const value = el.getAttribute("data-hlive-on");
+    const val = el.getAttribute("data-hlive-on");
 
-    if (value === null || value === "") {
-        return
+    if (val === null || val === "") {
+        return;
     }
 
-    const pairs = value.split(",");
+    const pairs = val.split(",");
     for (let i = 0; i < pairs.length; i++) {
         const parts = pairs[i].split("|");
-        el.removeEventListener(parts[1].toLowerCase(), hlive.eventHandler)
+        el.removeEventListener(parts[1].toLowerCase(), hlive.eventHandler);
     }
 }
 
@@ -88,8 +82,7 @@ hlive.eventHandlerHelper = (e, handlerID, isInitial) => {
     const el = e.currentTarget;
 
     let msg = {
-        t: "e",
-        i: handlerID,
+        t: "e", i: handlerID,
     };
 
     let d = {};
@@ -129,24 +122,17 @@ hlive.eventHandlerHelper = (e, handlerID, isInitial) => {
         msg.d = d;
     }
 
-    // File?
+    // File
+    // TODO: move out to plugin
     if (el.files) {
         // No files
         msg.file = {
-            "name": "",
-            "size": 0,
-            "type": "",
-            "index": 0,
-            "total": 0,
+            "name": "", "size": 0, "type": "", "index": 0, "total": 0,
         };
         // Single file
         if (el.files.length === 1) {
             msg.file = {
-                "name": el.files[0].name,
-                "size": el.files[0].size,
-                "type": el.files[0].type,
-                "index": 0,
-                "total": 1,
+                "name": el.files[0].name, "size": el.files[0].size, "type": el.files[0].type, "index": 0, "total": 1,
             };
         }
         // Multiple files
@@ -192,8 +178,7 @@ hlive.log = (message) => {
 
     if (hlive.conn) {
         let msg = {
-            t: "l",
-            d: {m: message},
+            t: "l", d: {m: message},
         };
         hlive.sendMsg(msg);
     }
@@ -209,8 +194,10 @@ hlive.setEventHandlers = () => {
     });
 }
 
+// Sync Initial Input Values
 // Looks at the current value of the input and if needed triggers events to sync that value to the backend
-hlive.syncInitialInputValues = () => {
+// TODO: move out as plugin?
+hlive.initSync = () => {
     document.querySelectorAll("[data-hlive-on]").forEach(function (el) {
         // Radio
         const elType = el.getAttribute("type");
@@ -220,7 +207,7 @@ hlive.syncInitialInputValues = () => {
             if (el.checked === el.hasAttribute("checked")) {
                 return;
             }
-        } else if(elType === "select") {
+        } else if (elType === "select") {
             let hit = false;
             for (let i = 0; i < el.selectedOptions.length; i++) {
                 if (el.selectedOptions[i].selected && el.hasAttribute("checked") === false) {
@@ -232,14 +219,18 @@ hlive.syncInitialInputValues = () => {
             if (hit === false) {
                 return;
             }
-
         } else {
             // How'd this happen :)
             if (el.value === undefined) {
                 return;
             }
-            // No needed
+            // At default
             if (el.value === el.getAttribute("value")) {
+                return;
+            }
+            // Empty
+            // TODO: does this do anything?
+            if (el.value === "" && el.hasAttribute("value") === false) {
                 return;
             }
         }
@@ -263,14 +254,14 @@ hlive.syncInitialInputValues = () => {
 hlive.postMessage = () => {
     hlive.setEventHandlers();
 
-    if (!hlive.isInitialSyncDone) {
-        hlive.isInitialSyncDone = true;
-        hlive.syncInitialInputValues();
+    if (!hlive.initSyncDone && document.querySelectorAll("[data-hlive-on]").length !== 0) {
+        hlive.initSyncDone = true;
+        hlive.initSync();
     }
 
     // Start file upload
     document.querySelectorAll("[data-hlive-upload]").forEach(function (el) {
-        const ids = hlive.getEventHAndlerIDs(el);
+        const ids = hlive.getEventHandlerIDs(el);
 
         if (!ids["upload"]) {
             return
@@ -281,16 +272,11 @@ hlive.postMessage = () => {
             const file = el.files[0];
 
             const fileMeta = {
-                "name": file.name,
-                "size": file.size,
-                "type": file.type,
-                "index": i,
-                "total": el.files.length,
+                "name": file.name, "size": file.size, "type": file.type, "index": i, "total": el.files.length,
             };
 
             let msg = {
-                t: "e",
-                file: fileMeta,
+                t: "e", file: fileMeta,
             };
 
             queueMicrotask(function () {
@@ -308,7 +294,7 @@ hlive.postMessage = () => {
     }
 }
 
-hlive.getEventHAndlerIDs = (el) => {
+hlive.getEventHandlerIDs = (el) => {
     let map = {};
 
     if (el.getAttribute && el.getAttribute("data-hlive-on") !== "") {
@@ -316,7 +302,7 @@ hlive.getEventHAndlerIDs = (el) => {
         for (let i = 0; i < pairs.length; i++) {
             const parts = pairs[i].split("|");
             const eventName = parts[1].toLowerCase();
-            const eventID =  parts[0];
+            const eventID = parts[0];
 
             if (!map[eventName]) {
                 map[eventName] = [eventID];
@@ -334,7 +320,7 @@ hlive.findDiffTarget = (diff) => {
 
     let target = document;
     if (parts[hlive.diffParts.Root] !== "doc") {
-        target = document.querySelector('[data-hlive-id="'+parts[hlive.diffParts.Root]+'"]');
+        target = document.querySelector('[data-hlive-id="' + parts[hlive.diffParts.Root] + '"]');
     }
 
     if (!target) {
@@ -346,7 +332,7 @@ hlive.findDiffTarget = (diff) => {
 
     for (let j = 0; j < path.length; j++) {
         // Doesn't exist
-        if (parts[1] === "c" && (parts[4] === "h" || parts[4] === "t" ) && j === path.length - 1) {
+        if (parts[1] === "c" && (parts[4] === "h" || parts[4] === "t") && j === path.length - 1) {
             continue;
         }
 
@@ -356,7 +342,7 @@ hlive.findDiffTarget = (diff) => {
         }
 
         if (path[j] >= target.childNodes.length) {
-            hlive.log("child not found " + parts[hlive.diffParts.Root] + ":" + parts[hlive.diffParts.Path]);
+            hlive.log("child not found at section : " + j + " : for: " + diff);
 
             target = null;
             break;
@@ -370,59 +356,6 @@ hlive.findDiffTarget = (diff) => {
 
 hlive.processMsg = (evt) => {
     let messages = evt.data.split('\n');
-
-    let newMessages = [];
-    let deleteMessageBuffer = [];
-
-    // Re-order deletes
-    // Example problem:
-    // d|d|doc|1>1>0>0>1>2||
-    // d|d|doc|1>1>0>0>1>3||
-
-    for (let i = 0; i < messages.length; i++) {
-        // Delete diff?
-        if (messages[i].substring(0, 4) === "d|d|") {
-            // If buffer empty, start the buffer
-            if (deleteMessageBuffer.length === 0) {
-                deleteMessageBuffer[deleteMessageBuffer.length] = messages[i];
-
-                continue;
-            }
-            // Is this delete a child of the same parent in the buffer?
-            const aParts =  deleteMessageBuffer[0].split("|");
-            const aIndexOf = aParts[hlive.diffParts.Path].lastIndexOf(">");
-            const aParentPath = aParts[hlive.diffParts.Path].substring(0, aIndexOf);
-
-            const bParts =  messages[i].split("|");
-            const bIndexOf = bParts[hlive.diffParts.Path].lastIndexOf(">");
-            const bParentPath = bParts[hlive.diffParts.Path].substring(0, bIndexOf);
-
-            // Same, add to buffer
-            if (aParentPath === bParentPath) {
-                deleteMessageBuffer[deleteMessageBuffer.length] = messages[i];
-
-                continue;
-            }
-
-            // Not the same, flush buffer and add delete be after buffer
-            for (let j = 0; j < deleteMessageBuffer.length; j++) {
-                newMessages[newMessages.length] = deleteMessageBuffer[deleteMessageBuffer.length - (j+1)];
-            }
-
-            deleteMessageBuffer = [];
-            // Not a delete, flush buffer if not empty
-        } else if (deleteMessageBuffer.length !== 0) {
-            for (let j = 0; j < deleteMessageBuffer.length; j++) {
-                newMessages[newMessages.length] = deleteMessageBuffer[deleteMessageBuffer.length - (j+1)];
-            }
-
-            deleteMessageBuffer = [];
-        }
-
-        newMessages[newMessages.length] = messages[i];
-    }
-
-    messages = newMessages;
 
     for (let i = 0; i < messages.length; i++) {
         let msg = messages[i];
@@ -478,7 +411,7 @@ hlive.processMsg = (evt) => {
                 let template = document.createElement('template');
                 template.innerHTML = hlive.base64Decode(parts[hlive.diffParts.Content]);
 
-                executeScriptElements(template.content);
+                exJS(template.content);
 
                 const index = path[path.length - 1];
                 if (index < target.childNodes.length) {
@@ -501,7 +434,7 @@ hlive.processMsg = (evt) => {
                 const attrName = attrData.substring(0, index).trim();
                 const attrValue = attrData.substring(index + 2, attrData.length - 1);
 
-                if (parts[hlive.diffParts.DiffType] === "c" || parts[hlive.diffParts.DiffType] === "u" ) {
+                if (parts[hlive.diffParts.DiffType] === "c" || parts[hlive.diffParts.DiffType] === "u") {
                     if (attrName === "data-hlive-on" && parts[hlive.diffParts.DiffType] === "u") {
                         // They'll be set again if only some were removed
                         hlive.removeEventHandlers(target);
@@ -529,7 +462,7 @@ hlive.processMsg = (evt) => {
                 hlive.removeEventHandlers(target);
                 target.remove();
             }
-        // Sessions
+            // Sessions
         } else if (parts[hlive.msgPart.Type] === "s") {
             if (parts.length === 3) {
                 hlive.sessID = parts[2];
@@ -587,7 +520,7 @@ hlive.connect = () => {
     hlive.conn.onclose = hlive.onclose;
 }
 
-document.addEventListener("DOMContentLoaded", function(evt) {
+document.addEventListener("DOMContentLoaded", function (evt) {
     if (window["WebSocket"]) {
         hlive.log("init");
         hlive.connect();
@@ -597,19 +530,18 @@ document.addEventListener("DOMContentLoaded", function(evt) {
     }
 });
 
+// Execute Script Elements
 // https://stackoverflow.com/a/69190644/1269893
-function executeScriptElements(containerElement) {
-    const scriptElements = containerElement.querySelectorAll("script");
+const exJS = (containerElement) => {
+    Array.from(containerElement.querySelectorAll("script")).forEach((el) => {
+        const clone = document.createElement("script");
 
-    Array.from(scriptElements).forEach((scriptElement) => {
-        const clonedElement = document.createElement("script");
-
-        Array.from(scriptElement.attributes).forEach((attribute) => {
-            clonedElement.setAttribute(attribute.name, attribute.value);
+        Array.from(el.attributes).forEach((attr) => {
+            clone.setAttribute(attr.name, attr.value);
         });
 
-        clonedElement.text = scriptElement.text;
+        clone.text = el.text;
 
-        scriptElement.parentNode.replaceChild(clonedElement, scriptElement);
+        el.parentNode.replaceChild(clone, el);
     });
 }

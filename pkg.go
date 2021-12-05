@@ -34,13 +34,12 @@ const (
 	PageSessionGarbageCollectionTick       = time.Second
 )
 
-type CtxKey int
+type CtxKey string
 
 // Context keys
 const (
-	CtxPageSess CtxKey = iota
-	CtxRender
-	CtxRenderComponent
+	CtxRender          CtxKey = "render"
+	CtxRenderComponent CtxKey = "render_comp"
 )
 
 type DiffType string

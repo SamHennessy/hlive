@@ -29,8 +29,8 @@ func home() *l.PageServer {
 		)
 
 		page := l.NewPage()
-		page.Title.Add("File Upload Example")
-		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+		page.DOM.Title.Add("File Upload Example")
+		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
 		iframe := l.T("iframe", l.Style{"width": "100%", "height": "80vh"})
 
@@ -59,30 +59,36 @@ func home() *l.PageServer {
 			}),
 		)
 
-		page.Body.Add(
-			l.T("h1", "Upload"),
-			l.T("hr"),
-			fileInput,
-			uploadBtn,
-			l.T("div", l.Style{"display": &tableDisplay},
-				l.T("table",
-					l.T("tbody",
-						l.T("tr",
-							l.T("td", "Name"), l.T("td", &file.Name),
-						),
-						l.T("tr",
-							l.T("td", "Type"), l.T("td", &file.Type),
-						),
-						l.T("tr",
-							l.T("td", "Size"), l.T("td", l.T("i", &file.Size), " bytes"),
+		page.DOM.Body.Add(
+			l.T("header",
+				l.T("h1", "Upload"),
+				l.T("p", "Example of using the file upload features."),
+			),
+			l.T("main",
+				l.T("p",
+					fileInput,
+					uploadBtn,
+				),
+				l.T("div", l.Style{"display": &tableDisplay},
+					l.T("table",
+						l.T("tbody",
+							l.T("tr",
+								l.T("td", "Name"), l.T("td", &file.Name),
+							),
+							l.T("tr",
+								l.T("td", "Type"), l.T("td", &file.Type),
+							),
+							l.T("tr",
+								l.T("td", "Size"), l.T("td", l.T("i", &file.Size), " bytes"),
+							),
 						),
 					),
 				),
-			),
-			l.T("div", l.Style{"display": &fileDisplay},
-				l.T("h3", "Uploaded File"),
-				l.T("hr"),
-				iframe,
+				l.T("div", l.Style{"display": &fileDisplay},
+					l.T("h3", "Uploaded File"),
+					l.T("hr"),
+					iframe,
+				),
 			),
 		)
 

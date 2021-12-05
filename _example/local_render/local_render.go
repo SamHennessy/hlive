@@ -23,21 +23,25 @@ func home() *l.PageServer {
 		count := 0
 
 		page := l.NewPage()
-		page.Title.Add("Local GetNodes Example")
-		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+		page.DOM.Title.Add("Local GetNodes Example")
+		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.Body.Add(
-			l.T("h1", "Local Render"),
-			l.T("blockquote", "By default, the whole page if checked for differance after an event. "+
-				"You can override that behaviour and chose to only render a component and it's children."),
-			l.T("h2", "Global Render"),
-			l.T("h4", "Everything will update"),
-			newCountBtn(&count),
-			l.Group("The count is: ", l.T("em", &count), " clicks"),
-			l.T("h2", "Local Render"),
-			l.T("h4", "Only the button will update"),
-			newCountBtnLocal(&count),
-			l.Group("The count is: ", l.T("em", &count), " clicks"),
+		page.DOM.Body.Add(
+			l.T("header",
+				l.T("h1", "Local Render"),
+				l.T("p", "By default, the whole page if checked for differance after an event. "+
+					"You can override that behaviour and chose to only render a component and it's children."),
+			),
+			l.T("main",
+				l.T("h2", "Global Render"),
+				l.T("h4", "Everything will update"),
+				newCountBtn(&count),
+				l.Group(" The count is: ", l.T("em", &count), " clicks"),
+				l.T("h2", "Local Render"),
+				l.T("h4", "Only the button will update"),
+				newCountBtnLocal(&count),
+				l.Group(" The count is: ", l.T("em", &count), " clicks"),
+			),
 		)
 
 		return page

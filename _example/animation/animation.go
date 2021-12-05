@@ -11,9 +11,9 @@ import (
 const pageStyle l.HTML = `
 .box {
 	overflow: hidden; 
-	background-color: aliceblue; 
 	padding: 3em; 
 	text-align: center;
+	border: solid;
 }
 .text {
 	display: inline-block; 
@@ -33,7 +33,7 @@ func main() {
 
 func home() *l.PageServer {
 	f := func() *l.Page {
-		animationTarget := l.C("div", l.CSS{"animate__animated": true}, l.CSS{"text": true}, "HLive")
+		animationTarget := l.C("div", l.ClassBool{"animate__animated": true}, l.ClassBool{"text": true}, "HLive")
 
 		animations := []string{
 			"animate__hinge", "animate__jackInTheBox", "animate__rollIn", "animate__rollOut",
@@ -44,7 +44,7 @@ func home() *l.PageServer {
 		index := 0
 		current := ""
 		nextAnimation := func() {
-			animationTarget.Add(l.CSS{animations[index]: false})
+			animationTarget.Add(l.ClassBool{animations[index]: false})
 
 			index++
 			if len(animations) == index {
@@ -53,7 +53,7 @@ func home() *l.PageServer {
 
 			current = animations[index]
 
-			animationTarget.Add(l.CSS{animations[index]: true})
+			animationTarget.Add(l.ClassBool{animations[index]: true})
 		}
 
 		playing := false
@@ -88,19 +88,22 @@ func home() *l.PageServer {
 		}))
 
 		page := l.NewPage()
-		page.Title.Add("Animation Example")
-		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
-		page.Head.Add(l.T("link",
+		page.DOM.Title.Add("Animation Example")
+		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM.Head.Add(l.T("link",
 			l.Attrs{"rel": "stylesheet", "href": "https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"}))
-		page.Head.Add(l.T("style", pageStyle))
+		page.DOM.Head.Add(l.T("style", pageStyle))
 
-		page.Body.Add(
-			l.T("h1", "CSS Animations"),
-			l.T("blockquote", "We can wait for the CSS animation to end before starting the next one"),
-			btn,
-			&current,
-			l.T("hr"),
-			l.T("div", l.CSS{"box": true}, animationTarget),
+		page.DOM.Body.Add(
+			l.T("header",
+				l.T("h1", "CSS Animations"),
+				l.T("p", "We can wait for the CSS animation to end before starting the next one"),
+			),
+			l.T("main",
+				l.T("p", btn),
+				l.T("p", "Current: ", &current),
+				l.T("div", l.ClassBool{"box": true}, animationTarget),
+			),
 		)
 
 		return page

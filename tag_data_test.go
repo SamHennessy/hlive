@@ -20,6 +20,10 @@ func (t *testTagger) IsVoid() bool {
 	return false
 }
 
+func (t *testTagger) IsNil() bool {
+	return t == nil
+}
+
 type testUniqueTagger struct {
 	testTagger
 }

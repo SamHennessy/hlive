@@ -25,15 +25,21 @@ func main() {
 func home(s *service) *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.Title.Add("HTTP Session Example")
-		page.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+		page.DOM.Title.Add("HTTP Session Example")
+		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.Body.Add(
-			l.T("h1", "HTTP Session"),
-			l.T("blockquote", "You can use middleware to implement a persistent session. This example uses a cookie and server memory, so will persist between page reloads but not server reloads."),
-			l.T("h2", "Your Message"),
-			newMessage(s),
-			l.T("p", "Once you enter a message, open another tab to see it there too. Changes are not synced between tabs in real-time."),
+		page.DOM.Body.Add(
+			l.T("header",
+				l.T("h1", "HTTP Session"),
+				l.T("p", "You can use middleware to implement a persistent session."),
+			),
+			l.T("main",
+				l.T("p", "Enter a message, then open another tab to see it there."),
+				l.T("h2", "Your Message"),
+				newMessage(s),
+				l.T("p", "This example uses a cookie and server memory to persist between page reloads but not server reloads. Changes are not synced between tabs in real-time."),
+				l.T("p", "Be careful when testing in Firefox, as it will keep the current form value on refresh."),
+			),
 		)
 
 		return page
