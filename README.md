@@ -538,6 +538,11 @@ Live views and components for golang
 - Context is already dead when trying calling other services
 - Set the z-index higher than Bulma menu for default disconnect layer
   - Need to test
+- Need to reflect in the browser virtual DOM that a select option has become selected when a user selects it
+  - So that we can reset the selection (e.g. move dropdowns)
+- Can read a POST but can't pass POST data to a render (display errors)
+  - Makes Auth logins an issue
+  - Workaround it to go a redirect with an url param
 
 ### Internal improvements
 

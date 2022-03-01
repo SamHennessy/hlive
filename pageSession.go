@@ -14,9 +14,11 @@ import (
 )
 
 type PageSession struct {
-	ID         string
-	LastActive time.Time
-	Page       *Page
+	ID             string
+	LastActive     time.Time
+	Page           *Page
+	InitialContext context.Context
+	Done           chan bool
 
 	connected bool
 	weConn    *websocket.Conn
@@ -65,6 +67,7 @@ func (pss *PageSessionStore) New() *PageSession {
 		// TODO: Do we need buffer?
 		Send:    make(chan MessageWS, 256),
 		Receive: make(chan MessageWS),
+		Done:    make(chan bool),
 	}
 	pss.mapAdd(ps)
 
@@ -134,7 +137,8 @@ func (pss *PageSessionStore) GarbageCollection() {
 			}
 			// Keep until it exceeds the timeout
 			if now.Sub(sess.LastActive) > pss.DisconnectTimeout {
-				sess.Page.Close(context.Background())
+				sess.Page.Close(sess.InitialContext)
+				close(sess.Done)
 				pss.mapDelete(id)
 			}
 		}
@@ -208,6 +212,7 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sess = s.Sessions.New()
 			sess.Page = s.pageFunc()
 			sess.LastActive = time.Now()
+			sess.InitialContext = r.Context()
 		}
 
 		if sess == nil {
@@ -233,13 +238,13 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		go sess.writePump()
 		go sess.readPump()
 
-		// The request context will get closed when this function returns?
-		ctx := r.Context()
-
-		if err := sess.Page.ServeWS(ctx, sess.ID, sess.Send, sess.Receive); err != nil {
+		if err := sess.Page.ServeWS(sess.InitialContext, sess.ID, sess.Send, sess.Receive); err != nil {
 			sess.Page.logger.Err(err).Msg("ws serve")
 			w.WriteHeader(http.StatusInternalServerError)
 		}
+
+		// This needs to say open to keep the context active
+		<-sess.Done
 
 		return
 	}
