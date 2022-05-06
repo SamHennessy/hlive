@@ -750,7 +750,13 @@ Contributions welcome
 Install Play wright Go
 
 ```shell
-go get github.com/mxschmitt/playwright-go
+make install-test
+```
+
+or
+
+```shell
+go run github.com/playwright-community/playwright-go/cmd/playwright install --with-deps
 ```
 
 #### Run

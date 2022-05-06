@@ -1,18 +1,14 @@
 module github.com/SamHennessy/hlive
 
-go 1.17
-
-// Until the client download bug is fixed
-// https://github.com/mxschmitt/playwright-go/issues/236
-replace github.com/mxschmitt/playwright-go => github.com/SamHennessy/playwright-go v0.1400.1-0.20211116005112-e0b9afafb423
+go 1.18
 
 require (
 	github.com/cornelk/hashmap v1.0.1
-	github.com/go-test/deep v1.0.7
-	github.com/gorilla/websocket v1.4.2
-	github.com/mxschmitt/playwright-go v0.1400.1-0.20211028151004-65c211c7fa66
-	github.com/rs/xid v1.3.0
-	github.com/rs/zerolog v1.25.0
+	github.com/go-test/deep v1.0.8
+	github.com/gorilla/websocket v1.5.0
+	github.com/playwright-community/playwright-go v0.2000.1
+	github.com/rs/xid v1.4.0
+	github.com/rs/zerolog v1.26.1
 	github.com/teris-io/shortid v0.0.0-20201117134242-e59966efd125
 )
 

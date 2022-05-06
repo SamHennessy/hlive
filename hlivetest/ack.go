@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	l "github.com/SamHennessy/hlive"
-	"github.com/mxschmitt/playwright-go"
+	"github.com/playwright-community/playwright-go"
 	"github.com/teris-io/shortid"
 )
 

@@ -2,13 +2,20 @@
 
 .PHONY: test
 test:
-	go test
+	go test ./...
+
+.PHONY: install-test
+install-test:
+	go run github.com/playwright-community/playwright-go/cmd/playwright install --with-deps
+
+.PHONY: install-dev
+install-dev:
+	go install mvdan.cc/gofumpt@latest
 
 .PHONY: format
 format:
 	go mod tidy
-	gofumports -l -w ./
-
+	gofumpt -l -w ./
 
 # Run static code analysis
 .PHONY: lint

@@ -5,7 +5,7 @@ import (
 
 	l "github.com/SamHennessy/hlive"
 	"github.com/SamHennessy/hlive/hlivetest"
-	"github.com/mxschmitt/playwright-go"
+	"github.com/playwright-community/playwright-go"
 )
 
 type harness struct {

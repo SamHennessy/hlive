@@ -75,10 +75,6 @@ hlive.removeHLiveEventHandlers = (el) => {
 }
 
 hlive.eventHandlerHelper = (e, handlerID, isInitial) => {
-    if (e.preventDefault) {
-        e.preventDefault();
-    }
-
     const el = e.currentTarget;
 
     let msg = {
