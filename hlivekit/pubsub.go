@@ -177,3 +177,29 @@ func (a *PubSubAttribute) Initialize(page *hlive.Page) {
 func (a *PubSubAttribute) InitializeSSR(page *hlive.Page) {
 	// Nop
 }
+
+// ComponentPubSub add PubSub to ComponentMountable
+type ComponentPubSub struct {
+	*hlive.ComponentMountable
+
+	MountPubSubFunc func(ctx context.Context, pubSub *PubSub)
+}
+
+// CPS is a shortcut for NewComponentPubSub
+func CPS(name string, elements ...interface{}) *ComponentPubSub {
+	return NewComponentPubSub(name, elements...)
+}
+
+func NewComponentPubSub(name string, elements ...interface{}) *ComponentPubSub {
+	return &ComponentPubSub{
+		ComponentMountable: hlive.NewComponentMountable(name, elements...),
+	}
+}
+
+func (c *ComponentPubSub) PubSubMount(ctx context.Context, pubSub *PubSub) {
+	if c.MountPubSubFunc == nil {
+		return
+	}
+
+	c.MountPubSubFunc(ctx, pubSub)
+}
