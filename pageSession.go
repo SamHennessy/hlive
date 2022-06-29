@@ -314,16 +314,19 @@ TODO:
 
 panic: concurrent write to websocket connection
 
-goroutine 366 [running]:
-github.com/gorilla/websocket.(*messageWriter).flushFrame(0xc000109d70, 0x1, {0x0, 0x30, 0xc000020960})
-	/Users/sam/go/pkg/mod/github.com/gorilla/websocket@v1.4.2/conn.go:610 +0x52b
-github.com/gorilla/websocket.(*messageWriter).Close(0xc000109d70)
-	/Users/sam/go/pkg/mod/github.com/gorilla/websocket@v1.4.2/conn.go:724 +0x45
-github.com/SamHennessy/hlive.(*PageSession).writePump(0xc0004a6000)
-	/Users/sam/src/hlive/pageSession.go:362 +0x24f
+goroutine 73 [running]:
+github.com/gorilla/websocket.(*messageWriter).flushFrame(0x1400036f200, 0x1, {0x0?, 0x12bab4d28?, 0x104b2c5b8?})
+	/Users/sam/go/pkg/mod/github.com/gorilla/websocket@v1.5.0/conn.go:617 +0x470
+github.com/gorilla/websocket.(*messageWriter).Close(0x0?)
+	/Users/sam/go/pkg/mod/github.com/gorilla/websocket@v1.5.0/conn.go:731 +0x4c
+github.com/gorilla/websocket.(*Conn).beginMessage(0x1400021a580, 0x1400049eb10, 0x1)
+	/Users/sam/go/pkg/mod/github.com/gorilla/websocket@v1.5.0/conn.go:480 +0x40
+github.com/gorilla/websocket.(*Conn).NextWriter(0x1400021a580, 0x1)
+	/Users/sam/go/pkg/mod/github.com/gorilla/websocket@v1.5.0/conn.go:520 +0x44
+github.com/SamHennessy/hlive.(*PageSession).writePump(0x140002d5ad0)
+	/Users/sam/go/pkg/mod/github.com/!sam!hennessy/hlive@v0.0.0-20220301072939-9601d863612f/pageSession.go:361 +0x16c
 created by github.com/SamHennessy/hlive.(*PageServer).ServeHTTP
-	/Users/sam/src/hlive/pageSession.go:234 +0x31b
-make: *** [hhot] Error 2
+	/Users/sam/go/pkg/mod/github.com/!sam!hennessy/hlive@v0.0.0-20220301072939-9601d863612f/pageSession.go:238 +0x3cc
 
 */
 

@@ -15,9 +15,13 @@ type ComponentListSimple struct {
 
 // NewComponentListSimple creates a ComponentListSimple value
 func NewComponentListSimple(name string, elements ...interface{}) *ComponentListSimple {
-	return &ComponentListSimple{
-		ComponentMountable: l.CM(name, elements...),
+	list := &ComponentListSimple{
+		ComponentMountable: l.CM(name),
 	}
+
+	list.Add(elements...)
+
+	return list
 }
 
 // GetNodes returns the list of items.

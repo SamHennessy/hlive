@@ -235,9 +235,12 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 				return nil
 			}
 
-			// Does this mean they could be processed out of order
 			// We can't block here else we can't close and events here can trigger a close
 			go func() {
+				if !p.connected {
+					return
+				}
+
 				taskQueue <- func() {
 					message := messageWS.Message
 					msg := websocketMessage{Data: map[string]string{}}
