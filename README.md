@@ -1,4 +1,7 @@
 # HLive
+
+Server-side virtual DOM
+
 HLive is a server-side WebSocket based dynamic template-less view layer for Go.
 
 HLive is a fantastic tool for creating complex and dynamic browser-based user interfaces for developers who want to keep all the logic in Go.
@@ -535,7 +538,6 @@ Live views and components for golang
 
 - Initial sync seems to be triggering when it shouldn't
   - Maybe when the value attribute doesn't exist?
-- Context is already dead when trying calling other services
 - Set the z-index higher than Bulma menu for default disconnect layer
   - Need to test
 - Need to reflect in the browser virtual DOM that a select option has become selected when a user selects it
@@ -564,10 +566,6 @@ Live views and components for golang
 - Send config for debug, and log level down to client side
 - Remove the data- prefix from my attributes?
   - No one else seems to care
-- Event bubbling
-  - Prevent bubble in browser
-  - Don't bubble events server side
-  - Update Docs
 - Add a queue for incoming messages on a page session
   - Maybe multiple concurrent requests is okay, maybe we just batch renders?
 - Use a channel with a single reader to process page events
@@ -595,6 +593,7 @@ Live views and components for golang
 - Logging
 - Plugins
 - Preempt pattern
+- Event bubbling
 
 ### Security
 
@@ -630,6 +629,9 @@ Live views and components for golang
   - Would provide for smaller ids
   - Could make debugging hard
 
+- Add can take a `func() string` this would be kept in the tree and re-run on each render
+  - Could be expensive
+
 ## HHot
 
 A highly opinionated web framework that use hot reload and code generation.
@@ -647,6 +649,7 @@ A highly opinionated web framework that use hot reload and code generation.
 - Batteries included but swappable
 
 ### HHot Ideas
+- hhot-create-app
 - Add the HTTP request to the context by default?
 - Create a middleware package
   - HTTP Request
@@ -661,10 +664,8 @@ A highly opinionated web framework that use hot reload and code generation.
   - Mutex lock
   - Middleware?
 - Asset management
-  - CSS, JS, Font, Images
   - Allow plugins/component libraries to work with this
     - Developer would connect them
-  - Mount as a route
   - Use an api to add the JS and CSS to the page HTML
     - Cache busting
   - Watch for change?
@@ -674,8 +675,6 @@ A highly opinionated web framework that use hot reload and code generation.
   - Crete an example production quality CSS build pipeline using Tailwind and esbuild that can purse the unused CSS.
   - Don't use dynamic css class names
     - https://tailwindcss.com/docs/optimizing-for-production
-  - How would that work for 3rd party components?
-    - Plugin API?
 - Forms
   - Make having forms easy
   - Full form validation
