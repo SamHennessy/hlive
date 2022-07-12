@@ -305,6 +305,12 @@ func (p *Page) executeRenderWS(ctx context.Context) {
 }
 
 func (p *Page) wsSend(message string) {
+	defer func() {
+		if r := recover(); r != nil {
+			p.logger.Error().Interface("data", r).Msg("wsSend recover")
+		}
+	}()
+
 	if p == nil || !p.IsConnected() {
 		return
 	}

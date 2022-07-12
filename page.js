@@ -339,7 +339,7 @@ hlive.findDiffTarget = (diff) => {
 
         // Skip and child nodes found above the head.
         // Often added by browser plugins
-        if (target.tagName === "HTML") {
+        if (target.tagName !== undefined && target.tagName === "HTML") {
             for (let i = 0; i < target.childNodes.length; i++) {
                 if (target.childNodes[i].tagName === undefined || target.childNodes[i].tagName !== "HEAD") {
                     path[j]++
