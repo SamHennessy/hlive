@@ -1,6 +1,13 @@
 package hlivekit
 
-import l "github.com/SamHennessy/hlive"
+import (
+	_ "embed"
+
+	l "github.com/SamHennessy/hlive"
+)
+
+//go:embed diffapply.js
+var DiffApplyScript []byte
 
 // DiffApply is a special event that will trigger when a diff is applied.
 // This means that it will trigger itself when first added. This will allow you to know when a change in the tree has
@@ -10,7 +17,7 @@ import l "github.com/SamHennessy/hlive"
 func OnDiffApply(handler l.EventHandler) *l.ElementGroup {
 	eb := l.On(DiffApplyEvent, handler)
 	attr := &DiffApplyAttribute{
-		l.NewAttribute(DiffApplyAttributeName, eb.ID),
+		Attribute: l.NewAttribute(DiffApplyAttributeName, eb.ID),
 	}
 
 	return l.E(eb, attr)
@@ -18,10 +25,9 @@ func OnDiffApply(handler l.EventHandler) *l.ElementGroup {
 
 // TODO: how we remove the attribute once done?
 func OnDiffApplyOnce(handler l.EventHandler) *l.ElementGroup {
-	eb := l.On(DiffApplyEvent, handler)
-	eb.Once = true
+	eb := l.OnOnce(DiffApplyEvent, handler)
 	attr := &DiffApplyAttribute{
-		l.NewAttribute(DiffApplyAttributeName, eb.ID),
+		Attribute: l.NewAttribute(DiffApplyAttributeName, eb.ID),
 	}
 
 	return l.E(eb, attr)
@@ -34,35 +40,19 @@ const (
 
 type DiffApplyAttribute struct {
 	*l.Attribute
+
+	rendered bool
 }
-
-const diffApplyJS = `
-// Trigger diffapply, should always be last
-function diffApply() {
-    document.querySelectorAll("[data-hlive-on*=diffapply]").forEach(function (el) {
-        const ids = hlive.getEventHandlerIDs(el);
-
-        if (!ids["diffapply"]) {
-            return;
-        }
-
-        for (let i = 0; i < ids["diffapply"].length; i++) {
-            hlive.sendMsg({
-                t: "e",
-                i: ids["diffapply"][i],
-            });
-        }
-    });
-}
-
-// Register plugin
-hlive.afterMessage.push(diffApply);
-`
 
 func (a *DiffApplyAttribute) Initialize(page *l.Page) {
-	page.DOM.Head.Add(l.T("script", l.HTML(diffApplyJS)))
+	if a.rendered {
+		return
+	}
+
+	page.DOM.Head.Add(l.T("script", l.HTML(DiffApplyScript)))
 }
 
 func (a *DiffApplyAttribute) InitializeSSR(page *l.Page) {
-	page.DOM.Head.Add(l.T("script", l.HTML(diffApplyJS)))
+	a.rendered = true
+	page.DOM.Head.Add(l.T("script", l.HTML(DiffApplyScript)))
 }

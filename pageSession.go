@@ -331,6 +331,13 @@ created by github.com/SamHennessy/hlive.(*PageServer).ServeHTTP
 */
 
 func (sess *PageSession) writePump() {
+	defer func() {
+		err := recover()
+		if err != nil {
+			sess.logger.Error().Interface("returned", err).Msg("write pump panic recover")
+		}
+	}()
+
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()

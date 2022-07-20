@@ -289,6 +289,7 @@ func (p *Pipeline) walk(ctx context.Context, w io.Writer, node interface{}) (int
 		for i := 0; i < len(oldAttrs); i++ {
 			attr := oldAttrs[i]
 
+			// TODO: write tests then fix
 			attr, err := p.beforeAttr(ctx, w, attr)
 			if err != nil {
 				return nil, err

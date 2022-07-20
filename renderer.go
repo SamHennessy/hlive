@@ -9,22 +9,22 @@ import (
 	"github.com/rs/zerolog"
 )
 
-func NewRender() *Renderer {
+func NewRenderer() *Renderer {
 	return &Renderer{
-		logger: zerolog.Nop(),
+		log: zerolog.Nop(),
 	}
 }
 
 type Renderer struct {
-	logger zerolog.Logger
+	log zerolog.Logger
 }
 
 func (r *Renderer) SetLogger(logger zerolog.Logger) {
-	r.logger = logger
+	r.log = logger
 }
 
 // HTML renders items that can be render to valid HTML nodes
-func (r *Renderer) HTML(w io.Writer, el interface{}) error {
+func (r *Renderer) HTML(w io.Writer, el any) error {
 	switch v := el.(type) {
 	case nil:
 		return nil
@@ -202,7 +202,8 @@ func (r *Renderer) Attribute(attrs []Attributer, w io.Writer) error {
 	}
 
 	for i := 0; i < len(attrs); i++ {
-		attrStr := fmt.Sprintf(` %s="%s"`, attrs[i].GetAttribute().Name, attrs[i].GetAttribute().GetValue())
+		attrStr := fmt.Sprintf(` %s="%s"`,
+			attrs[i].GetAttribute().Name, html.EscapeString(attrs[i].GetAttribute().GetValue()))
 
 		if _, err := w.Write([]byte(attrStr)); err != nil {
 			return fmt.Errorf("write: %w", err)
@@ -213,9 +214,16 @@ func (r *Renderer) Attribute(attrs []Attributer, w io.Writer) error {
 }
 
 func (r *Renderer) text(text string, w io.Writer) error {
-	_, err := w.Write([]byte(html.EscapeString(text)))
+	if text == "" {
+		return nil
+	}
 
-	return err
+	_, err := w.Write([]byte(html.EscapeString(text)))
+	if err != nil {
+		return fmt.Errorf("write to writer: %w", err)
+	}
+
+	return nil
 }
 
 func (r *Renderer) tag(tag Tagger, w io.Writer) error {
@@ -236,7 +244,7 @@ func (r *Renderer) tag(tag Tagger, w io.Writer) error {
 	}
 
 	if err := r.HTML(w, tag.GetNodes()); err != nil {
-		return fmt.Errorf("render nodes: %w", err)
+		return fmt.Errorf("render nodes for: %s: %w", tag.GetName(), err)
 	}
 
 	if _, err := w.Write([]byte("</" + tag.GetName() + ">")); err != nil {

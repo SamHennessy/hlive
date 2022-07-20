@@ -18,7 +18,7 @@ func TestRenderer_RenderElementTagCSS(t *testing.T) {
 		l.ClassBool{"c2": false})
 	buff := bytes.NewBuffer(nil)
 
-	if err := l.NewRender().HTML(buff, el); err != nil {
+	if err := l.NewRenderer().HTML(buff, el); err != nil {
 		t.Fatal(err)
 	}
 
@@ -31,7 +31,7 @@ func TestRenderer_RenderElementText(t *testing.T) {
 	t.Parallel()
 
 	buff := bytes.NewBuffer(nil)
-	if err := l.NewRender().HTML(buff, "<h1>text_test</h1>"); err != nil {
+	if err := l.NewRenderer().HTML(buff, "<h1>text_test</h1>"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -46,7 +46,7 @@ func TestRenderer_RenderElementRawHTML(t *testing.T) {
 	el := l.HTML("<h1>html_test</h1>")
 	buff := bytes.NewBuffer(nil)
 
-	if err := l.NewRender().HTML(buff, el); err != nil {
+	if err := l.NewRenderer().HTML(buff, el); err != nil {
 		t.Fatal(err)
 	}
 
@@ -61,7 +61,7 @@ func TestRenderer_RenderElementTag(t *testing.T) {
 	el := l.NewTag("a")
 	buff := bytes.NewBuffer(nil)
 
-	if err := l.NewRender().HTML(buff, el); err != nil {
+	if err := l.NewRenderer().HTML(buff, el); err != nil {
 		t.Fatal(err)
 	}
 
@@ -76,7 +76,7 @@ func TestRenderer_RenderElementTagAttr(t *testing.T) {
 	el := l.NewTag("a", l.NewAttribute("href", "https://example.com"))
 	buff := bytes.NewBuffer(nil)
 
-	if err := l.NewRender().HTML(buff, el); err != nil {
+	if err := l.NewRenderer().HTML(buff, el); err != nil {
 		t.Fatal(err)
 	}
 
@@ -91,7 +91,7 @@ func TestRenderer_RenderElementTagAttrs(t *testing.T) {
 	el := l.NewTag("a", l.Attrs{"href": "https://example.com"})
 	buff := bytes.NewBuffer(nil)
 
-	if err := l.NewRender().HTML(buff, el); err != nil {
+	if err := l.NewRenderer().HTML(buff, el); err != nil {
 		t.Fatal(err)
 	}
 
@@ -106,7 +106,7 @@ func TestRenderer_RenderElementTagChildText(t *testing.T) {
 	el := l.NewTag("a", "<h1>text_test</h1>")
 	buff := bytes.NewBuffer(nil)
 
-	if err := l.NewRender().HTML(buff, el); err != nil {
+	if err := l.NewRenderer().HTML(buff, el); err != nil {
 		t.Fatal(err)
 	}
 
@@ -123,7 +123,7 @@ func TestRenderer_RenderElementTagChildTag(t *testing.T) {
 	)
 	buff := bytes.NewBuffer(nil)
 
-	if err := l.NewRender().HTML(buff, el); err != nil {
+	if err := l.NewRenderer().HTML(buff, el); err != nil {
 		t.Fatal(err)
 	}
 
@@ -138,11 +138,60 @@ func TestRenderer_RenderElementTagVoid(t *testing.T) {
 	el := l.T("hr", l.Attrs{"foo": "bar"})
 	buff := bytes.NewBuffer(nil)
 
-	if err := l.NewRender().HTML(buff, el); err != nil {
+	if err := l.NewRenderer().HTML(buff, el); err != nil {
 		t.Fatal(err)
 	}
 
 	if diff := deep.Equal(`<hr foo="bar">`, buff.String()); diff != nil {
 		t.Error(diff)
+	}
+}
+
+func TestRenderer_Attribute(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		attrs   l.Attrs
+		wantW   string
+		wantErr bool
+	}{
+		{
+			"simple",
+			l.Attrs{"foo": "bar"},
+			` foo="bar"`,
+			false,
+		},
+		{
+			"empty",
+			l.Attrs{"foo": ""},
+			` foo=""`,
+			false,
+		},
+		{
+			"json",
+			l.Attrs{"foo": `["key1"]`},
+			` foo="[&#34;key1&#34;]"`,
+			false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			r := l.NewRenderer()
+			w := &bytes.Buffer{}
+			if err := r.Attribute(tt.attrs.GetAttributes(), w); (err != nil) != tt.wantErr {
+				t.Errorf("Attribute() error = %v, wantErr %v", err, tt.wantErr)
+
+				return
+			}
+
+			if gotW := w.String(); gotW != tt.wantW {
+				t.Errorf("Attribute() gotW = %v, want %v", gotW, tt.wantW)
+			}
+		})
 	}
 }

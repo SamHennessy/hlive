@@ -12,7 +12,7 @@ type HTML string
 // IsElement returns true is the pass value is a valid Element.
 //
 // An Element is anything that cna be rendered at HTML.
-func IsElement(el interface{}) bool {
+func IsElement(el any) bool {
 	if IsNonNodeElement(el) {
 		return true
 	}
@@ -20,10 +20,10 @@ func IsElement(el interface{}) bool {
 	return IsNode(el)
 }
 
-func IsNonNodeElement(el interface{}) bool {
+func IsNonNodeElement(el any) bool {
 	switch el.(type) {
-	case []Attributer, []*Attribute, Attributer, *Attribute, Attrs, ClassBool, Style, ClassList, ClassListOff, Class, ClassOff,
-		*EventBinding:
+	case []Attributer, []*Attribute, Attributer, *Attribute, Attrs, ClassBool, Style, ClassList, ClassListOff, Class,
+		ClassOff, *EventBinding:
 		return true
 	default:
 		return false
@@ -34,10 +34,10 @@ func IsNonNodeElement(el interface{}) bool {
 //
 // A Node is a value that could be rendered as HTML by itself. An int for example can be converted to a string which is
 // valid HTML. An attribute would not be valid and doesn't make sense to cast to a string.
-func IsNode(node interface{}) bool {
+func IsNode(node any) bool {
 	switch node.(type) {
 	case nil, string, HTML, Tagger,
-		[]interface{}, *NodeGroup, []*Component, []*Tag, []Componenter, []Tagger, []UniqueTagger,
+		[]any, *NodeGroup, []*Component, []*Tag, []Componenter, []Tagger, []UniqueTagger,
 		int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64,
 		*int, *int8, *int16, *int32, *int64, *uint, *uint8, *uint16, *uint32, *uint64, *float32, *float64,
 		*string, *HTML:
@@ -52,14 +52,14 @@ func IsNode(node interface{}) bool {
 // Group zero or more Nodes together.
 //
 // Will panic if something that is not a node is passed.
-func G(nodes ...interface{}) *NodeGroup {
+func G(nodes ...any) *NodeGroup {
 	return Group(nodes...)
 }
 
 // Group zero or more Nodes together.
 //
 // Will panic if something that is not a node is passed.
-func Group(nodes ...interface{}) *NodeGroup {
+func Group(nodes ...any) *NodeGroup {
 	g := &NodeGroup{}
 
 	g.Add(nodes...)
@@ -69,10 +69,14 @@ func Group(nodes ...interface{}) *NodeGroup {
 
 // NodeGroup is a Group of Nodes
 type NodeGroup struct {
-	list []interface{}
+	list []any
 }
 
-func (g *NodeGroup) Add(nodes ...interface{}) {
+func (g *NodeGroup) Add(nodes ...any) {
+	if g == nil {
+		return
+	}
+
 	for i := 0; i < len(nodes); i++ {
 		if !IsNode(nodes[i]) {
 			panic(fmt.Errorf("node group add: node: %#v: %w", nodes[i], ErrInvalidNode))
@@ -82,7 +86,11 @@ func (g *NodeGroup) Add(nodes ...interface{}) {
 	}
 }
 
-func (g *NodeGroup) Get() []interface{} {
+func (g *NodeGroup) Get() []any {
+	if g == nil {
+		return nil
+	}
+
 	return g.list
 }
 
@@ -91,14 +99,14 @@ func (g *NodeGroup) Get() []interface{} {
 // Groups zero or more Element values.
 //
 // Will panic if something that is not an Element is passed.
-func E(elements ...interface{}) *ElementGroup {
+func E(elements ...any) *ElementGroup {
 	return Elements(elements...)
 }
 
 // Elements groups zero or more Element values.
 //
 // Will panic if something that is not an Element is passed.
-func Elements(elements ...interface{}) *ElementGroup {
+func Elements(elements ...any) *ElementGroup {
 	g := &ElementGroup{}
 
 	g.Add(elements...)
@@ -108,10 +116,14 @@ func Elements(elements ...interface{}) *ElementGroup {
 
 // ElementGroup is a Group of Elements
 type ElementGroup struct {
-	list []interface{}
+	list []any
 }
 
-func (g *ElementGroup) Add(elements ...interface{}) {
+func (g *ElementGroup) Add(elements ...any) {
+	if g == nil {
+		return
+	}
+
 	for i := 0; i < len(elements); i++ {
 		if !IsElement(elements[i]) {
 			panic(fmt.Errorf("element group add: node: %#v: %w", elements[i], ErrInvalidElement))
@@ -121,7 +133,11 @@ func (g *ElementGroup) Add(elements ...interface{}) {
 	}
 }
 
-func (g *ElementGroup) Get() []interface{} {
+func (g *ElementGroup) Get() []any {
+	if g == nil {
+		return nil
+	}
+
 	return g.list
 }
 

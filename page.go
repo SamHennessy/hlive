@@ -60,7 +60,7 @@ type Page struct {
 
 func NewPage() *Page {
 	p := &Page{
-		Renderer:      NewRender(),
+		Renderer:      NewRenderer(),
 		Differ:        NewDiffer(),
 		DOM:           *NewDOM(),
 		logger:        zerolog.Nop(),
@@ -130,7 +130,6 @@ func (p *Page) Close(ctx context.Context) {
 func (p *Page) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := p.serverHTTP(w, r); err != nil {
 		p.logger.Err(err).Msg("server http")
-		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
 
@@ -267,7 +266,7 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 					}
 
 					switch msg.Typ {
-					// logger
+					// log
 					case "l":
 						p.logger.Info().Str("log", msg.Data["m"]).Str("sess", sessID).Msg("ws log")
 					// Event

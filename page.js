@@ -293,7 +293,7 @@ hlive.postMessage = () => {
 hlive.getEventHandlerIDs = (el) => {
     let map = {};
 
-    if (el.getAttribute && el.getAttribute("data-hlive-on") !== "") {
+    if (el.getAttribute && el.getAttribute("data-hlive-on") !== null) {
         const pairs = el.getAttribute("data-hlive-on").split(",");
         for (let i = 0; i < pairs.length; i++) {
             const parts = pairs[i].split("|");
