@@ -3,10 +3,14 @@ package hlive
 import (
 	_ "embed"
 	"fmt"
+	"log"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/rs/zerolog"
+	"github.com/tdewolff/minify/v2"
+	"github.com/tdewolff/minify/v2/js"
 )
 
 //go:embed page.js
@@ -28,9 +32,20 @@ type Diff struct {
 }
 
 func NewDiffer() *Differ {
+	jsB := PageJavaScript
+
+	m := minify.New()
+	m.AddFuncRegexp(regexp.MustCompile("^(application|text)/(x-)?(java|ecma)script$"), js.Minify)
+	jsMin, err := m.Bytes("application/javascript", jsB)
+	if err == nil {
+		jsB = jsMin
+	} else {
+		log.Println("Error: minify:", err)
+	}
+
 	return &Differ{
 		logger:     zerolog.Nop(),
-		JavaScript: PageJavaScript,
+		JavaScript: jsB,
 	}
 }
 
