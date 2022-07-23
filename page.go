@@ -49,13 +49,22 @@ type Page struct {
 	receive <-chan MessageWS
 	// done with the main loop
 	done chan bool
+	//
 	// Hooks
+	//
+	// Before each event
 	HookBeforeEvent []func(ctx context.Context, e Event) (context.Context, Event)
-	HookAfterEvent  []func(ctx context.Context, e Event) (context.Context, Event)
+	// After each event
+	HookAfterEvent []func(ctx context.Context, e Event) (context.Context, Event)
+	// After each render
 	HookAfterRender []func(context.Context, []Diff, chan<- MessageWS)
 	HookClose       []func(context.Context, *Page)
-	HookMount       []func(context.Context, *Page)
-	HookUnmount     []func(context.Context, *Page)
+	// Before we do the initial render and send to the browser
+	HookBeforeMount []func(context.Context, *Page)
+	// After we do the initial render and send to the browser
+	HookMount []func(context.Context, *Page)
+	// When we close the page
+	HookUnmount []func(context.Context, *Page)
 }
 
 func NewPage() *Page {
@@ -202,6 +211,11 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 	ctx = context.WithValue(ctx, "Unique", strconv.Itoa(rand.Int()))
 	ctx = context.WithValue(ctx, CtxRender, p.executeRenderWS)
 	ctx = context.WithValue(ctx, CtxRenderComponent, p.renderComponentWS)
+
+	// TODO: add tests
+	for i := 0; i < len(p.HookBeforeMount); i++ {
+		p.HookBeforeMount[i](ctx, p)
+	}
 
 	// Do a dynamic render
 	p.executeRenderWS(ctx)
