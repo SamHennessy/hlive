@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 	"strconv"
-	"strings"
 
 	"github.com/cornelk/hashmap"
 )
@@ -16,6 +15,7 @@ const (
 	PipelineProcessorKeyAttributePluginMount = "hlive_attr_mount"
 	PipelineProcessorKeyMount                = "hlive_mount"
 	PipelineProcessorKeyUnmount              = "hlive_unmount"
+	PipelineProcessorKeyConvertToString      = "hlive_conv_str"
 )
 
 type PipelineProcessor struct {
@@ -40,7 +40,7 @@ func PipelineProcessorStripHLiveAttrs() *PipelineProcessor {
 
 	pp.AfterTagger = func(ctx context.Context, w io.Writer, tag *Tag) (*Tag, error) {
 		for _, attr := range tag.GetAttributes() {
-			if strings.HasPrefix(attr.GetAttribute().Name, "data-hlive") {
+			if attr.GetAttribute().Name == AttrID || attr.GetAttribute().Name == AttrOn {
 				tag.RemoveAttributes(attr.GetAttribute().Name)
 			}
 		}
@@ -151,9 +151,9 @@ func PipelineProcessorRenderer(renderer *Renderer) *PipelineProcessor {
 }
 
 func PipelineProcessorConvertToString() *PipelineProcessor {
-	pp := NewPipelineProcessor(PipelineProcessorKeyStripHLiveAttrs)
+	pp := NewPipelineProcessor(PipelineProcessorKeyConvertToString)
 
-	pp.OnSimpleNode = func(ctx context.Context, w io.Writer, node interface{}) (interface{}, error) {
+	pp.OnSimpleNode = func(ctx context.Context, w io.Writer, node any) (any, error) {
 		switch v := node.(type) {
 		case nil:
 			return nil, nil
@@ -270,9 +270,10 @@ func PipelineProcessorConvertToString() *PipelineProcessor {
 				return nil, nil
 			}
 
-			return *v, nil
-		case HTML:
 			return v, nil
+		// HTML need to be a pointer to allow for msgpack to keep its type
+		case HTML:
+			return &v, nil
 		default:
 			return v, nil
 		}

@@ -534,17 +534,31 @@ Live views and components for golang
 
 ### API Change
 
+- Don't use a panic if a developer makes a mistake, this makes people uneasy
+  - Maybe a log message?
+  - "People in Go communities tend to get uncomfortable with libraries that panic or usage of variadic parameters to accept specific numbers of variables since the signature can't get as specific as the requirement." - https://www.reddit.com/r/golang/comments/w5v4oe/comment/ihbm7ut/?utm_source=share&utm_medium=web2x&context=3
+
+- You can't unregister client side JS
+  - On a page replace, we are registering the same JS over and over
+  - This can't be avoided
+  - We need to register client side JS code with a key to enable run-once
+
+- Add missing data from browser events, like:
+  - https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent
+  - https://developer.mozilla.org/en-US/docs/Web/API/PointerEvent
+  - https://developer.mozilla.org/en-US/docs/Web/API/Touch_events
+  - https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent
+
 ### Bugs
 
 - Initial sync seems to be triggering when it shouldn't
   - Maybe when the value attribute doesn't exist?
-- Set the z-index higher than Bulma menu for default disconnect layer
-  - Need to test
 - Need to reflect in the browser virtual DOM that a select option has become selected when a user selects it
   - So that we can reset the selection (e.g. move dropdowns)
 - Can read a POST but can't pass POST data to a render (display errors)
   - Makes Auth logins an issue
   - Workaround it to go a redirect with an url param
+- Preempt disable on click prevents form submit in Chrome
 
 ### Internal improvements
 
@@ -558,20 +572,61 @@ Live views and components for golang
 
 - HTTP request w, r
 
-#### Other
+#### Performance
+
+- Remove the `data-` prefix from my attributes?
+  - No one else seems to care
+- Use binary for websocket
+  - Skips UTF8 processing
+  - Is this worth the trouble?
+- Alternative WebSocket lib?
+  - https://github.com/nhooyr/websocket
+- Add special logic for class tags
+  - Add, remove classes
+- Add special logic for style tags
+  - Only update property value if needed
 
 - Batch message sends and receives in the javascript (https://developer.mozilla.org/en-US/docs/Web/API/HTML_DOM_API/Microtask_guide)
-- If we want to batch sends from the server I think be a problem with out-of-order changes.
+
+- Move file upload out of Page.js
+
+#### Other
+
 - Add log level to client side logging
 - Send config for debug, and log level down to client side
-- Remove the data- prefix from my attributes?
-  - No one else seems to care
+  - Set via an attribute
+
+- If we want to batch sends from the server I think be a problem with out-of-order changes.
 - Add a queue for incoming messages on a page session
   - Maybe multiple concurrent requests is okay, maybe we just batch renders?
 - Use a channel with a single reader to process page events
-- How does it work with grammarly?
-- How does it work with Last Pass?
 - Get rid of the `Page.treeLock` by using a channel?
+
+
+### Better SSR and CDN Support
+
+How to make pages CDN friendly? We want to allow data to be cached in the CDN but need to handle when the cached data is 
+stale. At this time, if there is a difference from the initial SRR and the web socket SRR the diff paths will be wrong. 
+
+#### Can we make a hash of a simplified DOM tree?
+
+- If so, will it be fast?
+- If yes, then we need to cache the rendered page
+- In the page, we need to add the hash to the web socket connection
+- If that page hash is not found in the cache then we need a fallback
+  - Delete all the DOM, from doc down
+- Need a way to know that the version of HLive has changed, if so need a hard page reload and cache bypass 
+- This will also save an SSR on websocket connection as we can pull it from the cache
+- Allow multiple cache sources, and layer them with an in-memory and remote option.
+- Allow the cache to be used without CDN
+
+### Differ
+
+- Can you make pages static by setting differ JavaScript empty?
+
+#### Add support for Wails
+- would be a JS binding for reading incoming messages what just blocks when waiting for a message
+- another binding sending messages
 
 ### Tests
 
@@ -580,6 +635,21 @@ Live views and components for golang
       - d|d|doc|1>1>0>0>1>2||
       - d|d|doc|1>1>0>0>1>3||
 - `Page.Close`
+
+- How well does [Alpine.JS](https://alpinejs.dev/) work with HLive
+  - https://dockyard.com/blogs/optimizing-user-experience-with-liveview
+
+#### Performance
+
+- Need a way to test performance improvement ideas
+- Why are large tables of data slow to page?
+  - It's after to delete all the rows first
+  - Can we add a way for a component like List to inform tree copy not to bother doing a diff and just do a full HTML replacement
+
+- Use a sequential number for component ids and event binding ids
+  - Would provide for smaller ids
+  - If we left the ID empty until page mount, then the page could assign the ID
+    - Does anything else look for it before then, like bindings?
 
 ### Docs
 
@@ -593,142 +663,50 @@ Live views and components for golang
 - Logging
 - Plugins
 - Preempt pattern
-- Event bubbling
+- Event bubbling 
+- Prevent default
+- Stop propagation 
+- Explain performance goals
+  - Explain why WASM is not a good fit for the goals
+- From the beginning tech intro - https://www.reddit.com/r/golang/comments/w5v4oe/comment/ihcm8i9/?utm_source=share&utm_medium=web2x&context=3
+- Page hooks
+
 
 ### Security
 
 - Add a CSRF token
   - https://github.com/gorilla/csrf
+  - Is this needed?
 
 ### New Features/Improvements
 
 - Look for a CSS class to show on a failed reconnect
+  - Set current z-index higher than Bulma menu for default disconnect layer
 - Allow adding mount and unmount function as elements?
-- How well does [Alpine.JS](https://alpinejs.dev/) work with HLive
-  - https://dockyard.com/blogs/optimizing-user-experience-with-liveview
 
-- Can we add a way for a component like List to inform tree copy not to bother doing a diff and just do a full HTML replacement
-- Cluster
-  - Proxy reconnect, find the session on another node and proxy the connection to that node
-    - https://github.com/koding/websocketproxy
-- Message bus
-  - Cluster level
-  - Plugin based protocol
-  - Simple example protocol
-    - Websocket?
-    - manual node config
-  - Prevent race conditions on the page dom
+- Add support for "key" to allow better diff logic for lists
+
+- Add a `func() *l.NodeGroup` value
+  - Reduce code count
+  - Does it solve any real issues
+
 - ComponentList
   - Operations by ID
     - Get by ID
     - Remove By ID
+
 - User friendly HTTP error pages
   - Display a request ID if it exits
-- Map component ids and event binding ids to a sequential number
-  - Would need to map out and in
-  - Would provide for smaller ids
-  - Could make debugging hard
 
 - Add can take a `func() string` this would be kept in the tree and re-run on each render
   - Could be expensive
-
-## HHot
-
-A highly opinionated web framework that use hot reload and code generation.
-
-- You install the hhot binary and when in dev mode you get a web UI to create new things, change config etc.
-- Place models in certain folder, and we'll generate the code to wire them up. Same with HLive Pages
-- Use a DI registry to pass config, logger, DB, Cache, etc. to each page.
-- Use off-the-shelf ORM where possible.
-- Form -> Model -> Database flow
-- Data grid
-- Pagination
-- Navigation
-- User management
-- Permissions
-- Batteries included but swappable
-
-### HHot Ideas
-- hhot-create-app
-- Add the HTTP request to the context by default?
-- Create a middleware package
-  - HTTP Request
-  - Security
-- Add HTML dsl (Kit?)
-- Cluster
-  - User management, who's online
-- Page level data store
-  - `map[string]interface{}`
-  - `map[string]Adder`
-  - Available in the context
-  - Mutex lock
-  - Middleware?
-- Asset management
-  - Allow plugins/component libraries to work with this
-    - Developer would connect them
-  - Use an api to add the JS and CSS to the page HTML
-    - Cache busting
-  - Watch for change?
-    - If change update cache buster
-  - Development mode, production mode
-- CSS Build Pipeline
-  - Crete an example production quality CSS build pipeline using Tailwind and esbuild that can purse the unused CSS.
-  - Don't use dynamic css class names
-    - https://tailwindcss.com/docs/optimizing-for-production
-- Forms
-  - Make having forms easy
-  - Full form validation
-  - Use message bus
-- Form -> Model -> Database flow
-- Automatic TLS via Let’s Encrypt
-- Logging
-
-### Older ideas
-
-- Limit execution by having a worker pool controlled by the page session
-  - That way we have a way to limit RAM and CPU
-
-#### Serializable tree/component state
-
-** Maybe this should just be done with traditional user sessions? **
-
-- Can we make it so that tree/component state is, serializable?
-- If so we can store it in a database and allow reconnecting later.
-- If load was getting high we can swap sessions in and out of memory
-- We would need a way to capture and store then rehydrate
-- How do we remount event listeners?
-  - Need to map state to a function that can rehydrate it
-    - Needs to support cold start (we have the data, but we've never seen the component)
-  - Maybe we would need to use reflection
-    - Only the first time 
-- Can't have pointers, outside the components state
-- Maybe all event driven?
-- Encrypt the data by default
-- Could this be a special kind of Page Session?
-
-#### Do more with the HTTP Server render
-
-- Think server side render
-- Get the HTTP request easier
-- Easy to cache the response
-
-- CDN ready
-  - Think about what would work well in a CDN
-  - Product page
-    - Good
-      - Pics
-      - Description
-    - Bad
-      - Personal recommendations
-      - Recently viewed items
-
 
 #### Multi file upload using WS and HTTP
 
 - Need a count of files
 - Group them together in an event?
 - Make a channel?
-- File upload progress
+- File upload progress?
 
 #### Visibility
 

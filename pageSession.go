@@ -11,13 +11,15 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/rs/xid"
 	"github.com/rs/zerolog"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 type PageSession struct {
 	ID             string
+	ConnectedAt    time.Time
 	LastActive     time.Time
 	Page           *Page
-	InitialContext context.Context
+	InitialContext context.Context //nolint:containedctx // we are a router
 	Done           chan bool
 
 	connected bool
@@ -211,7 +213,8 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if sessID == "1" {
 			sess = s.Sessions.New()
 			sess.Page = s.pageFunc()
-			sess.LastActive = time.Now()
+			sess.ConnectedAt = time.Now()
+			sess.LastActive = sess.ConnectedAt
 			sess.InitialContext = r.Context()
 		}
 
@@ -222,6 +225,23 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		s.logger = sess.Page.logger
+
+		hhash := r.URL.Query().Get("hhash")
+		if sess.Page.cache != nil && hhash != "" {
+			val, hit := sess.Page.cache.Get(hhash)
+
+			b, ok := val.([]byte)
+			if hit && ok {
+				s.logger.Debug().Bool("hit", hit).Str("hhash", hhash).Int("size", len(b)/1024).
+					Msg("cache get")
+				newTree := G()
+				if err := msgpack.Unmarshal(b, newTree); err != nil {
+					s.logger.Err(err).Msg("ServeHTTP: msgpack.Unmarshal")
+				} else {
+					sess.Page.DOMBrowser = newTree
+				}
+			}
+		}
 
 		var err error
 

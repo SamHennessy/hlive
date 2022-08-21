@@ -10,7 +10,7 @@ import (
 var ErrDOMInvalidated = errors.New("dom invalidated")
 
 type (
-	PipeNodeHandler       func(ctx context.Context, w io.Writer, node interface{}) (interface{}, error)
+	PipeNodeHandler       func(ctx context.Context, w io.Writer, node any) (any, error)
 	PipeNodegroupHandler  func(ctx context.Context, w io.Writer, node *NodeGroup) (*NodeGroup, error)
 	PipeTaggerHandler     func(ctx context.Context, w io.Writer, tagger Tagger) (Tagger, error)
 	PipeTagHandler        func(ctx context.Context, w io.Writer, tag *Tag) (*Tag, error)
@@ -252,12 +252,14 @@ func (p *Pipeline) run(ctx context.Context, w io.Writer, tree *NodeGroup) (*Node
 }
 
 // Skips some steps
-func (p *Pipeline) runNode(ctx context.Context, w io.Writer, node interface{}) (interface{}, error) {
+func (p *Pipeline) runNode(ctx context.Context, w io.Writer, node any) (any, error) {
 	return p.walk(ctx, w, node)
 }
 
-func (p *Pipeline) walk(ctx context.Context, w io.Writer, node interface{}) (interface{}, error) {
+func (p *Pipeline) walk(ctx context.Context, w io.Writer, node any) (any, error) {
 	switch v := node.(type) {
+	case nil:
+		return nil, nil
 	// Single Node,
 	// Not a Tagger
 	case
@@ -289,7 +291,7 @@ func (p *Pipeline) walk(ctx context.Context, w io.Writer, node interface{}) (int
 		for i := 0; i < len(oldAttrs); i++ {
 			attr := oldAttrs[i]
 
-			// TODO: write tests then fix
+			// TODO: write tests then fix this is not being used
 			attr, err := p.beforeAttr(ctx, w, attr)
 			if err != nil {
 				return nil, err
@@ -314,7 +316,9 @@ func (p *Pipeline) walk(ctx context.Context, w io.Writer, node interface{}) (int
 		}
 
 		return tag, nil
-	// Lists
+	//
+	// Lists, the following will all eventually be sent to the above simple node or Tagger cases
+	//
 	case *NodeGroup:
 		if v == nil || len(v.Get()) == 0 {
 			return nil, nil
@@ -361,8 +365,6 @@ func (p *Pipeline) walk(ctx context.Context, w io.Writer, node interface{}) (int
 		}
 
 		return newGroup, nil
-	case nil:
-		return nil, nil
 	case []Componenter:
 		g := G()
 

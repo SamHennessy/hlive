@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,6 +16,8 @@ import (
 	"github.com/cornelk/hashmap"
 	"github.com/rs/zerolog"
 )
+
+const EventBindingsCacheDefault = 10 // Default for a small page
 
 type Page struct {
 	// HTML renderer
@@ -31,8 +32,8 @@ type Page struct {
 	logger zerolog.Logger
 	// Virtual DOM
 	DOM DOM
-	// What we think is the browser done is now
-	DOMBrowser interface{}
+	// What we think is the browser DOM is
+	DOMBrowser any
 	// Lock the page for writes
 	// TODO: replace with channel?
 	pageLock sync.RWMutex
@@ -49,6 +50,8 @@ type Page struct {
 	receive <-chan MessageWS
 	// done with the main loop
 	done chan bool
+	// cache async safe
+	cache Cache
 	//
 	// Hooks
 	//
@@ -67,32 +70,54 @@ type Page struct {
 	HookUnmount []func(context.Context, *Page)
 }
 
-func NewPage() *Page {
+func NewPage(options ...PageOption) *Page {
 	p := &Page{
-		Renderer:      NewRenderer(),
-		Differ:        NewDiffer(),
-		DOM:           *NewDOM(),
-		logger:        zerolog.Nop(),
-		eventBindings: hashmap.New(10), // No real reason for 10
+		DOM:    *NewDOM(),
+		logger: zerolog.Nop(),
 	}
 
-	p.DOM.Head.Add(T("script", HTML(p.Differ.JavaScript)))
+	for i := 0; i < len(options); i++ {
+		options[i](p)
+	}
+
+	if p.eventBindings == nil {
+		p.eventBindings = hashmap.New(EventBindingsCacheDefault)
+	}
+
+	if p.Renderer == nil {
+		p.Renderer = NewRenderer()
+	}
+
+	if p.Differ == nil {
+		p.Differ = NewDiffer()
+		p.DOM.Head.Add(T("script", HTML(p.Differ.JavaScript)))
+	}
 
 	// Differ Pipeline
-	p.PipelineDiff = NewPipeline(
-		PipelineProcessorAttributePluginMount(p),
-		PipelineProcessorEventBindingCache(p.eventBindings),
-		PipelineProcessorMount(),
-		PipelineProcessorUnmount(p),
-		PipelineProcessorConvertToString(),
-	)
+	if p.PipelineDiff == nil {
+		p.PipelineDiff = NewPipeline(
+			PipelineProcessorAttributePluginMount(p),
+			PipelineProcessorEventBindingCache(p.eventBindings),
+			PipelineProcessorMount(),
+			PipelineProcessorUnmount(p),
+			PipelineProcessorConvertToString(),
+		)
+	}
 	// Server Side Render Pipeline
-	p.PipelineSSR = NewPipeline(
-		PipelineProcessorAttributePluginMountSSR(p),
-		PipelineProcessorStripHLiveAttrs(),
-		PipelineProcessorConvertToString(),
-		PipelineProcessorRenderer(p.Renderer),
-	)
+	if p.PipelineSSR == nil {
+		p.PipelineSSR = NewPipeline(
+			PipelineProcessorAttributePluginMountSSR(p),
+			PipelineProcessorStripHLiveAttrs(),
+			PipelineProcessorConvertToString(),
+		)
+	}
+
+	if p.cache != nil {
+		p.PipelineSSR.Add(PipelineProcessorRenderHashAndCache(p.logger, p.Renderer, p.cache))
+		p.DOM.HTML.Add(Attrs{PageHashAttr: PageHashAttrTmpl})
+	} else {
+		p.PipelineSSR.Add(PipelineProcessorRenderer(p.Renderer))
+	}
 
 	return p
 }
@@ -145,14 +170,14 @@ func (p *Page) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (p *Page) serverHTTP(w http.ResponseWriter, r *http.Request) error {
 	p.pageLock.Lock()
 
-	_, err := p.runRenderPipeline(r.Context(), w)
+	_, err := p.RunRenderPipeline(r.Context(), w)
 
 	p.pageLock.Unlock()
 
 	return err
 }
 
-func (p *Page) runRenderPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {
+func (p *Page) RunRenderPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {
 start:
 	tree, err := p.PipelineSSR.run(ctx, w, p.GetNodes())
 
@@ -200,15 +225,13 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 	if p.DOMBrowser == nil {
 		p.logger.Trace().Msg("initial render")
 		// We need a static render
-		// p.DOMBrowser, err = p.PipelineSSR.run(ctx, io.Discard, p.GetNodes())
-		p.DOMBrowser, err = p.runRenderPipeline(ctx, io.Discard)
+		p.DOMBrowser, err = p.RunRenderPipeline(ctx, io.Discard)
 		if err != nil {
 			p.logger.Err(err).Msg("ws static render: html pipeline")
 		}
 	}
 
 	// Add render function to context
-	ctx = context.WithValue(ctx, "Unique", strconv.Itoa(rand.Int()))
 	ctx = context.WithValue(ctx, CtxRender, p.executeRenderWS)
 	ctx = context.WithValue(ctx, CtxRenderComponent, p.renderComponentWS)
 
@@ -457,6 +480,7 @@ func (p *Page) processMsgEvent(ctx context.Context, msg websocketMessage) {
 }
 
 func (p *Page) RenderWS(ctx context.Context) ([]Diff, error) {
+	// TODO: render queue
 	p.pageLock.Lock()
 	defer p.pageLock.Unlock()
 
@@ -482,6 +506,7 @@ func (p *Page) GetNodes() *NodeGroup {
 
 // Will fail if plugins invalidate the tree
 func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
+	// TODO: render queue
 	if p == nil {
 		p.logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("render component on dead page")
 

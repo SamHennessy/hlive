@@ -106,7 +106,7 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 	case *NodeGroup:
 		oldList := v.Get()
 		newNG, _ := newNode.(*NodeGroup)
-		newList := newNG.list
+		newList := newNG.Group
 		indexOffset := 0
 
 		for i := 0; i < len(oldList); i++ {
@@ -318,13 +318,13 @@ func diffCreate(compID, path string, el interface{}) []Diff {
 				Text: &v,
 			},
 		}
-	case HTML:
+	case *HTML:
 		return []Diff{
 			{
 				Root: compID,
 				Path: path,
 				Type: DiffCreate,
-				HTML: &v,
+				HTML: v,
 			},
 		}
 	case Tagger:
@@ -337,7 +337,6 @@ func diffCreate(compID, path string, el interface{}) []Diff {
 			},
 		}
 	case *Attribute:
-
 		return []Diff{
 			{
 				Root:      compID,
@@ -349,7 +348,7 @@ func diffCreate(compID, path string, el interface{}) []Diff {
 	case nil:
 		return nil
 	default:
-		panic(fmt.Errorf("unexpected type: %#v", el))
+		panic(fmt.Errorf("unexpected type: %v", el))
 	}
 }
 
@@ -363,8 +362,8 @@ func diffTreeNodeTypeMatch(oldNode, newNode interface{}) bool {
 		_, ok := newNode.(string)
 
 		return ok
-	case HTML:
-		_, ok := newNode.(HTML)
+	case *HTML:
+		_, ok := newNode.(*HTML)
 
 		return ok
 	case Tagger:
@@ -374,7 +373,7 @@ func diffTreeNodeTypeMatch(oldNode, newNode interface{}) bool {
 	case nil:
 		return false
 	default:
-		panic(fmt.Errorf("unexpected type: %#v", oldNode))
+		panic(fmt.Sprintf("unexpected type: %#v", oldNode))
 	}
 }
 

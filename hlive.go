@@ -2,12 +2,24 @@ package hlive
 
 import (
 	"context"
-	"fmt"
+	"log"
+
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 // HTML must always have a single root element, as we count it as 1 node in the tree but the browser will not if you
 // have multiple root elements
 type HTML string
+
+func (e *HTML) MarshalMsgpack() ([]byte, error) {
+	return []byte(*e), nil
+}
+
+func (e *HTML) UnmarshalMsgpack(b []byte) error {
+	*e = HTML(b)
+
+	return nil
+}
 
 // IsElement returns true is the pass value is a valid Element.
 //
@@ -50,15 +62,11 @@ func IsNode(node any) bool {
 // G is shorthand for Group.
 //
 // Group zero or more Nodes together.
-//
-// Will panic if something that is not a node is passed.
 func G(nodes ...any) *NodeGroup {
 	return Group(nodes...)
 }
 
 // Group zero or more Nodes together.
-//
-// Will panic if something that is not a node is passed.
 func Group(nodes ...any) *NodeGroup {
 	g := &NodeGroup{}
 
@@ -69,7 +77,15 @@ func Group(nodes ...any) *NodeGroup {
 
 // NodeGroup is a Group of Nodes
 type NodeGroup struct {
-	list []any
+	Group []any
+}
+
+func (g *NodeGroup) MarshalMsgpack() ([]byte, error) {
+	return msgpack.Marshal(g.Group) //nolint:wrapcheck
+}
+
+func (g *NodeGroup) UnmarshalMsgpack(b []byte) error {
+	return msgpack.Unmarshal(b, &g.Group) //nolint:wrapcheck
 }
 
 func (g *NodeGroup) Add(nodes ...any) {
@@ -79,10 +95,12 @@ func (g *NodeGroup) Add(nodes ...any) {
 
 	for i := 0; i < len(nodes); i++ {
 		if !IsNode(nodes[i]) {
-			panic(fmt.Errorf("node group add: node: %#v: %w", nodes[i], ErrInvalidNode))
+			log.Printf("HLive: ERROR: added a non-Node to a NodeGroup: %#v\n", nodes[i])
+
+			continue
 		}
 
-		g.list = append(g.list, nodes[i])
+		g.Group = append(g.Group, nodes[i])
 	}
 }
 
@@ -91,21 +109,17 @@ func (g *NodeGroup) Get() []any {
 		return nil
 	}
 
-	return g.list
+	return g.Group
 }
 
 // E is shorthand for Elements.
 //
 // Groups zero or more Element values.
-//
-// Will panic if something that is not an Element is passed.
 func E(elements ...any) *ElementGroup {
 	return Elements(elements...)
 }
 
 // Elements groups zero or more Element values.
-//
-// Will panic if something that is not an Element is passed.
 func Elements(elements ...any) *ElementGroup {
 	g := &ElementGroup{}
 
@@ -126,7 +140,9 @@ func (g *ElementGroup) Add(elements ...any) {
 
 	for i := 0; i < len(elements); i++ {
 		if !IsElement(elements[i]) {
-			panic(fmt.Errorf("element group add: node: %#v: %w", elements[i], ErrInvalidElement))
+			log.Printf("HLive: ERROR: added a non-Element to an ElementGroup: %#v\n", elements[i])
+
+			continue
 		}
 
 		g.list = append(g.list, elements[i])
@@ -145,7 +161,9 @@ func (g *ElementGroup) Get() []any {
 func Render(ctx context.Context) {
 	render, ok := ctx.Value(CtxRender).(func(context.Context))
 	if !ok {
-		panic(ErrRenderCtx)
+		log.Println("HLive: ERROR:", ErrRenderCtx)
+
+		return
 	}
 
 	render(ctx)
@@ -155,7 +173,9 @@ func Render(ctx context.Context) {
 func RenderComponent(ctx context.Context, comp Componenter) {
 	render, ok := ctx.Value(CtxRenderComponent).(func(context.Context, Componenter))
 	if !ok {
-		panic(ErrRenderCompCtx)
+		log.Println("HLive: ERROR:", ErrRenderCompCtx)
+
+		return
 	}
 
 	render(ctx, comp)

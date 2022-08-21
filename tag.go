@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 // Tagger represents a static HTML tag.
@@ -56,6 +58,63 @@ type Tag struct {
 	styleValues map[string]*string
 	styleOrder  []string
 	lock        sync.RWMutex
+}
+
+func (t *Tag) MarshalMsgpack() ([]byte, error) {
+	attrs := make([]*Attribute, len(t.attributes))
+	for i := 0; i < len(t.attributes); i++ {
+		attrs[i], _ = t.attributes[i].(*Attribute)
+	}
+
+	return msgpack.Marshal([8]any{ //nolint:wrapcheck
+		t.name,
+		t.void,
+		attrs,
+		t.nodes,
+		t.cssExists, // TODO: get from cssOrder
+		t.cssOrder,
+		t.styleValues,
+		t.styleOrder,
+	})
+}
+
+func (t *Tag) UnmarshalMsgpack(b []byte) error {
+	var values [8]any
+	err := msgpack.Unmarshal(b, &values)
+	if err != nil {
+		return fmt.Errorf("msgpack.Unmarshal: %w", err)
+	}
+
+	t.name, _ = values[0].(string)
+	t.void, _ = values[1].(bool)
+
+	attributes, _ := values[2].([]any)
+	for _, val := range attributes {
+		attribute, _ := val.(Attributer)
+		t.attributes = append(t.attributes, attribute)
+	}
+
+	t.nodes, _ = values[3].(*NodeGroup)
+
+	cssList, _ := values[4].(map[string]any)
+	for key, val := range cssList {
+		t.cssExists[key], _ = val.(bool)
+	}
+
+	if values[5] != nil {
+		t.cssOrder, _ = values[5].([]string)
+	}
+
+	styles, _ := values[6].(map[string]any)
+	for key, val := range styles {
+		t.styleValues[key], _ = val.(*string)
+	}
+
+	if values[7] != nil {
+		t.styleOrder, _ = values[7].([]string)
+	}
+
+	return nil
 }
 
 // T is a shortcut for NewTag.

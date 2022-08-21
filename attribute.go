@@ -1,7 +1,10 @@
 package hlive
 
 import (
+	"fmt"
 	"strings"
+
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 type Attributer interface {
@@ -81,6 +84,24 @@ type Attribute struct {
 	// Name must always be lowercase
 	Name  string
 	Value *string
+}
+
+func (a *Attribute) MarshalMsgpack() ([]byte, error) {
+	return msgpack.Marshal([2]any{a.Name, a.Value})
+}
+
+func (a *Attribute) UnmarshalMsgpack(b []byte) error {
+	var values [2]any
+	if err := msgpack.Unmarshal(b, &values); err != nil {
+		return fmt.Errorf("msgpack.Unmarshal: %w", err)
+	}
+
+	a.Name, _ = values[0].(string)
+
+	val, _ := values[1].(string)
+	a.Value = &val
+
+	return nil
 }
 
 func (a *Attribute) SetValue(value string) {

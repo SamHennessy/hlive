@@ -517,13 +517,24 @@ hlive.connect = () => {
     // Add Session ID to query params
     let q = window.location.search;
     if (q === "") {
-        q = "?hlive=" + hlive.sessID;
+        q = "?";
     } else {
-        q += "&hlive=" + hlive.sessID;
+        q += "&";
+    }
+    q += "hlive=" + hlive.sessID;
+
+    const hhash = document.documentElement.getAttribute("data-hlive-hash")
+    if (hhash != null) {
+        if (q === "") {
+            q = "?";
+        } else {
+            q += "&";
+        }
+        q += "hhash=" + hhash;
     }
 
     hlive.conn = new WebSocket(ws + "://" + window.location.host + window.location.pathname + q);
-    hlive.conn.onopen = hlive.onopen
+    hlive.conn.onopen = hlive.onopen;
     hlive.conn.onmessage = hlive.onmessage;
     hlive.conn.onclose = hlive.onclose;
 }
