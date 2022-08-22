@@ -97,8 +97,8 @@ func NewPage(options ...PageOption) *Page {
 	if p.PipelineDiff == nil {
 		p.PipelineDiff = NewPipeline(
 			PipelineProcessorAttributePluginMount(p),
-			PipelineProcessorEventBindingCache(p.eventBindings),
 			PipelineProcessorMount(),
+			PipelineProcessorEventBindingCache(p.eventBindings),
 			PipelineProcessorUnmount(p),
 			PipelineProcessorConvertToString(),
 		)
@@ -107,7 +107,6 @@ func NewPage(options ...PageOption) *Page {
 	if p.PipelineSSR == nil {
 		p.PipelineSSR = NewPipeline(
 			PipelineProcessorAttributePluginMountSSR(p),
-			PipelineProcessorStripHLiveAttrs(),
 			PipelineProcessorConvertToString(),
 		)
 	}
@@ -206,6 +205,12 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 	p.receive = receive
 	p.done = make(chan bool)
 
+	// This causes a panic but if the session send doesn't get read then it blocks
+	//go func() {
+	//	<-ctx.Done()
+	//	close(p.send)
+	//}()
+
 	defer func() {
 		if p.done != nil {
 			close(p.done)
@@ -223,11 +228,11 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 
 	// Do an initial render
 	if p.DOMBrowser == nil {
-		p.logger.Trace().Msg("initial render")
+		p.logger.Debug().Msg("ServeWS: browser render")
 		// We need a static render
 		p.DOMBrowser, err = p.RunRenderPipeline(ctx, io.Discard)
 		if err != nil {
-			p.logger.Err(err).Msg("ws static render: html pipeline")
+			p.logger.Err(err).Msg("ServeWS: render pipeline")
 		}
 	}
 
@@ -264,6 +269,8 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 
 	for {
 		select {
+		case <-ctx.Done():
+			return nil
 		case <-p.done:
 			return nil
 		case messageWS, ok := <-p.receive:

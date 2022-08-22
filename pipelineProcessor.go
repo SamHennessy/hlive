@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"strconv"
+	"sync/atomic"
 
 	"github.com/cornelk/hashmap"
 )
@@ -35,22 +36,6 @@ func NewPipelineProcessor(key string) *PipelineProcessor {
 	return &PipelineProcessor{Key: key}
 }
 
-func PipelineProcessorStripHLiveAttrs() *PipelineProcessor {
-	pp := NewPipelineProcessor(PipelineProcessorKeyStripHLiveAttrs)
-
-	pp.AfterTagger = func(ctx context.Context, w io.Writer, tag *Tag) (*Tag, error) {
-		for _, attr := range tag.GetAttributes() {
-			if attr.GetAttribute().Name == AttrID || attr.GetAttribute().Name == AttrOn {
-				tag.RemoveAttributes(attr.GetAttribute().Name)
-			}
-		}
-
-		return tag, nil
-	}
-
-	return pp
-}
-
 func PipelineProcessorEventBindingCache(cache *hashmap.HashMap) *PipelineProcessor {
 	pp := NewPipelineProcessor(PipelineProcessorKeyEventBindingCache)
 
@@ -77,23 +62,16 @@ func PipelineProcessorEventBindingCache(cache *hashmap.HashMap) *PipelineProcess
 }
 
 func PipelineProcessorMount() *PipelineProcessor {
-	cache := hashmap.HashMap{}
+	var compID uint64
 
 	pp := NewPipelineProcessor(PipelineProcessorKeyMount)
 
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag Tagger) (Tagger, error) {
-		if comp, ok := tag.(Mounter); ok {
-			id := comp.GetID()
+		if comp, ok := tag.(UniqueTagger); ok && comp.GetID() == "" {
+			comp.SetID(strconv.FormatUint(atomic.AddUint64(&compID, 1), 10))
 
-			if _, loaded := cache.GetOrInsert(id, nil); !loaded {
+			if comp, ok := tag.(Mounter); ok {
 				comp.Mount(ctx)
-
-				// A way to remove the key when you delete a Component
-				if comp, ok := tag.(Teardowner); ok {
-					comp.AddTeardown(func() {
-						cache.Del(id)
-					})
-				}
 			}
 		}
 

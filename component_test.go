@@ -11,7 +11,9 @@ func TestComponent_GetID(t *testing.T) {
 	t.Parallel()
 
 	c := l.C("div")
+	c.SetID("1")
 	b := l.C("div")
+	b.SetID("2")
 
 	if c.GetID() == "" || b.GetID() == "" {
 		t.Error("id is an empty string")
@@ -46,6 +48,7 @@ func TestComponent_AddAttribute(t *testing.T) {
 	t.Parallel()
 
 	c := l.C("div")
+	c.SetID("1")
 
 	eb1 := l.On("input", nil)
 	eb2 := l.On("click", nil)
@@ -88,6 +91,7 @@ func TestComponent_AddRemoveEventBinding(t *testing.T) {
 	eb2 := l.On("click", nil)
 
 	c := l.C("div", eb1, eb2)
+	c.SetID("1")
 
 	c.RemoveEventBinding(eb1.ID)
 
@@ -101,6 +105,8 @@ func TestComponent_AddRemoveEventBinding(t *testing.T) {
 }
 
 func TestComponent_Wrap(t *testing.T) {
+	t.Parallel()
+
 	tag := l.T("div")
 	c := l.W(tag)
 

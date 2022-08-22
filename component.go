@@ -1,9 +1,9 @@
 package hlive
 
 import (
+	"strconv"
 	"strings"
-
-	"github.com/teris-io/shortid"
+	"sync/atomic"
 )
 
 // Componenter builds on UniqueTagger and adds the ability to handle events.
@@ -23,9 +23,10 @@ type Componenter interface {
 type Component struct {
 	*Tag
 
-	id         string
-	bindings   []*EventBinding
 	AutoRender bool
+	id         string
+	bindingID  uint32
+	bindings   []*EventBinding
 }
 
 // C is a shortcut for NewComponent.
@@ -40,14 +41,13 @@ func C(name string, elements ...interface{}) *Component {
 // NewComponent is a constructor for Component.
 //
 // You can add zero or many Attributes and Tags.
-func NewComponent(name string, elements ...interface{}) *Component {
+func NewComponent(name string, elements ...any) *Component {
 	c := &Component{
 		Tag:        T(name),
-		id:         shortid.MustGenerate(),
 		AutoRender: true,
 	}
 
-	c.Add(NewAttribute(AttrID, c.GetID()), elements)
+	c.Add(elements...)
 
 	return c
 }
@@ -63,19 +63,40 @@ func W(tag *Tag, elements ...interface{}) *Component {
 func Wrap(tag *Tag, elements ...interface{}) *Component {
 	c := &Component{
 		Tag:        tag,
-		id:         shortid.MustGenerate(),
 		AutoRender: true,
 	}
 
-	c.Add(NewAttribute(AttrID, c.GetID()))
 	c.Add(elements...)
 
 	return c
 }
 
-// GetID returns this components unique ID
+// GetID returns this component's unique ID
 func (c *Component) GetID() string {
 	return c.id
+}
+
+// SetID component's unique ID
+func (c *Component) SetID(id string) {
+	c.id = id
+	c.Add(NewAttribute(AttrID, id))
+
+	var value string
+	for i := 0; i < len(c.bindings); i++ {
+		if c.bindings[i].ID == "" {
+			c.bindings[i].ID = c.id + "-" +
+				strconv.FormatUint(uint64(atomic.AddUint32(&c.bindingID, 1)), 10)
+		}
+
+		value += c.bindings[i].ID + "|" + c.bindings[i].Name + ","
+	}
+
+	value = strings.TrimRight(value, ",")
+	if value == "" {
+		c.RemoveAttributes(AttrOn)
+	} else {
+		c.Add(Attrs{AttrOn: value})
+	}
 }
 
 // IsAutoRender indicates if this component should trigger "Auto Render"
@@ -179,11 +200,17 @@ func (c *Component) Add(elements ...interface{}) {
 
 func (c *Component) on(binding *EventBinding) {
 	binding.Component = c
+	c.bindings = append(c.bindings, binding)
 
-	id := binding.ID
-	if id == "" {
-		id = shortid.MustGenerate()
+	if c.id == "" {
+		return
 	}
+
+	if binding.ID == "" {
+		binding.ID = c.id + "-" +
+			strconv.FormatUint(uint64(atomic.AddUint32(&c.bindingID, 1)), 10)
+	}
+	id := binding.ID
 
 	value := id + "|" + binding.Name
 
@@ -193,6 +220,4 @@ func (c *Component) on(binding *EventBinding) {
 	}
 
 	c.Add(NewAttribute(AttrOn, value))
-
-	c.bindings = append(c.bindings, binding)
 }

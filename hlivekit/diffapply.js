@@ -1,6 +1,6 @@
 // Trigger diffapply, should always be last
 function diffApply() {
-    document.querySelectorAll("[data-hlive-on*=diffapply]").forEach(function (el) {
+    document.querySelectorAll("[hon*=diffapply]").forEach(function (el) {
         const ids = hlive.getEventHandlerIDs(el);
 
         if (!ids["diffapply"]) {
@@ -17,4 +17,6 @@ function diffApply() {
 }
 
 // Register plugin
-hlive.afterMessage.push(diffApply);
+if (hlive.afterMessage.get("hdiffApply") === undefined) {
+    hlive.afterMessage.set("hdiffApply", diffApply);
+}

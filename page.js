@@ -6,11 +6,11 @@ let hlive = {
     initSyncDone: false,
     sessID: 1,
 
-    afterMessage: [],
-    beforeRemoveEventHandlers: [],
-    afterRemoveEventHandlers: [],
-    beforeSendEvent: [],
-    beforeProcessMessage: [],
+    afterMessage: new Map(),
+    beforeRemoveEventHandlers: new Map(),
+    afterRemoveEventHandlers: new Map(),
+    beforeSendEvent: new Map(),
+    beforeProcessMessage: new Map(),
 };
 
 hlive.msgPart = {
@@ -35,7 +35,7 @@ hlive.eventHandler = (e) => {
         return
     }
 
-    const pairs = e.currentTarget.getAttribute("data-hlive-on").split(",");
+    const pairs = e.currentTarget.getAttribute("hon").split(",");
     for (let i = 0; i < pairs.length; i++) {
         const parts = pairs[i].split("|");
         if (parts[1].toLowerCase() === e.type.toLowerCase()) {
@@ -45,15 +45,15 @@ hlive.eventHandler = (e) => {
 }
 
 hlive.removeEventHandlers = (el) => {
-    for (let i = 0; i < hlive.beforeRemoveEventHandlers.length; i++) {
-        hlive.beforeRemoveEventHandlers[i](el);
-    }
+    hlive.beforeRemoveEventHandlers.forEach(function (fn) {
+        fn(el);
+    })
 
     hlive.removeHLiveEventHandlers(el);
 
-    for (let i = 0; i < hlive.afterRemoveEventHandlers.length; i++) {
-        hlive.afterRemoveEventHandlers[i](el);
-    }
+    hlive.afterRemoveEventHandlers.forEach(function (fn) {
+        fn(el);
+    })
 }
 
 hlive.removeHLiveEventHandlers = (el) => {
@@ -61,7 +61,7 @@ hlive.removeHLiveEventHandlers = (el) => {
         return;
     }
 
-    const val = el.getAttribute("data-hlive-on");
+    const val = el.getAttribute("hon");
 
     if (val === null || val === "") {
         return;
@@ -150,9 +150,9 @@ hlive.eventHandlerHelper = (e, handlerID, isInitial) => {
         }
     }
 
-    for (let i = 0; i < hlive.beforeSendEvent.length; i++) {
-        msg = hlive.beforeSendEvent[i](e, msg);
-    }
+    hlive.beforeSendEvent.forEach(function (fn) {
+        msg = fn(e, msg);
+    });
 
     hlive.sendMsg(msg);
 }
@@ -181,8 +181,8 @@ hlive.log = (message) => {
 }
 
 hlive.setEventHandlers = () => {
-    document.querySelectorAll("[data-hlive-on]").forEach(function (el) {
-        const pairs = el.getAttribute("data-hlive-on").split(",");
+    document.querySelectorAll("[hon]").forEach(function (el) {
+        const pairs = el.getAttribute("hon").split(",");
         for (let i = 0; i < pairs.length; i++) {
             const parts = pairs[i].split("|");
             el.addEventListener(parts[1].toLowerCase(), hlive.eventHandler);
@@ -194,7 +194,7 @@ hlive.setEventHandlers = () => {
 // Looks at the current value of the input and if needed triggers events to sync that value to the backend
 // TODO: move out as plugin?
 hlive.initSync = () => {
-    document.querySelectorAll("[data-hlive-on]").forEach(function (el) {
+    document.querySelectorAll("[hon]").forEach(function (el) {
         // Radio
         const elType = el.getAttribute("type");
 
@@ -221,17 +221,18 @@ hlive.initSync = () => {
                 return;
             }
             // At default
-            if (el.value === el.getAttribute("value")) {
+            const aV = el.getAttribute("value")
+            // Empty
+            if (aV === null && el.value === "") {
                 return;
             }
-            // Empty
-            // TODO: does this do anything?
-            if (el.value === "" && el.hasAttribute("value") === false) {
+            // Match
+            if (aV === el.value) {
                 return;
             }
         }
 
-        const pairs = el.getAttribute("data-hlive-on").split(",");
+        const pairs = el.getAttribute("hon").split(",");
         for (let i = 0; i < pairs.length; i++) {
             const parts = pairs[i].split("|");
             const name = parts[1].toLowerCase();
@@ -250,7 +251,7 @@ hlive.initSync = () => {
 hlive.postMessage = () => {
     hlive.setEventHandlers();
 
-    if (!hlive.initSyncDone && document.querySelectorAll("[data-hlive-on]").length !== 0) {
+    if (!hlive.initSyncDone && document.querySelectorAll("[hon]").length !== 0) {
         hlive.initSyncDone = true;
         hlive.initSync();
     }
@@ -285,16 +286,16 @@ hlive.postMessage = () => {
         }
     });
 
-    for (let i = 0; i < hlive.afterMessage.length; i++) {
-        hlive.afterMessage[i]();
-    }
+    hlive.afterMessage.forEach(function (fn) {
+        fn();
+    })
 }
 
 hlive.getEventHandlerIDs = (el) => {
     let map = {};
 
-    if (el.getAttribute && el.getAttribute("data-hlive-on") !== null) {
-        const pairs = el.getAttribute("data-hlive-on").split(",");
+    if (el.getAttribute && el.getAttribute("hon") !== null) {
+        const pairs = el.getAttribute("hon").split(",");
         for (let i = 0; i < pairs.length; i++) {
             const parts = pairs[i].split("|");
             const eventName = parts[1].toLowerCase();
@@ -316,7 +317,7 @@ hlive.findDiffTarget = (diff) => {
 
     let target = document;
     if (parts[hlive.diffParts.Root] !== "doc") {
-        target = document.querySelector('[data-hlive-id="' + parts[hlive.diffParts.Root] + '"]');
+        target = document.querySelector('[hid="' + parts[hlive.diffParts.Root] + '"]');
     }
 
     if (!target) {
@@ -372,9 +373,9 @@ hlive.processMsg = (evt) => {
             continue;
         }
 
-        for (let j = 0; j < hlive.beforeProcessMessage.length; j++) {
-            msg = hlive.beforeProcessMessage[j](msg);
-        }
+        hlive.beforeProcessMessage.forEach(function (fn) {
+            msg = fn(msg);
+        })
 
         if (msg === "") {
             continue;
@@ -443,7 +444,7 @@ hlive.processMsg = (evt) => {
                 const attrValue = attrData.substring(index + 2, attrData.length - 1);
 
                 if (parts[hlive.diffParts.DiffType] === "c" || parts[hlive.diffParts.DiffType] === "u") {
-                    if (attrName === "data-hlive-on" && parts[hlive.diffParts.DiffType] === "u") {
+                    if (attrName === "hon" && parts[hlive.diffParts.DiffType] === "u") {
                         // They'll be set again if only some were removed
                         hlive.removeEventHandlers(target);
                     }

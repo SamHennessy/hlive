@@ -2,6 +2,7 @@ package hlive
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -184,12 +185,11 @@ type MessageWS struct {
 }
 
 type PageServer struct {
-	pageFunc func() *Page
 	Sessions *PageSessionStore
-
 	Upgrader websocket.Upgrader
 
-	logger zerolog.Logger
+	pageFunc func() *Page
+	logger   zerolog.Logger
 }
 
 func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -201,7 +201,8 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			sess = s.Sessions.Get(sessID)
 
 			if sess != nil && sess.Page.connected {
-				sess.Page.logger.Warn().Str("sess id", sessID).Msg("connection blocked as an active connection exists")
+				sess.Page.logger.Warn().Str("id", sessID).
+					Msg("connection blocked as an active connection exists")
 
 				w.WriteHeader(http.StatusNotFound)
 
@@ -219,14 +220,17 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if sess == nil {
+			log.Println("HLive: WARN: session not found:", sessID)
 			w.WriteHeader(http.StatusNotFound)
 
 			return
 		}
 
-		s.logger = sess.Page.logger
-
 		hhash := r.URL.Query().Get("hhash")
+
+		s.logger = sess.Page.logger
+		s.logger.Debug().Str("sessionID", sessID).Str("hash", hhash).Msg("ws start")
+
 		if sess.Page.cache != nil && hhash != "" {
 			val, hit := sess.Page.cache.Get(hhash)
 

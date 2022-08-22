@@ -30,6 +30,8 @@ type UniqueTagger interface {
 	Tagger
 	// GetID will return a unique id
 	GetID() string
+	// SetID Components will be assigned a unique id
+	SetID(id string)
 }
 
 // Adder interface for inputting elements to Tagger type values.

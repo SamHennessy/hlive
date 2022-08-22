@@ -18,8 +18,8 @@ var (
 
 // HLive special attributes
 const (
-	AttrID     = "data-hlive-id"
-	AttrOn     = "data-hlive-on"
+	AttrID     = "hid"
+	AttrOn     = "hon"
 	AttrUpload = "data-hlive-upload"
 	base10     = 10
 	bit32      = 32
