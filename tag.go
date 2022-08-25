@@ -247,20 +247,6 @@ func (t *Tag) GetNodes() *NodeGroup {
 	return t.nodes
 }
 
-func (t *Tag) addNodes(nodes ...interface{}) {
-	for i := 0; i < len(nodes); i++ {
-		if nodes[i] == nil {
-			continue
-		}
-
-		if !IsNode(nodes[i]) {
-			panic(fmt.Errorf("Tag.addNodes: node: %#v: %w", nodes[i], ErrInvalidNode))
-		}
-
-		t.nodes.Add(nodes[i])
-	}
-}
-
 // AddAttributes will add zero or more attributes types (Attributer, Attribute, Attrs, Style, ClassBool).
 //
 // Adding an attribute with the same name will override an existing attribute.
@@ -280,8 +266,6 @@ func (t *Tag) addAttributes(attrs ...interface{}) {
 	for i := 0; i < newAttrsCount; i++ {
 		hit := false
 
-		// TODO: why does this panic sometimes?
-		// Maybe when we had nil tags possible
 		for j := 0; j < len(t.attributes); j++ {
 			if t.attributes[j].GetAttribute().Name == newAttributes[i].GetAttribute().Name {
 				hit = true
@@ -340,61 +324,88 @@ func (t *Tag) removeAttributes(names ...string) {
 	t.attributes = newAttrs
 }
 
-func addElementToTag(t *Tag, v interface{}) {
-	if _, ok := v.(*EventBinding); ok {
-		panic("You've added an event binding to a Tag. You can only add these to a Component. " +
-			"You can turn any Tag into a Component by using the Wrap or W functions.")
-	}
-
-	if !IsElement(v) {
-		panic(fmt.Errorf("element: %#v: %w", v, ErrInvalidElement))
-	}
-
+func addElementToTag(t *Tag, v any) {
 	switch v := v.(type) {
+	// Common error
+	case *EventBinding:
+		LoggerDev.Error().Str("callers", CallerStackStr()).Msg(
+			"You've added an event binding to a Tag. You can only add these to a Component. " +
+				"You can fix this by replacing l.T(\"div\"...) with l.C(\"div\"...)." +
+				"You can also turn any Tag into a Component by using the Wrap function.")
+
+		return
+	// Groups
+	case []any:
+		for i := 0; i < len(v); i++ {
+			if v == nil {
+				continue
+			}
+
+			addElementToTag(t, v[i])
+		}
+	case []*Component:
+		for i := 0; i < len(v); i++ {
+			if v == nil {
+				continue
+			}
+
+			t.nodes.Group = append(t.nodes.Group, v[i])
+		}
+	case []*Tag:
+		for i := 0; i < len(v); i++ {
+			if v == nil {
+				continue
+			}
+
+			t.nodes.Group = append(t.nodes.Group, v[i])
+		}
+	case []Componenter:
+		for i := 0; i < len(v); i++ {
+			if v == nil {
+				continue
+			}
+
+			t.nodes.Group = append(t.nodes.Group, v[i])
+		}
+	case []Tagger:
+		for i := 0; i < len(v); i++ {
+			if v == nil {
+				continue
+			}
+
+			t.nodes.Group = append(t.nodes.Group, v[i])
+		}
+	case []UniqueTagger:
+		for i := 0; i < len(v); i++ {
+			if v == nil {
+				continue
+			}
+
+			t.nodes.Group = append(t.nodes.Group, v[i])
+		}
+	case NodeGroup:
+		t.nodes.Group = append(t.nodes.Group, v.Group...)
 	case *NodeGroup:
 		if v == nil {
 			return
 		}
 
-		g := v.Get()
-		for i := 0; i < len(g); i++ {
-			addElementToTag(t, g[i])
-		}
+		t.nodes.Group = append(t.nodes.Group, v.Group...)
 	case *ElementGroup:
 		if v == nil {
 			return
 		}
 
-		g := v.Get()
-		for i := 0; i < len(g); i++ {
-			addElementToTag(t, g[i])
+		// I still want the above error checks
+		for i := 0; i < len(v.Group); i++ {
+			addElementToTag(t, v.Group[i])
 		}
-	case []interface{}:
-		for i := 0; i < len(v); i++ {
-			addElementToTag(t, v[i])
-		}
-	case []*Component:
-		for i := 0; i < len(v); i++ {
-			addElementToTag(t, v[i])
-		}
-	case []*Tag:
-		for i := 0; i < len(v); i++ {
-			addElementToTag(t, v[i])
-		}
-	case []Componenter:
-		for i := 0; i < len(v); i++ {
-			addElementToTag(t, v[i])
-		}
-	case []Tagger:
-		for i := 0; i < len(v); i++ {
-			addElementToTag(t, v[i])
-		}
-	case []UniqueTagger:
-		for i := 0; i < len(v); i++ {
-			addElementToTag(t, v[i])
-		}
-	case []Attributer, Attributer, *Attribute, []*Attribute, Attrs:
+	// Attributes
+	case Attrs, *Attribute, Attributer, []Attributer, []*Attribute:
 		t.addAttributes(v)
+	// Singles
+	case nil:
+		return
 	case Class:
 		classes := strings.Split(string(v), " ")
 		for i := 0; i < len(classes); i++ {
@@ -426,7 +437,16 @@ func addElementToTag(t *Tag, v interface{}) {
 	case Style:
 		addStyle(t, v)
 	default:
-		t.addNodes(v)
+		if !IsNode(v) {
+			LoggerDev.Error().
+				Str("callers", CallerStackStr()).
+				Str("value", fmt.Sprintf("%#v", v)).
+				Msg("invalid element")
+
+			return
+		}
+
+		t.nodes.Group = append(t.nodes.Group, v)
 	}
 }
 

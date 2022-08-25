@@ -7,13 +7,7 @@ import (
 
 // Public errors
 var (
-	ErrRenderElement    = errors.New("attempted to render an unrecognised element")
-	ErrAttrValueCount   = errors.New("zero or one value allowed only")
-	ErrInvalidNode      = errors.New("variable is not a valid node")
-	ErrInvalidElement   = errors.New("variable is not a valid element")
-	ErrInvalidAttribute = errors.New("variable is not a valid attribute")
-	ErrRenderCtx        = errors.New("render not found in context")
-	ErrRenderCompCtx    = errors.New("component render not found in context")
+	ErrRenderElement = errors.New("attempted to render an unrecognised element")
 )
 
 // HLive special attributes

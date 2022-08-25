@@ -21,18 +21,18 @@ type AttributePluginer interface {
 }
 
 // Attrs is a helper for adding Attributes to nodes
-// You can update an existing Attribute by adding new Attrs, it;s also possible to pass a string by reference.
+// You can update an existing Attribute by adding new Attrs, it's also possible to pass a string by reference.
 // You can remove an Attribute by passing a nil value.
-type Attrs map[string]interface{}
+type Attrs map[string]any
 
-func (a Attrs) GetAttributes() []Attributer {
+func (a Attrs) GetAttributers() []Attributer {
 	newAttrs := make([]Attributer, 0, len(a))
 
 	for name, val := range a {
 		attr := NewAttribute(name)
 		switch v := val.(type) {
 		case string:
-			attr.SetValue(v)
+			attr.Value = &v
 		case *string:
 			attr.Value = v
 		}
@@ -62,7 +62,7 @@ type (
 // It allows you to override
 // All Styles are de-duped, overriding a Style by adding new Style will result in the old Style getting updated.
 // You don't have to use Style to add a style attribute, but it's the recommended way to do it.
-type Style map[string]interface{}
+type Style map[string]any
 
 // NewAttribute create a new Attribute
 func NewAttribute(name string, value ...string) *Attribute {
@@ -70,7 +70,8 @@ func NewAttribute(name string, value ...string) *Attribute {
 
 	if len(value) != 0 {
 		if len(value) != 1 {
-			panic(ErrAttrValueCount)
+			LoggerDev.Warn().Str("callers", CallerStackStr()).
+				Msg("Zero or one value only. Extra values discarded")
 		}
 
 		a.Value = &value[0]
@@ -132,7 +133,7 @@ func (a *Attribute) GetAttribute() *Attribute {
 	return a
 }
 
-func anyToAttributes(attrs ...interface{}) []Attributer {
+func anyToAttributes(attrs ...any) []Attributer {
 	var newAttrs []Attributer
 
 	for i := 0; i < len(attrs); i++ {
@@ -142,7 +143,7 @@ func anyToAttributes(attrs ...interface{}) []Attributer {
 
 		switch v := attrs[i].(type) {
 		case Attrs:
-			newAttrs = append(newAttrs, v.GetAttributes()...)
+			newAttrs = append(newAttrs, v.GetAttributers()...)
 		case Attributer:
 			newAttrs = append(newAttrs, v)
 		case []Attributer:
@@ -152,7 +153,12 @@ func anyToAttributes(attrs ...interface{}) []Attributer {
 				newAttrs = append(newAttrs, v[j])
 			}
 		default:
-			panic(ErrInvalidAttribute)
+			LoggerDev.Error().
+				Str("callers", CallerStackStr()).
+				Str("value", fmt.Sprintf("%#v", v)).
+				Msg("invalid attribute")
+
+			continue
 		}
 	}
 

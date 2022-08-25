@@ -33,10 +33,13 @@ func PreemptDisableOn(eb *l.EventBinding) *l.ElementGroup {
 		if adder, ok := e.Binding.Component.(l.Adder); ok {
 			adder.Add(l.Attrs{"disabled": ""})
 		} else {
-			// ???
+			l.LoggerDev.Error().Msg("PreemptDisableOn: bound Component must be an Adder")
 		}
+
 		// Call original handler
-		ogHandler(ctx, e)
+		if ogHandler != nil {
+			ogHandler(ctx, e)
+		}
 	}
 
 	return l.E(eb, sourceAttr)
@@ -45,14 +48,21 @@ func PreemptDisableOn(eb *l.EventBinding) *l.ElementGroup {
 type PreemptDisableAttribute struct {
 	*l.Attribute
 
-	page *l.Page
+	page     *l.Page
+	rendered bool
 }
 
 func (a *PreemptDisableAttribute) Initialize(page *l.Page) {
+	if a.rendered {
+		return
+	}
+
 	a.page = page
 	page.DOM.Head.Add(l.T("script", l.HTML(PreemptDisableOnClickJavaScript)))
 }
 
-func (a *PreemptDisableAttribute) InitializeSSR(_ *l.Page) {
-	// Nop
+func (a *PreemptDisableAttribute) InitializeSSR(page *l.Page) {
+	a.rendered = true
+	a.page = page
+	page.DOM.Head.Add(l.T("script", l.HTML(PreemptDisableOnClickJavaScript)))
 }

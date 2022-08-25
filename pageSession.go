@@ -2,7 +2,6 @@ package hlive
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -220,7 +219,9 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if sess == nil {
-			log.Println("HLive: WARN: session not found:", sessID)
+			Logger.Debug().Str("sessionID", sessID).
+				Str("callers", CallerStackStr()).
+				Msg("session not found")
 			w.WriteHeader(http.StatusNotFound)
 
 			return

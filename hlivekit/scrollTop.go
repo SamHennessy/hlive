@@ -14,7 +14,7 @@ var ScrollTopJavaScript []byte
 
 func ScrollTop(val int) l.Attributer {
 	attr := &ScrollTopAttribute{
-		l.NewAttribute(ScrollTopAttributeName, strconv.Itoa(val)),
+		Attribute: l.NewAttribute(ScrollTopAttributeName, strconv.Itoa(val)),
 	}
 
 	return attr
@@ -26,12 +26,19 @@ func ScrollTopRemove(tag l.Adder) {
 
 type ScrollTopAttribute struct {
 	*l.Attribute
+
+	rendered bool
 }
 
 func (a *ScrollTopAttribute) Initialize(page *l.Page) {
+	if a.rendered {
+		return
+	}
+
 	page.DOM.Head.Add(l.T("script", l.HTML(ScrollTopJavaScript)))
 }
 
 func (a *ScrollTopAttribute) InitializeSSR(page *l.Page) {
+	a.rendered = true
 	page.DOM.Head.Add(l.T("script", l.HTML(ScrollTopJavaScript)))
 }

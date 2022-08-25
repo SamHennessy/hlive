@@ -91,7 +91,7 @@ type errorMessages struct {
 	inputMap   map[string]inputValue
 }
 
-func (c *errorMessages) PubSubMount(pubSub *hlivekit.PubSub) {
+func (c *errorMessages) PubSubMount(_ context.Context, pubSub *hlivekit.PubSub) {
 	c.pubSub = pubSub
 
 	// Track input updates
@@ -167,7 +167,7 @@ type userForm struct {
 	pubSub    *hlivekit.PubSub
 }
 
-func (c *userForm) PubSubMount(pubSub *hlivekit.PubSub) {
+func (c *userForm) PubSubMount(_ context.Context, pubSub *hlivekit.PubSub) {
 	c.pubSub = pubSub
 
 	// If any errors, then we can't submit
@@ -217,7 +217,7 @@ type inputName struct {
 	firstChange bool
 }
 
-func (c *inputName) PubSubMount(pubSub *hlivekit.PubSub) {
+func (c *inputName) PubSubMount(_ context.Context, pubSub *hlivekit.PubSub) {
 	c.pubSub = pubSub
 
 	c.pubSub.Subscribe(hlivekit.NewSub(c.onFormValidate), pstFormValidate)
@@ -295,7 +295,7 @@ type inputEmail struct {
 	firstChange bool
 }
 
-func (c *inputEmail) PubSubMount(pubSub *hlivekit.PubSub) {
+func (c *inputEmail) PubSubMount(_ context.Context, pubSub *hlivekit.PubSub) {
 	c.pubSub = pubSub
 
 	c.pubSub.Subscribe(hlivekit.NewSub(c.onFormValidate), pstFormValidate)
@@ -377,7 +377,7 @@ type formOutput struct {
 	inputs map[string]inputValue
 }
 
-func (c *formOutput) PubSubMount(pubSub *hlivekit.PubSub) {
+func (c *formOutput) PubSubMount(_ context.Context, pubSub *hlivekit.PubSub) {
 	c.pubSub = pubSub
 
 	c.pubSub.Subscribe(hlivekit.NewSub(c.onValidInput), pstInputValid)

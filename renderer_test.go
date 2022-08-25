@@ -183,7 +183,7 @@ func TestRenderer_Attribute(t *testing.T) {
 
 			r := l.NewRenderer()
 			w := &bytes.Buffer{}
-			if err := r.Attribute(tt.attrs.GetAttributes(), w); (err != nil) != tt.wantErr {
+			if err := r.Attribute(tt.attrs.GetAttributers(), w); (err != nil) != tt.wantErr {
 				t.Errorf("Attribute() error = %v, wantErr %v", err, tt.wantErr)
 
 				return

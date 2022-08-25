@@ -32,38 +32,27 @@ func (list *ComponentListSimple) GetNodes() *l.NodeGroup {
 // Add an element to this ComponentListSimple.
 //
 // You can add Groups, UniqueTagger, EventBinding, or None Node Elements
-func (list *ComponentListSimple) Add(elements ...interface{}) {
+func (list *ComponentListSimple) Add(elements ...any) {
 	for i := 0; i < len(elements); i++ {
 		switch v := elements[i].(type) {
 		case *l.NodeGroup:
-			g := v.Get()
-			for j := 0; j < len(g); j++ {
-				list.Add(g[j])
-			}
+			list.Add(v.Group...)
 		case l.UniqueTagger:
-			list.AddItems(v)
-		case *l.EventBinding:
-			list.Component.Add(v)
+			list.Items = append(list.Items, v)
 		default:
 			if l.IsNonNodeElement(v) {
-				list.Tag.Add(v)
+				list.Component.Add(v)
 			} else {
-				panic(fmt.Errorf("ComponentListSimple.Add: element: %#v: %w", v, ErrInvalidListAdd))
+				l.LoggerDev.Warn().Str("callers", l.CallerStackStr()).
+					Str("element", fmt.Sprintf("%#v", v)).
+					Msg("invalid element type")
 			}
 		}
 	}
 }
 
 func (list *ComponentListSimple) AddItems(items ...l.UniqueTagger) {
-	for i := 0; i < len(items); i++ {
-		if !l.IsNode(items[i]) {
-			panic(fmt.Sprintf("component list: passed item is not a node: %v", items[i]))
-		}
-	}
-
-	for i := 0; i < len(items); i++ {
-		list.Items = append(list.Items, items[i])
-	}
+	list.Items = append(list.Items, items...)
 }
 
 func (list *ComponentListSimple) RemoveItems(items ...l.UniqueTagger) {

@@ -2,7 +2,7 @@ package hlive
 
 import (
 	"context"
-	"log"
+	"fmt"
 
 	"github.com/vmihailenco/msgpack/v5"
 )
@@ -90,12 +90,17 @@ func (g *NodeGroup) UnmarshalMsgpack(b []byte) error {
 
 func (g *NodeGroup) Add(nodes ...any) {
 	if g == nil {
+		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("nil call")
+
 		return
 	}
 
 	for i := 0; i < len(nodes); i++ {
 		if !IsNode(nodes[i]) {
-			log.Printf("HLive: ERROR: added a non-Node to a NodeGroup: %#v\n", nodes[i])
+			LoggerDev.Error().
+				Str("callers", CallerStackStr()).
+				Str("node", fmt.Sprintf("%#v", nodes[i])).
+				Msg("invalid node")
 
 			continue
 		}
@@ -106,6 +111,8 @@ func (g *NodeGroup) Add(nodes ...any) {
 
 func (g *NodeGroup) Get() []any {
 	if g == nil {
+		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("nil call")
+
 		return nil
 	}
 
@@ -128,40 +135,48 @@ func Elements(elements ...any) *ElementGroup {
 	return g
 }
 
+// TODO: add Msgpack support?
 // ElementGroup is a Group of Elements
 type ElementGroup struct {
-	list []any
+	Group []any
 }
 
 func (g *ElementGroup) Add(elements ...any) {
 	if g == nil {
+		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("nil call")
+
 		return
 	}
 
 	for i := 0; i < len(elements); i++ {
 		if !IsElement(elements[i]) {
-			log.Printf("HLive: ERROR: added a non-Element to an ElementGroup: %#v\n", elements[i])
+			LoggerDev.Error().
+				Str("callers", CallerStackStr()).
+				Str("element", fmt.Sprintf("%#v", elements[i])).
+				Msg("invalid element")
 
 			continue
 		}
 
-		g.list = append(g.list, elements[i])
+		g.Group = append(g.Group, elements[i])
 	}
 }
 
 func (g *ElementGroup) Get() []any {
 	if g == nil {
+		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("nil call")
+
 		return nil
 	}
 
-	return g.list
+	return g.Group
 }
 
 // Render will trigger a WebSocket render for the current page
 func Render(ctx context.Context) {
 	render, ok := ctx.Value(CtxRender).(func(context.Context))
 	if !ok {
-		log.Println("HLive: ERROR:", ErrRenderCtx)
+		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("render not found in context")
 
 		return
 	}
@@ -173,7 +188,7 @@ func Render(ctx context.Context) {
 func RenderComponent(ctx context.Context, comp Componenter) {
 	render, ok := ctx.Value(CtxRenderComponent).(func(context.Context, Componenter))
 	if !ok {
-		log.Println("HLive: ERROR:", ErrRenderCompCtx)
+		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("component render not found in context")
 
 		return
 	}

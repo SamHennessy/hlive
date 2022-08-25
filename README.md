@@ -534,15 +534,6 @@ Live views and components for golang
 
 ### API Change
 
-- Don't use a panic if a developer makes a mistake, this makes people uneasy
-  - Maybe a log message?
-  - "People in Go communities tend to get uncomfortable with libraries that panic or usage of variadic parameters to accept specific numbers of variables since the signature can't get as specific as the requirement." - https://www.reddit.com/r/golang/comments/w5v4oe/comment/ihbm7ut/?utm_source=share&utm_medium=web2x&context=3
-
-- You can't unregister client side JS
-  - On a page replace, we are registering the same JS over and over
-  - This can't be avoided
-  - We need to register client side JS code with a key to enable run-once
-
 - Add missing data from browser events, like:
   - https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent
   - https://developer.mozilla.org/en-US/docs/Web/API/PointerEvent
@@ -551,8 +542,6 @@ Live views and components for golang
 
 ### Bugs
 
-- Initial sync seems to be triggering when it shouldn't
-  - Maybe when the value attribute doesn't exist?
 - Need to reflect in the browser virtual DOM that a select option has become selected when a user selects it
   - So that we can reset the selection (e.g. move dropdowns)
 - Can read a POST but can't pass POST data to a render (display errors)
@@ -574,8 +563,6 @@ Live views and components for golang
 
 #### Performance
 
-- Remove the `data-` prefix from my attributes?
-  - No one else seems to care
 - Use binary for websocket
   - Skips UTF8 processing
   - Is this worth the trouble?
@@ -596,33 +583,11 @@ Live views and components for golang
 - Send config for debug, and log level down to client side
   - Set via an attribute
 
-- If we want to batch sends from the server I think be a problem with out-of-order changes.
-- Add a queue for incoming messages on a page session
-  - Maybe multiple concurrent requests is okay, maybe we just batch renders?
-- Use a channel with a single reader to process page events
-- Get rid of the `Page.treeLock` by using a channel?
-
-
-### Better SSR and CDN Support
-
-How to make pages CDN friendly? We want to allow data to be cached in the CDN but need to handle when the cached data is 
-stale. At this time, if there is a difference from the initial SRR and the web socket SRR the diff paths will be wrong. 
-
 #### Can we make a hash of a simplified DOM tree?
 
-- If so, will it be fast?
-- If yes, then we need to cache the rendered page
-- In the page, we need to add the hash to the web socket connection
 - If that page hash is not found in the cache then we need a fallback
-  - Delete all the DOM, from doc down
+  - Force a browser reload with a new hash?
 - Need a way to know that the version of HLive has changed, if so need a hard page reload and cache bypass 
-- This will also save an SSR on websocket connection as we can pull it from the cache
-- Allow multiple cache sources, and layer them with an in-memory and remote option.
-- Allow the cache to be used without CDN
-
-### Differ
-
-- Can you make pages static by setting differ JavaScript empty?
 
 #### Add support for Wails
 - would be a JS binding for reading incoming messages what just blocks when waiting for a message
@@ -643,13 +608,9 @@ stale. At this time, if there is a difference from the initial SRR and the web s
 
 - Need a way to test performance improvement ideas
 - Why are large tables of data slow to page?
-  - It's after to delete all the rows first
+  - It's faster to delete all the rows first
   - Can we add a way for a component like List to inform tree copy not to bother doing a diff and just do a full HTML replacement
-
-- Use a sequential number for component ids and event binding ids
-  - Would provide for smaller ids
-  - If we left the ID empty until page mount, then the page could assign the ID
-    - Does anything else look for it before then, like bindings?
+  - If we check for `hid` and they are different, then do an HTML replace
 
 ### Docs
 
@@ -671,7 +632,6 @@ stale. At this time, if there is a difference from the initial SRR and the web s
 - From the beginning tech intro - https://www.reddit.com/r/golang/comments/w5v4oe/comment/ihcm8i9/?utm_source=share&utm_medium=web2x&context=3
 - Page hooks
 
-
 ### Security
 
 - Add a CSRF token
@@ -685,6 +645,7 @@ stale. At this time, if there is a difference from the initial SRR and the web s
 - Allow adding mount and unmount function as elements?
 
 - Add support for "key" to allow better diff logic for lists
+  - Use `hid`
 
 - Add a `func() *l.NodeGroup` value
   - Reduce code count

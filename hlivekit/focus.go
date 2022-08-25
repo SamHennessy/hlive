@@ -13,7 +13,7 @@ var FocusJavaScript []byte
 
 func Focus() l.Attributer {
 	attr := &FocusAttribute{
-		l.NewAttribute(FocusAttributeName, ""),
+		Attribute: l.NewAttribute(FocusAttributeName, ""),
 	}
 
 	return attr
@@ -25,12 +25,19 @@ func FocusRemove(tag l.Adder) {
 
 type FocusAttribute struct {
 	*l.Attribute
+
+	rendered bool
 }
 
 func (a *FocusAttribute) Initialize(page *l.Page) {
+	if a.rendered {
+		return
+	}
+
 	page.DOM.Head.Add(l.T("script", l.HTML(FocusJavaScript)))
 }
 
 func (a *FocusAttribute) InitializeSSR(page *l.Page) {
+	a.rendered = true
 	page.DOM.Head.Add(l.T("script", l.HTML(FocusJavaScript)))
 }

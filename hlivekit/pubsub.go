@@ -42,10 +42,14 @@ func NewPubSub() *PubSub {
 
 func (ps *PubSub) Subscribe(sub QueueSubscriber, topics ...string) {
 	if len(topics) == 0 {
-		panic("no topics passed")
+		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("no topics passed")
+
+		return
 	}
 
 	if sub == nil {
+		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("sub nil")
+
 		return
 	}
 
@@ -67,10 +71,12 @@ func (ps *PubSub) SubscribeFunc(subFunc func(message QueueMessage), topics ...st
 
 func (ps *PubSub) Unsubscribe(sub QueueSubscriber, topics ...string) {
 	if len(topics) == 0 {
-		panic("no topics passed")
+		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("no topics passed")
 	}
 
 	if sub == nil {
+		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("sub when nil")
+
 		return
 	}
 
@@ -92,7 +98,7 @@ func (ps *PubSub) Unsubscribe(sub QueueSubscriber, topics ...string) {
 	}
 }
 
-func (ps *PubSub) Publish(topic string, value interface{}) {
+func (ps *PubSub) Publish(topic string, value any) {
 	item := QueueMessage{topic, value}
 	for i := 0; i < len(ps.subscribers[topic]); i++ {
 		ps.subscribers[topic][i].OnMessage(item)
@@ -168,14 +174,20 @@ type PubSubAttribute struct {
 	// Will memory leak is you don't use a Teardowner when deleting Components
 	mountedMap map[string]struct{}
 	lock       sync.Mutex
+	rendered   bool
 }
 
 func (a *PubSubAttribute) Initialize(page *hlive.Page) {
+	if a.rendered {
+		return
+	}
+
 	page.PipelineDiff.Add(a.PipelineProcessorPubSub())
 }
 
 func (a *PubSubAttribute) InitializeSSR(page *hlive.Page) {
-	// Nop
+	a.rendered = true
+	page.PipelineDiff.Add(a.PipelineProcessorPubSub())
 }
 
 // ComponentPubSub add PubSub to ComponentMountable
