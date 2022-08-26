@@ -83,8 +83,9 @@ func NewAttribute(name string, value ...string) *Attribute {
 // Attribute represents an HTML attribute e.g. id="submitBtn"
 type Attribute struct {
 	// Name must always be lowercase
-	Name  string
-	Value *string
+	Name           string
+	Value          *string
+	NoEscapeString bool
 }
 
 func (a *Attribute) MarshalMsgpack() ([]byte, error) {
@@ -120,7 +121,9 @@ func (a *Attribute) GetValue() string {
 // Clone creates a new Attribute using the data from this Attribute
 func (a *Attribute) Clone() *Attribute {
 	newA := NewAttribute(a.Name)
+	newA.NoEscapeString = a.NoEscapeString
 
+	// Copy the value only
 	if a.Value != nil {
 		val := *a.Value
 		newA.Value = &val

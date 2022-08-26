@@ -219,9 +219,11 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if sess == nil {
-			Logger.Debug().Str("sessionID", sessID).
-				Str("callers", CallerStackStr()).
-				Msg("session not found")
+			// Creates too much noise when restarting
+			// Logger.Debug().Str("sessionID", sessID).
+			//	Str("callers", CallerStackStr()).
+			//	Msg("session not found")
+
 			w.WriteHeader(http.StatusNotFound)
 
 			return

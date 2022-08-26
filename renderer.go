@@ -176,7 +176,8 @@ func (r *Renderer) HTML(w io.Writer, el any) error {
 				return err
 			}
 		}
-	case []interface{}:
+	// I don't think this is possible anymore
+	case []any:
 		if err := r.HTML(w, G(v...)); err != nil {
 			return err
 		}
@@ -195,18 +196,18 @@ func (r *Renderer) HTML(w io.Writer, el any) error {
 }
 
 // Attribute renders an Attribute to it's HTML string representation
-// While it's possible to have attributes without values it simplifies things if we always have a value
+// While it's possible to have HTML attributes without values it simplifies things if we always have a value
 func (r *Renderer) Attribute(attrs []Attributer, w io.Writer) error {
-	if len(attrs) == 0 {
-		return nil
-	}
-
 	for i := 0; i < len(attrs); i++ {
-		attrStr := fmt.Sprintf(` %s="%s"`,
-			attrs[i].GetAttribute().Name, html.EscapeString(attrs[i].GetAttribute().GetValue()))
-
-		if _, err := w.Write([]byte(attrStr)); err != nil {
-			return fmt.Errorf("write: %w", err)
+		attr := attrs[i].GetAttribute()
+		if attr.NoEscapeString {
+			if _, err := w.Write([]byte(fmt.Sprintf(` %s="%s"`, attr.Name, attr.GetValue()))); err != nil {
+				return fmt.Errorf("write: %w", err)
+			}
+		} else {
+			if _, err := w.Write([]byte(fmt.Sprintf(` %s="%s"`, attr.Name, html.EscapeString(attr.GetValue())))); err != nil {
+				return fmt.Errorf("write: %w", err)
+			}
 		}
 	}
 
@@ -218,8 +219,7 @@ func (r *Renderer) text(text string, w io.Writer) error {
 		return nil
 	}
 
-	_, err := w.Write([]byte(html.EscapeString(text)))
-	if err != nil {
+	if _, err := w.Write([]byte(html.EscapeString(text))); err != nil {
 		return fmt.Errorf("write to writer: %w", err)
 	}
 
