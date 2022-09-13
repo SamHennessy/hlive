@@ -46,6 +46,7 @@ func (a Attrs) GetAttributers() []Attributer {
 			// Nop
 		default:
 			LoggerDev.Warn().Str("value", fmt.Sprintf("%#v", val)).
+				Str("callers", CallerStackStr()).
 				Msg("Only string, *string, and nil are valid for Attr values")
 		}
 

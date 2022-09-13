@@ -602,6 +602,10 @@ func (p *Page) HookCloseAdd(hook func(context.Context, *Page)) {
 	p.hookClose = append(p.hookClose, hook)
 }
 
+func (p *Page) HookMountAdd(hook func(context.Context, *Page)) {
+	p.hookMount = append(p.hookMount, hook)
+}
+
 func (p *Page) HookUnmountAdd(hook func(context.Context, *Page)) {
 	p.hookUnmount = append(p.hookUnmount, hook)
 }
