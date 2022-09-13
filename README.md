@@ -532,6 +532,12 @@ Live views and components for golang
 
 ## TODO
 
+## v0.2.0
+
+- Race conditions in examples
+- Update docs based on API changes
+- Add SSR example
+
 ### API Change
 
 - Add missing data from browser events, like:

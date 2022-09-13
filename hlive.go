@@ -3,6 +3,7 @@ package hlive
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/vmihailenco/msgpack/v5"
 )
@@ -77,15 +78,22 @@ func Group(nodes ...any) *NodeGroup {
 
 // NodeGroup is a Group of Nodes
 type NodeGroup struct {
-	Group []any
+	group []any
+	mu    sync.RWMutex
 }
 
 func (g *NodeGroup) MarshalMsgpack() ([]byte, error) {
-	return msgpack.Marshal(g.Group) //nolint:wrapcheck
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	return msgpack.Marshal(g.group) //nolint:wrapcheck
 }
 
 func (g *NodeGroup) UnmarshalMsgpack(b []byte) error {
-	return msgpack.Unmarshal(b, &g.Group) //nolint:wrapcheck
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return msgpack.Unmarshal(b, &g.group) //nolint:wrapcheck
 }
 
 func (g *NodeGroup) Add(nodes ...any) {
@@ -94,6 +102,9 @@ func (g *NodeGroup) Add(nodes ...any) {
 
 		return
 	}
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	for i := 0; i < len(nodes); i++ {
 		if !IsNode(nodes[i]) {
@@ -105,7 +116,7 @@ func (g *NodeGroup) Add(nodes ...any) {
 			continue
 		}
 
-		g.Group = append(g.Group, nodes[i])
+		g.group = append(g.group, nodes[i])
 	}
 }
 
@@ -116,7 +127,10 @@ func (g *NodeGroup) Get() []any {
 		return nil
 	}
 
-	return g.Group
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	return append([]any{}, g.group...)
 }
 
 // E is shorthand for Elements.
@@ -138,7 +152,8 @@ func Elements(elements ...any) *ElementGroup {
 // TODO: add Msgpack support?
 // ElementGroup is a Group of Elements
 type ElementGroup struct {
-	Group []any
+	group []any
+	mu    sync.RWMutex
 }
 
 func (g *ElementGroup) Add(elements ...any) {
@@ -147,6 +162,9 @@ func (g *ElementGroup) Add(elements ...any) {
 
 		return
 	}
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	for i := 0; i < len(elements); i++ {
 		if !IsElement(elements[i]) {
@@ -158,7 +176,7 @@ func (g *ElementGroup) Add(elements ...any) {
 			continue
 		}
 
-		g.Group = append(g.Group, elements[i])
+		g.group = append(g.group, elements[i])
 	}
 }
 
@@ -169,7 +187,10 @@ func (g *ElementGroup) Get() []any {
 		return nil
 	}
 
-	return g.Group
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+
+	return g.group
 }
 
 // Render will trigger a WebSocket render for the current page

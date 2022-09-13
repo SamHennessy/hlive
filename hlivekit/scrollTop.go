@@ -35,10 +35,10 @@ func (a *ScrollTopAttribute) Initialize(page *l.Page) {
 		return
 	}
 
-	page.DOM.Head.Add(l.T("script", l.HTML(ScrollTopJavaScript)))
+	page.DOM().Head().Add(l.T("script", l.HTML(ScrollTopJavaScript)))
 }
 
 func (a *ScrollTopAttribute) InitializeSSR(page *l.Page) {
 	a.rendered = true
-	page.DOM.Head.Add(l.T("script", l.HTML(ScrollTopJavaScript)))
+	page.DOM().Head().Add(l.T("script", l.HTML(ScrollTopJavaScript)))
 }

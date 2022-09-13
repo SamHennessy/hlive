@@ -23,8 +23,8 @@ func main() {
 func home() *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.DOM.Title.Add("Preempt Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Title().Add("Preempt Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
 		var countWith int
 
@@ -55,7 +55,7 @@ func home() *l.PageServer {
 			}),
 		)
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("header",
 				l.T("h1", "Preempt - Client Side First Code"),
 				l.T("p", "Update the client side DOM before the server side."),

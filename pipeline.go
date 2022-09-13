@@ -22,6 +22,7 @@ type Pipeline struct {
 	processorMap map[string]*PipelineProcessor
 
 	onSimpleNodeCache []*PipelineProcessor
+	beforeWalkCache   []*PipelineProcessor
 	afterWalkCache    []*PipelineProcessor
 	beforeTaggerCache []*PipelineProcessor
 	afterTaggerCache  []*PipelineProcessor
@@ -47,6 +48,10 @@ func (p *Pipeline) Add(processors ...*PipelineProcessor) {
 
 		if processors[i].OnSimpleNode != nil {
 			p.onSimpleNodeCache = append(p.onSimpleNodeCache, processors[i])
+		}
+
+		if processors[i].BeforeWalk != nil {
+			p.beforeWalkCache = append(p.beforeWalkCache, processors[i])
 		}
 
 		if processors[i].AfterWalk != nil {
@@ -77,6 +82,7 @@ func (p *Pipeline) RemoveAll() {
 	p.processorMap = map[string]*PipelineProcessor{}
 
 	p.onSimpleNodeCache = nil
+	p.beforeWalkCache = nil
 	p.afterWalkCache = nil
 	p.beforeTaggerCache = nil
 	p.afterTaggerCache = nil
@@ -129,7 +135,7 @@ func (p *Pipeline) AddBefore(processorKey string, processors ...*PipelineProcess
 	p.Add(newProcessors...)
 }
 
-func (p *Pipeline) onSimpleNode(ctx context.Context, w io.Writer, node interface{}) (interface{}, error) {
+func (p *Pipeline) onSimpleNode(ctx context.Context, w io.Writer, node any) (any, error) {
 	for _, processor := range p.onSimpleNodeCache {
 		if processor.Disabled {
 			continue
@@ -155,6 +161,23 @@ func (p *Pipeline) afterWalk(ctx context.Context, w io.Writer, node *NodeGroup) 
 		newNode, err := processor.AfterWalk(ctx, w, node)
 		if err != nil {
 			return node, fmt.Errorf("afterWalk: %w", err)
+		}
+
+		node = newNode
+	}
+
+	return node, nil
+}
+
+func (p *Pipeline) beforeWalk(ctx context.Context, w io.Writer, node *NodeGroup) (*NodeGroup, error) {
+	for _, processor := range p.beforeWalkCache {
+		if processor.Disabled || processor.BeforeWalk == nil {
+			continue
+		}
+
+		newNode, err := processor.BeforeWalk(ctx, w, node)
+		if err != nil {
+			return node, fmt.Errorf("before: %w", err)
 		}
 
 		node = newNode
@@ -230,20 +253,24 @@ func (p *Pipeline) afterAttr(ctx context.Context, w io.Writer, attr Attributer) 
 }
 
 // Run all the steps
-func (p *Pipeline) run(ctx context.Context, w io.Writer, tree *NodeGroup) (*NodeGroup, error) {
-	newGroup := G()
-	list := tree.Get()
+func (p *Pipeline) run(ctx context.Context, w io.Writer, nodeGroup *NodeGroup) (*NodeGroup, error) {
+	nodeGroup, err := p.beforeWalk(ctx, w, nodeGroup)
+	if err != nil {
+		return nil, fmt.Errorf("run: beforeWalk: %w", err)
+	}
 
+	newGroup := G()
+	list := nodeGroup.Get()
 	for i := 0; i < len(list); i++ {
 		newNode, err := p.walk(ctx, w, list[i])
 		if err != nil {
-			return nil, fmt.Errorf("walk: %w", err)
+			return nil, fmt.Errorf("run: walk: %w", err)
 		}
 
 		newGroup.Add(newNode)
 	}
 
-	newGroup, err := p.afterWalk(ctx, w, newGroup)
+	newGroup, err = p.afterWalk(ctx, w, newGroup)
 	if err != nil {
 		return nil, fmt.Errorf("run full tree: %w", err)
 	}
@@ -297,7 +324,7 @@ func (p *Pipeline) walk(ctx context.Context, w io.Writer, node any) (any, error)
 				return nil, err
 			}
 
-			attr = oldAttrs[i].GetAttribute().Clone()
+			attr = oldAttrs[i].Clone()
 
 			attr, err = p.afterAttr(ctx, w, attr)
 			if err != nil {
@@ -326,7 +353,7 @@ func (p *Pipeline) walk(ctx context.Context, w io.Writer, node any) (any, error)
 
 		var (
 			list     = v.Get()
-			newGroup []interface{}
+			newGroup []any
 
 			thisNodeStr   string
 			thisNodeIsStr bool

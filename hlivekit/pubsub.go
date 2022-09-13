@@ -11,7 +11,7 @@ import (
 
 type QueueMessage struct {
 	Topic string
-	Value interface{}
+	Value any
 }
 
 type QueueSubscriber interface {
@@ -30,7 +30,7 @@ type PubSubSSRMounter interface {
 }
 
 type PubSub struct {
-	subsLock    sync.Mutex
+	mu          sync.RWMutex
 	subscribers map[string][]QueueSubscriber
 }
 
@@ -53,8 +53,8 @@ func (ps *PubSub) Subscribe(sub QueueSubscriber, topics ...string) {
 		return
 	}
 
-	ps.subsLock.Lock()
-	defer ps.subsLock.Unlock()
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
 
 	for i := 0; i < len(topics); i++ {
 		ps.subscribers[topics[i]] = append(ps.subscribers[topics[i]], sub)
@@ -80,8 +80,8 @@ func (ps *PubSub) Unsubscribe(sub QueueSubscriber, topics ...string) {
 		return
 	}
 
-	ps.subsLock.Lock()
-	defer ps.subsLock.Unlock()
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
 
 	for i := 0; i < len(topics); i++ {
 		var newList []QueueSubscriber
@@ -99,6 +99,9 @@ func (ps *PubSub) Unsubscribe(sub QueueSubscriber, topics ...string) {
 }
 
 func (ps *PubSub) Publish(topic string, value any) {
+	ps.mu.RLock()
+	defer ps.mu.RUnlock()
+
 	item := QueueMessage{topic, value}
 	for i := 0; i < len(ps.subscribers[topic]); i++ {
 		ps.subscribers[topic][i].OnMessage(item)
@@ -182,12 +185,12 @@ func (a *PubSubAttribute) Initialize(page *hlive.Page) {
 		return
 	}
 
-	page.PipelineDiff.Add(a.PipelineProcessorPubSub())
+	page.PipelineDiff().Add(a.PipelineProcessorPubSub())
 }
 
 func (a *PubSubAttribute) InitializeSSR(page *hlive.Page) {
 	a.rendered = true
-	page.PipelineDiff.Add(a.PipelineProcessorPubSub())
+	page.PipelineDiff().Add(a.PipelineProcessorPubSub())
 }
 
 // ComponentPubSub add PubSub to ComponentMountable
@@ -198,11 +201,11 @@ type ComponentPubSub struct {
 }
 
 // CPS is a shortcut for NewComponentPubSub
-func CPS(name string, elements ...interface{}) *ComponentPubSub {
+func CPS(name string, elements ...any) *ComponentPubSub {
 	return NewComponentPubSub(name, elements...)
 }
 
-func NewComponentPubSub(name string, elements ...interface{}) *ComponentPubSub {
+func NewComponentPubSub(name string, elements ...any) *ComponentPubSub {
 	return &ComponentPubSub{
 		ComponentMountable: hlive.NewComponentMountable(name, elements...),
 	}

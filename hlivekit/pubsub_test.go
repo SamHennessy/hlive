@@ -13,7 +13,7 @@ type testSubscriber struct {
 	id          string
 	called      bool
 	calledTopic string
-	calledValue interface{}
+	calledValue any
 	wait        sync.WaitGroup
 }
 

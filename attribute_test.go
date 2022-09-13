@@ -11,7 +11,7 @@ import (
 func TestAttribute_GetValueSetValue(t *testing.T) {
 	t.Parallel()
 
-	a := l.NewAttribute("foo")
+	a := l.NewAttributePtr("foo", nil)
 
 	if diff := deep.Equal("", a.GetValue()); diff != nil {
 		t.Error(diff)
@@ -27,11 +27,11 @@ func TestAttribute_GetValueSetValue(t *testing.T) {
 func TestAttribute_SetValueByReference(t *testing.T) {
 	t.Parallel()
 
-	a := l.NewAttribute("foo")
+	a := l.NewAttributePtr("foo", nil)
 
 	attrVal := "bar"
 
-	a.Value = &attrVal
+	a.SetValuePtr(&attrVal)
 
 	if diff := deep.Equal("bar", a.GetValue()); diff != nil {
 		t.Error(diff)
@@ -107,7 +107,7 @@ func TestAttribute_TagNewAttributeRemove(t *testing.T) {
 		t.Error(diff)
 	}
 
-	div.Add(l.NewAttribute("foo"))
+	div.Add(l.NewAttributePtr("foo", nil))
 
 	if diff := deep.Equal(0, len(div.GetAttributes())); diff != nil {
 		t.Error(diff)

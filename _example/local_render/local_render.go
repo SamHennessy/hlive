@@ -23,10 +23,10 @@ func home() *l.PageServer {
 		count := 0
 
 		page := l.NewPage()
-		page.DOM.Title.Add("Local GetNodes Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Title().Add("Local GetNodes Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("header",
 				l.T("h1", "Local Render"),
 				l.T("p", "By default, the whole page if checked for differance after an event. "+

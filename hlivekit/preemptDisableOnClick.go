@@ -58,11 +58,11 @@ func (a *PreemptDisableAttribute) Initialize(page *l.Page) {
 	}
 
 	a.page = page
-	page.DOM.Head.Add(l.T("script", l.HTML(PreemptDisableOnClickJavaScript)))
+	page.DOM().Head().Add(l.T("script", l.HTML(PreemptDisableOnClickJavaScript)))
 }
 
 func (a *PreemptDisableAttribute) InitializeSSR(page *l.Page) {
 	a.rendered = true
 	a.page = page
-	page.DOM.Head.Add(l.T("script", l.HTML(PreemptDisableOnClickJavaScript)))
+	page.DOM().Head().Add(l.T("script", l.HTML(PreemptDisableOnClickJavaScript)))
 }

@@ -38,16 +38,16 @@ select {
 func home() *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.DOM.Title.Add("Form Data Initial Sync Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
-		page.DOM.Head.Add(l.T("style", pageStyle))
+		page.DOM().Title().Add("Form Data Initial Sync Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Head().Add(l.T("style", pageStyle))
 
 		var (
 			formValsSync   [9]string
 			formValsNoSync [len(formValsSync)]string
 		)
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("header",
 				l.T("h1", "Form Data Initial Sync"),
 				l.T("p", "Some browsers, life FireFox, don't clear form field data after a page reload. "+

@@ -43,11 +43,11 @@ func home() func() *l.Page {
 		pubSub := hlivekit.NewPubSub()
 
 		page := l.NewPage()
-		page.DOM.HTML.Add(hlivekit.InstallPubSub(pubSub))
-		page.DOM.Title.Add("PubSub Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+		page.DOM().HTML().Add(hlivekit.InstallPubSub(pubSub))
+		page.DOM().Title().Add("PubSub Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("h1", "PubSub"),
 			l.T("blockquote", "Use the PubSub system to allow for decoupled components."),
 			l.T("hr"),
@@ -150,7 +150,7 @@ func (c *errorMessages) formatErrMessage() {
 
 // User form
 
-func newUserForm(nodes ...interface{}) *userForm {
+func newUserForm(nodes ...any) *userForm {
 	c := &userForm{
 		Component: l.C("form", nodes...),
 	}

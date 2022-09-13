@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"sync"
 
 	l "github.com/SamHennessy/hlive"
 	"github.com/SamHennessy/hlive/hlivekit"
@@ -22,10 +23,10 @@ func main() {
 func home() *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.DOM.Title.Add("To Do Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Title().Add("To Do Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("header",
 				l.T("h1", "To Do App Example"),
 				l.T("p", "A simple app where you can add and remove elements"),
@@ -46,6 +47,7 @@ type todoApp struct {
 	newTaskInput *l.Component
 	taskList     *hlivekit.ComponentList
 	tree         []l.Tagger
+	mu           sync.Mutex
 }
 
 func newTodoApp() *todoApp {
@@ -64,6 +66,9 @@ func (a *todoApp) initForm() {
 	a.newTaskInput = l.C("input", l.Attrs{"type": "text", "placeholder": "Task E.g: Buy Food, Walk dog, ..."})
 	a.newTaskInput.Add(
 		l.On("input", func(_ context.Context, e l.Event) {
+			a.mu.Lock()
+			defer a.mu.Unlock()
+
 			a.newTask = e.Value
 			// This is needed to allow us to clear the input on submit
 			// Without this there would be no difference in the tree to trigger a diff
@@ -72,7 +77,11 @@ func (a *todoApp) initForm() {
 	)
 
 	f := l.C("form",
+		l.PreventDefault(),
 		l.On("submit", func(ctx context.Context, _ l.Event) {
+			a.mu.Lock()
+			defer a.mu.Unlock()
+
 			a.addTask(a.newTask)
 			// Clear input
 			a.newTask = ""
@@ -102,7 +111,9 @@ func (a *todoApp) addTask(label string) {
 	labelInput := l.C("input",
 		l.Attrs{"type": "text", "value": &label},
 		l.On("keyup", func(_ context.Context, e l.Event) {
+			container.Tag.MU().Lock()
 			label = e.Value
+			container.Tag.MU().Unlock()
 		}),
 	)
 
@@ -110,7 +121,9 @@ func (a *todoApp) addTask(label string) {
 	// this input
 	labelInput.AutoRender = false
 
-	labelForm := l.C("form", l.Style{"display": "none"},
+	labelForm := l.C("form",
+		l.PreventDefault(),
+		l.Style{"display": "none"},
 		l.On("submit", func(_ context.Context, e l.Event) {
 			// You can get back to the bound component from the event
 			lf, ok := e.Binding.Component.(*l.Component)

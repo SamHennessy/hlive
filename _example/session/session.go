@@ -25,10 +25,10 @@ func main() {
 func home(s *service) *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.DOM.Title.Add("HTTP Session Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Title().Add("HTTP Session Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("header",
 				l.T("h1", "HTTP Session"),
 				l.T("p", "You can use middleware to implement a persistent session."),

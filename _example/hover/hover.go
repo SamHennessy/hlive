@@ -34,10 +34,10 @@ func home() *l.PageServer {
 		)
 
 		page := l.NewPage()
-		page.DOM.Title.Add("Hover Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Title().Add("Hover Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("header",
 				l.T("h1", "Hover"),
 				l.T("p", "React to hover events on the server"),

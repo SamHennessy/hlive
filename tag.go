@@ -37,7 +37,7 @@ type UniqueTagger interface {
 // Adder interface for inputting elements to Tagger type values.
 type Adder interface {
 	// Add elements to a Tagger
-	Add(elements ...interface{})
+	Add(elements ...any)
 }
 
 // UniqueAdder is an Adder that can be uniquely identified in a DOM Tree.
@@ -59,10 +59,17 @@ type Tag struct {
 	cssOrder    []string
 	styleValues map[string]*string
 	styleOrder  []string
-	lock        sync.RWMutex
+	mu          sync.RWMutex
+}
+
+func (t *Tag) MU() *sync.RWMutex {
+	return &t.mu
 }
 
 func (t *Tag) MarshalMsgpack() ([]byte, error) {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	attrs := make([]*Attribute, len(t.attributes))
 	for i := 0; i < len(t.attributes); i++ {
 		attrs[i], _ = t.attributes[i].(*Attribute)
@@ -81,6 +88,9 @@ func (t *Tag) MarshalMsgpack() ([]byte, error) {
 }
 
 func (t *Tag) UnmarshalMsgpack(b []byte) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	var values [8]any
 	err := msgpack.Unmarshal(b, &values)
 	if err != nil {
@@ -122,12 +132,12 @@ func (t *Tag) UnmarshalMsgpack(b []byte) error {
 // T is a shortcut for NewTag.
 //
 // NewTag creates a new Tag value.
-func T(name string, elements ...interface{}) *Tag {
+func T(name string, elements ...any) *Tag {
 	return NewTag(name, elements...)
 }
 
 // NewTag creates a new Tag value.
-func NewTag(name string, elements ...interface{}) *Tag {
+func NewTag(name string, elements ...any) *Tag {
 	name = strings.ToLower(name)
 
 	var void bool
@@ -158,32 +168,47 @@ func (t *Tag) IsNil() bool {
 
 // SetName sets the tag name, e.g. for a `<div>` it's the `div` part.
 func (t *Tag) SetName(name string) {
+	t.mu.Lock()
 	t.name = name
+	t.mu.Unlock()
 }
 
 // GetName get the tag name.
 func (t *Tag) GetName() string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	return t.name
 }
 
 // IsVoid indicates if this is a void type tag, e.g. `<hr>`.
 func (t *Tag) IsVoid() bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	return t.void
 }
 
 // SetVoid sets the tag to be a void type tag e.g. `<hr>`.
 func (t *Tag) SetVoid(void bool) {
+	t.mu.Lock()
 	t.void = void
+	t.mu.Unlock()
 }
 
 // GetAttributes returns a list of Attributer values that this tag has.
 //
 // Any Class, Style values are returned here as Attribute values.
 func (t *Tag) GetAttributes() []Attributer {
-	attrs := t.attributes
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	// Copy the slice
+	attrs := append([]Attributer{}, t.attributes...)
 
 	if len(t.cssOrder) != 0 {
-		attrs = append(attrs, NewAttribute("class", strings.Join(t.cssOrder, " ")))
+		val := strings.Join(t.cssOrder, " ")
+		attrs = append(attrs, NewAttribute("class", val))
 	}
 
 	if len(t.styleOrder) != 0 {
@@ -211,7 +236,7 @@ func (t *Tag) GetAttributes() []Attributer {
 func (t *Tag) GetAttribute(name string) Attributer {
 	attrs := t.GetAttributes()
 	for i := 0; i < len(attrs); i++ {
-		if attrs[i].GetAttribute().Name == name {
+		if attrs[i].GetName() == name {
 			return attrs[i]
 		}
 	}
@@ -228,48 +253,51 @@ func (t *Tag) GetAttributeValue(name string) string {
 		return ""
 	}
 
-	return a.GetAttribute().GetValue()
+	return a.GetValue()
 }
 
 // Add zero or more elements to this Tag.
-func (t *Tag) Add(element ...interface{}) {
+func (t *Tag) Add(element ...any) {
 	if t.IsNil() {
 		return
 	}
 
-	t.lock.Lock()
+	t.mu.Lock()
 	addElementToTag(t, element)
-	t.lock.Unlock()
+	t.mu.Unlock()
 }
 
 // GetNodes returns a NodeGroup with any child Nodes that have been added to this Node.
 func (t *Tag) GetNodes() *NodeGroup {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
 	return t.nodes
 }
 
 // AddAttributes will add zero or more attributes types (Attributer, Attribute, Attrs, Style, ClassBool).
 //
 // Adding an attribute with the same name will override an existing attribute.
-func (t *Tag) AddAttributes(attrs ...interface{}) {
+func (t *Tag) AddAttributes(attrs ...any) {
 	if t.IsNil() {
 		return
 	}
 
-	t.lock.Lock()
+	t.mu.Lock()
 	t.addAttributes(attrs...)
-	t.lock.Unlock()
+	t.mu.Unlock()
 }
 
-func (t *Tag) addAttributes(attrs ...interface{}) {
+func (t *Tag) addAttributes(attrs ...any) {
 	newAttributes := anyToAttributes(attrs...)
-	newAttrsCount := len(newAttributes)
-	for i := 0; i < newAttrsCount; i++ {
+	for i := 0; i < len(newAttributes); i++ {
 		hit := false
-
+		// Replace existing attribute?
 		for j := 0; j < len(t.attributes); j++ {
-			if t.attributes[j].GetAttribute().Name == newAttributes[i].GetAttribute().Name {
+			if t.attributes[j].GetName() == newAttributes[i].GetName() {
 				hit = true
-				t.attributes[j].GetAttribute().Value = newAttributes[i].GetAttribute().Value
+
+				t.attributes[j] = newAttributes[i]
 			}
 		}
 
@@ -279,8 +307,8 @@ func (t *Tag) addAttributes(attrs ...interface{}) {
 	}
 
 	for i := 0; i < len(t.attributes); i++ {
-		if t.attributes[i].GetAttribute().Value == nil {
-			t.removeAttributes(t.attributes[i].GetAttribute().Name)
+		if t.attributes[i].GetValuePtr() == nil {
+			t.removeAttributes(t.attributes[i].GetName())
 		}
 	}
 }
@@ -290,9 +318,9 @@ func (t *Tag) RemoveAttributes(names ...string) {
 		return
 	}
 
-	t.lock.Lock()
+	t.mu.Lock()
 	t.removeAttributes(names...)
-	t.lock.Unlock()
+	t.mu.Unlock()
 }
 
 // RemoveAttributes remove zero or more Attributer value by their name.
@@ -303,13 +331,8 @@ func (t *Tag) removeAttributes(names ...string) {
 		attr := t.attributes[j]
 		hit := false
 
-		// TODO: Why is this possible?
-		if attr == nil {
-			continue
-		}
-
 		for i := 0; i < len(names); i++ {
-			if names[i] == attr.GetAttribute().Name {
+			if names[i] == attr.GetName() {
 				hit = true
 
 				break
@@ -349,7 +372,7 @@ func addElementToTag(t *Tag, v any) {
 				continue
 			}
 
-			t.nodes.Group = append(t.nodes.Group, v[i])
+			t.nodes.group = append(t.nodes.group, v[i])
 		}
 	case []*Tag:
 		for i := 0; i < len(v); i++ {
@@ -357,7 +380,7 @@ func addElementToTag(t *Tag, v any) {
 				continue
 			}
 
-			t.nodes.Group = append(t.nodes.Group, v[i])
+			t.nodes.group = append(t.nodes.group, v[i])
 		}
 	case []Componenter:
 		for i := 0; i < len(v); i++ {
@@ -365,7 +388,7 @@ func addElementToTag(t *Tag, v any) {
 				continue
 			}
 
-			t.nodes.Group = append(t.nodes.Group, v[i])
+			t.nodes.group = append(t.nodes.group, v[i])
 		}
 	case []Tagger:
 		for i := 0; i < len(v); i++ {
@@ -373,7 +396,7 @@ func addElementToTag(t *Tag, v any) {
 				continue
 			}
 
-			t.nodes.Group = append(t.nodes.Group, v[i])
+			t.nodes.group = append(t.nodes.group, v[i])
 		}
 	case []UniqueTagger:
 		for i := 0; i < len(v); i++ {
@@ -381,24 +404,24 @@ func addElementToTag(t *Tag, v any) {
 				continue
 			}
 
-			t.nodes.Group = append(t.nodes.Group, v[i])
+			t.nodes.group = append(t.nodes.group, v[i])
 		}
 	case NodeGroup:
-		t.nodes.Group = append(t.nodes.Group, v.Group...)
+		t.nodes.group = append(t.nodes.group, v.group...)
 	case *NodeGroup:
 		if v == nil {
 			return
 		}
 
-		t.nodes.Group = append(t.nodes.Group, v.Group...)
+		t.nodes.group = append(t.nodes.group, v.group...)
 	case *ElementGroup:
 		if v == nil {
 			return
 		}
 
 		// I still want the above error checks
-		for i := 0; i < len(v.Group); i++ {
-			addElementToTag(t, v.Group[i])
+		for i := 0; i < len(v.group); i++ {
+			addElementToTag(t, v.group[i])
 		}
 	// Attributes
 	case Attrs, *Attribute, Attributer, []Attributer, []*Attribute:
@@ -446,7 +469,7 @@ func addElementToTag(t *Tag, v any) {
 			return
 		}
 
-		t.nodes.Group = append(t.nodes.Group, v)
+		t.nodes.group = append(t.nodes.group, v)
 	}
 }
 

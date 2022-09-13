@@ -88,13 +88,13 @@ func home() *l.PageServer {
 		}))
 
 		page := l.NewPage()
-		page.DOM.Title.Add("Animation Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
-		page.DOM.Head.Add(l.T("link",
+		page.DOM().Title().Add("Animation Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Head().Add(l.T("link",
 			l.Attrs{"rel": "stylesheet", "href": "https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css"}))
-		page.DOM.Head.Add(l.T("style", pageStyle))
+		page.DOM().Head().Add(l.T("style", pageStyle))
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("header",
 				l.T("h1", "CSS Animations"),
 				l.T("p", "We can wait for the CSS animation to end before starting the next one"),

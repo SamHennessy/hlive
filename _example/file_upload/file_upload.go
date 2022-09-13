@@ -29,8 +29,8 @@ func home() *l.PageServer {
 		)
 
 		page := l.NewPage()
-		page.DOM.Title.Add("File Upload Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Title().Add("File Upload Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
 		iframe := l.T("iframe", l.Style{"width": "100%", "height": "80vh"})
 
@@ -59,7 +59,7 @@ func home() *l.PageServer {
 			}),
 		)
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("header",
 				l.T("h1", "Upload"),
 				l.T("p", "Example of using the file upload features."),

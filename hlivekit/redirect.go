@@ -30,10 +30,10 @@ func (a *RedirectAttribute) Initialize(page *l.Page) {
 		return
 	}
 
-	page.DOM.Head.Add(l.T("script", l.HTML(RedirectJavaScript)))
+	page.DOM().Head().Add(l.T("script", l.HTML(RedirectJavaScript)))
 }
 
 func (a *RedirectAttribute) InitializeSSR(page *l.Page) {
 	a.rendered = true
-	page.DOM.Head.Add(l.T("script", l.HTML(RedirectJavaScript)))
+	page.DOM().Head().Add(l.T("script", l.HTML(RedirectJavaScript)))
 }

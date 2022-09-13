@@ -21,12 +21,12 @@ func main() {
 func home() func() *l.Page {
 	return func() *l.Page {
 		page := l.NewPage()
-		page.DOM.Title.Add("Click Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Title().Add("Click Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
 		var count int
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("header",
 				l.T("h1", "Click"),
 				l.T("p", "Click the button and see the count increase"),

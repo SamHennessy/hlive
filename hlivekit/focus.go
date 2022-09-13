@@ -34,10 +34,10 @@ func (a *FocusAttribute) Initialize(page *l.Page) {
 		return
 	}
 
-	page.DOM.Head.Add(l.T("script", l.HTML(FocusJavaScript)))
+	page.DOM().Head().Add(l.T("script", l.HTML(FocusJavaScript)))
 }
 
 func (a *FocusAttribute) InitializeSSR(page *l.Page) {
 	a.rendered = true
-	page.DOM.Head.Add(l.T("script", l.HTML(FocusJavaScript)))
+	page.DOM().Head().Add(l.T("script", l.HTML(FocusJavaScript)))
 }

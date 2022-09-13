@@ -45,7 +45,7 @@ func TestTag_AddNodeTypes(t *testing.T) {
 
 	tests := []struct {
 		name string
-		arg  interface{}
+		arg  any
 	}{
 		{"nil", nil},
 		{"string", "string"},
@@ -55,7 +55,7 @@ func TestTag_AddNodeTypes(t *testing.T) {
 		{"Tagger", &testTagger{}},
 		{"UniqueTagger", &testUniqueTagger{}},
 		{"Componenter", &testComponenter{}},
-		{"[]interface{}", []interface{}{}},
+		{"[]any", []any{}},
 		{"NodeGroup", l.G()},
 		{"[]*Tag", []*l.Tag{}},
 		{"[]Tagger", []l.Tagger{}},
@@ -105,9 +105,9 @@ func TestTag_AddElementTypes(t *testing.T) {
 
 	tests := []struct {
 		name string
-		arg  interface{}
+		arg  any
 	}{
-		{"*Attribute", l.NewAttribute("value")},
+		{"*Attribute", l.NewAttributePtr("value", nil)},
 		{"[]*Attribute", []*l.Attribute{}},
 		{"Attrs", l.Attrs{}},
 		{"ClassBool", l.ClassBool{}},

@@ -21,12 +21,12 @@ type ComponentList struct {
 }
 
 // List is a shortcut for NewComponentList.
-func List(name string, elements ...interface{}) *ComponentList {
+func List(name string, elements ...any) *ComponentList {
 	return NewComponentList(name, elements...)
 }
 
 // NewComponentList returns a value of ComponentList
-func NewComponentList(name string, elements ...interface{}) *ComponentList {
+func NewComponentList(name string, elements ...any) *ComponentList {
 	return &ComponentList{
 		ComponentListSimple: NewComponentListSimple(name, elements...),
 	}
@@ -35,7 +35,7 @@ func NewComponentList(name string, elements ...interface{}) *ComponentList {
 // Add an element to this Component.
 //
 // You can add Groups, Teardowner, EventBinding, or None Node Elements
-func (list *ComponentList) Add(elements ...interface{}) {
+func (list *ComponentList) Add(elements ...any) {
 	for i := 0; i < len(elements); i++ {
 		switch v := elements[i].(type) {
 		case *l.NodeGroup:
@@ -80,8 +80,8 @@ func (list *ComponentList) RemoveItems(items ...l.Teardowner) {
 
 // RemoveAllItems empties the list of items and calls Teardown on each of them.
 func (list *ComponentList) RemoveAllItems() {
-	for i := 0; i < len(list.ComponentListSimple.Items); i++ {
-		if td, ok := list.ComponentListSimple.Items[i].(l.Teardowner); ok {
+	for i := 0; i < len(list.ComponentListSimple.items); i++ {
+		if td, ok := list.ComponentListSimple.items[i].(l.Teardowner); ok {
 			td.Teardown()
 		}
 	}

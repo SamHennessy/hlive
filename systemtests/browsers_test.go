@@ -20,7 +20,7 @@ func TestBrowser_StringConcat(t *testing.T) {
 
 		page := l.NewPage()
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("div", l.Attrs{"id": "content"},
 				"The count is ", &count, ".",
 			),

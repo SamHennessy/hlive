@@ -199,13 +199,13 @@ func (r *Renderer) HTML(w io.Writer, el any) error {
 // While it's possible to have HTML attributes without values it simplifies things if we always have a value
 func (r *Renderer) Attribute(attrs []Attributer, w io.Writer) error {
 	for i := 0; i < len(attrs); i++ {
-		attr := attrs[i].GetAttribute()
-		if attr.NoEscapeString {
-			if _, err := w.Write([]byte(fmt.Sprintf(` %s="%s"`, attr.Name, attr.GetValue()))); err != nil {
+		attr := attrs[i]
+		if attr.IsNoEscapeString() {
+			if _, err := w.Write([]byte(fmt.Sprintf(` %s="%s"`, attr.GetName(), attr.GetValue()))); err != nil {
 				return fmt.Errorf("write: %w", err)
 			}
 		} else {
-			if _, err := w.Write([]byte(fmt.Sprintf(` %s="%s"`, attr.Name, html.EscapeString(attr.GetValue())))); err != nil {
+			if _, err := w.Write([]byte(fmt.Sprintf(` %s="%s"`, attr.GetName(), html.EscapeString(attr.GetValue())))); err != nil {
 				return fmt.Errorf("write: %w", err)
 			}
 		}

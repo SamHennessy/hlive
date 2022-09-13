@@ -42,10 +42,10 @@ func home() *l.PageServer {
 		)
 
 		page := l.NewPage()
-		page.DOM.Title.Add("Callback Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Title().Add("Callback Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("header",
 				l.T("h1", "Callback"),
 				l.T("p", "Get notified when a change has been applied in the browser"),

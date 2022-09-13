@@ -3,12 +3,19 @@ package hlive
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/vmihailenco/msgpack/v5"
 )
 
 type Attributer interface {
-	GetAttribute() *Attribute
+	GetName() string
+	GetValue() string
+	GetValuePtr() *string
+	SetValue(string)
+	SetValuePtr(*string)
+	IsNoEscapeString() bool
+	Clone() *Attribute
 }
 
 type AttributePluginer interface {
@@ -29,12 +36,17 @@ func (a Attrs) GetAttributers() []Attributer {
 	newAttrs := make([]Attributer, 0, len(a))
 
 	for name, val := range a {
-		attr := NewAttribute(name)
+		attr := NewAttributePtr(name, nil)
 		switch v := val.(type) {
 		case string:
-			attr.Value = &v
+			attr.SetValue(v)
 		case *string:
-			attr.Value = v
+			attr.SetValuePtr(v)
+		case nil:
+			// Nop
+		default:
+			LoggerDev.Warn().Str("value", fmt.Sprintf("%#v", val)).
+				Msg("Only string, *string, and nil are valid for Attr values")
 		}
 
 		newAttrs = append(newAttrs, attr)
@@ -65,71 +77,114 @@ type (
 type Style map[string]any
 
 // NewAttribute create a new Attribute
-func NewAttribute(name string, value ...string) *Attribute {
-	a := Attribute{Name: strings.ToLower(name)}
+func NewAttribute(name string, value string) *Attribute {
+	return NewAttributePtr(name, &value)
+}
 
-	if len(value) != 0 {
-		if len(value) != 1 {
-			LoggerDev.Warn().Str("callers", CallerStackStr()).
-				Msg("Zero or one value only. Extra values discarded")
-		}
-
-		a.Value = &value[0]
-	}
-
-	return &a
+// NewAttribute create a new Attribute
+func NewAttributePtr(name string, value *string) *Attribute {
+	return &Attribute{name: strings.ToLower(name), value: value}
 }
 
 // Attribute represents an HTML attribute e.g. id="submitBtn"
 type Attribute struct {
-	// Name must always be lowercase
-	Name           string
-	Value          *string
-	NoEscapeString bool
+	// name must always be lowercase
+	name           string
+	value          *string
+	noEscapeString bool
+	mu             sync.RWMutex
 }
 
 func (a *Attribute) MarshalMsgpack() ([]byte, error) {
-	return msgpack.Marshal([2]any{a.Name, a.Value})
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return msgpack.Marshal([2]any{a.name, a.value})
 }
 
 func (a *Attribute) UnmarshalMsgpack(b []byte) error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	var values [2]any
 	if err := msgpack.Unmarshal(b, &values); err != nil {
 		return fmt.Errorf("msgpack.Unmarshal: %w", err)
 	}
 
-	a.Name, _ = values[0].(string)
+	a.name, _ = values[0].(string)
 
 	val, _ := values[1].(string)
-	a.Value = &val
+	a.value = &val
 
 	return nil
 }
 
-func (a *Attribute) SetValue(value string) {
-	a.Value = &value
-}
-
-func (a *Attribute) GetValue() string {
-	if a == nil || a.Value == nil {
+func (a *Attribute) GetName() string {
+	if a == nil {
 		return ""
 	}
 
-	return *a.Value
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return a.name
+}
+
+func (a *Attribute) SetValue(value string) {
+	a.value = &value
+}
+
+func (a *Attribute) GetValue() string {
+	if a == nil || a.value == nil {
+		return ""
+	}
+
+	return *a.value
+}
+
+func (a *Attribute) SetValuePtr(value *string) {
+	a.value = value
+}
+
+func (a *Attribute) GetValuePtr() *string {
+	if a == nil || a.value == nil {
+		return nil
+	}
+
+	return a.value
 }
 
 // Clone creates a new Attribute using the data from this Attribute
 func (a *Attribute) Clone() *Attribute {
-	newA := NewAttribute(a.Name)
-	newA.NoEscapeString = a.NoEscapeString
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	newA := NewAttributePtr(a.name, nil)
+	newA.noEscapeString = a.noEscapeString
 
 	// Copy the value only
-	if a.Value != nil {
-		val := *a.Value
-		newA.Value = &val
+	if a.GetValuePtr() != nil {
+		val := a.GetValue()
+		newA.value = &val
 	}
 
 	return newA
+}
+
+func (a *Attribute) IsNoEscapeString() bool {
+	if a == nil {
+		return false
+	}
+
+	a.mu.RLock()
+	defer a.mu.RUnlock()
+
+	return a.noEscapeString
+}
+
+func (a *Attribute) SetNoEscapeString(noEscapeString bool) {
+	a.mu.Lock()
+	a.noEscapeString = noEscapeString
+	a.mu.Unlock()
 }
 
 func (a *Attribute) GetAttribute() *Attribute {

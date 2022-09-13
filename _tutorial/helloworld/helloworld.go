@@ -10,7 +10,7 @@ import (
 // Step 1
 func home() *l.Page {
 	page := l.NewPage()
-	page.DOM.Body.Add("Hello, world.")
+	page.DOM().Body().Add("Hello, world.")
 
 	return page
 }
@@ -26,9 +26,9 @@ func home() *l.Page {
 // 	}))
 //
 // 	page := l.NewPage()
-// 	page.DOM.Body.Add(l.NewTag("div", input))
-// 	page.DOM.Body.Add(l.T("hr"))
-// 	page.DOM.Body.Add("Hello, ", &message)
+// 	page.DOM().Body().Add(l.NewTag("div", input))
+// 	page.DOM().Body().Add(l.T("hr"))
+// 	page.DOM().Body().Add("Hello, ", &message)
 //
 // 	return page
 // }
@@ -45,7 +45,7 @@ func home() *l.Page {
 // 	)
 //
 // 	page := l.NewPage()
-// 	page.DOM.Body.Add(
+// 	page.DOM().Body().Add(
 // 		l.T("div", input),
 // 		l.T("hr"),
 // 		"Hello, ", &message,

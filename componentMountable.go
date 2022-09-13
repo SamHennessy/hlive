@@ -32,51 +32,85 @@ type Teardowner interface {
 type ComponentMountable struct {
 	*Component
 
-	MountFunc   func(ctx context.Context)
-	UnmountFunc func(ctx context.Context)
+	mountFunc   func(ctx context.Context)
+	unmountFunc func(ctx context.Context)
 	teardowns   []func()
 }
 
 // CM is a shortcut for NewComponentMountable
-func CM(name string, elements ...interface{}) *ComponentMountable {
+func CM(name string, elements ...any) *ComponentMountable {
 	return NewComponentMountable(name, elements...)
 }
 
-func NewComponentMountable(name string, elements ...interface{}) *ComponentMountable {
+func NewComponentMountable(name string, elements ...any) *ComponentMountable {
 	return &ComponentMountable{
 		Component: NewComponent(name, elements...),
 	}
 }
 
 func (c *ComponentMountable) Mount(ctx context.Context) {
-	if c.MountFunc != nil {
-		c.MountFunc(ctx)
+	if c == nil {
+		return
+	}
+
+	c.Tag.mu.RLock()
+	f := c.mountFunc
+	c.Tag.mu.RUnlock()
+
+	if f != nil {
+		f(ctx)
 	}
 }
 
 func (c *ComponentMountable) Unmount(ctx context.Context) {
-	if c.UnmountFunc != nil {
-		c.UnmountFunc(ctx)
+	if c == nil {
+		return
+	}
+
+	c.Tag.mu.RLock()
+	f := c.unmountFunc
+	c.Tag.mu.RUnlock()
+
+	if c.unmountFunc != nil {
+		f(ctx)
 	}
 }
 
+func (c *ComponentMountable) SetMount(mount func(ctx context.Context)) {
+	c.Tag.mu.Lock()
+	c.mountFunc = mount
+	c.Tag.mu.Unlock()
+}
+
+func (c *ComponentMountable) SetUnmount(unmount func(ctx context.Context)) {
+	c.Tag.mu.Lock()
+	c.unmountFunc = unmount
+	c.Tag.mu.Unlock()
+}
+
 func (c *ComponentMountable) AddTeardown(teardown func()) {
+	c.Tag.mu.Lock()
 	c.teardowns = append(c.teardowns, teardown)
+	c.Tag.mu.Unlock()
 }
 
 func (c *ComponentMountable) Teardown() {
-	for i := 0; i < len(c.teardowns); i++ {
-		c.teardowns[i]()
+	c.Tag.mu.RLock()
+	teardowns := c.teardowns
+	c.Tag.mu.RUnlock()
+
+	for i := 0; i < len(teardowns); i++ {
+		teardowns[i]()
 	}
 }
 
 // WM is a shortcut for WrapMountable.
-func WM(tag *Tag, elements ...interface{}) *ComponentMountable {
+func WM(tag *Tag, elements ...any) *ComponentMountable {
 	return WrapMountable(tag, elements...)
 }
 
 // WrapMountable takes a Tag and creates a Component with it.
-func WrapMountable(tag *Tag, elements ...interface{}) *ComponentMountable {
+func WrapMountable(tag *Tag, elements ...any) *ComponentMountable {
 	return &ComponentMountable{
 		Component: Wrap(tag, elements),
 	}

@@ -49,10 +49,10 @@ func (a *DiffApplyAttribute) Initialize(page *l.Page) {
 		return
 	}
 
-	page.DOM.Head.Add(l.T("script", l.HTML(DiffApplyScript)))
+	page.DOM().Head().Add(l.T("script", l.HTML(DiffApplyScript)))
 }
 
 func (a *DiffApplyAttribute) InitializeSSR(page *l.Page) {
 	a.rendered = true
-	page.DOM.Head.Add(l.T("script", l.HTML(DiffApplyScript)))
+	page.DOM().Head().Add(l.T("script", l.HTML(DiffApplyScript)))
 }

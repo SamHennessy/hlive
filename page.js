@@ -1,6 +1,6 @@
 let hlive = {
     debug: false,
-    reconnectLimit: 5,
+    reconnectLimit: 0,
     reconnectCount: 0,
     conn: null,
     initSyncDone: false,
@@ -491,7 +491,7 @@ hlive.onmessage = (evt) => {
 }
 
 hlive.onclose = (evt) => {
-    hlive.log("con: closed");
+    hlive.log("con: closed: "+ evt.reason + " ("+ evt.code+") Clean: "+ evt.wasClean);
 
     if (hlive.reconnectCount < hlive.reconnectLimit) {
         hlive.log("con: reconnect");

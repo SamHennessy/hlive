@@ -26,10 +26,10 @@ func main() {
 func home() *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
-		page.DOM.Title.Add("URL Params Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Title().Add("URL Params Example")
+		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.T("header",
 				l.T("h1", "URL Get Parameter Read Example"),
 				l.T("p", "This example reads the parameters from the URL and prints them in a table."),
@@ -52,7 +52,7 @@ func home() *l.PageServer {
 			cl,
 		)
 
-		cm.MountFunc = func(ctx context.Context) {
+		cm.mountFunc = func(ctx context.Context) {
 			for key, value := range urlParamsFromCtx(ctx) {
 				cl.AddItem(l.CM("tr",
 					l.T("td", key),
@@ -61,7 +61,7 @@ func home() *l.PageServer {
 			}
 		}
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			cm,
 			l.T("p", "You will see the extra 'hlive' parameter that HLive adds on when establishing a WebSocket connection."),
 		)

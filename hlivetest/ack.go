@@ -32,9 +32,9 @@ type ack struct {
 }
 
 func (a *ack) Initialize(page *l.Page) {
-	page.HookBeforeEvent = append(page.HookBeforeEvent, ackBeforeEvent)
-	page.HookAfterRender = append(page.HookAfterRender, ackAfterRender)
-	page.DOM.Head.Add(l.T("script", l.HTML(ackJavaScript)))
+	page.HookBeforeEventAdd(ackBeforeEvent)
+	page.HookAfterRenderAdd(ackAfterRender)
+	page.DOM().Head().Add(l.T("script", l.HTML(ackJavaScript)))
 }
 
 // Look in the extra data for ack id and add the value to the context if found

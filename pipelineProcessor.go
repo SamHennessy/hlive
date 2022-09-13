@@ -23,7 +23,7 @@ type PipelineProcessor struct {
 	// Will replace an existing processor with the same key. An empty string won't error.
 	Key             string
 	Disabled        bool
-	BeforeWalk      PipeNodeHandler
+	BeforeWalk      PipeNodegroupHandler
 	OnSimpleNode    PipeNodeHandler
 	BeforeTagger    PipeTaggerHandler
 	BeforeAttribute PipeAttributerHandler
@@ -39,19 +39,12 @@ func NewPipelineProcessor(key string) *PipelineProcessor {
 func PipelineProcessorEventBindingCache(cache *hashmap.HashMap) *PipelineProcessor {
 	pp := NewPipelineProcessor(PipelineProcessorKeyEventBindingCache)
 
-	pp.BeforeWalk = func(ctx context.Context, w io.Writer, node interface{}) (interface{}, error) {
-		// TODO: test this works
-		*cache = *hashmap.New(10)
-
-		return node, nil
-	}
-
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag Tagger) (Tagger, error) {
 		if comp, ok := tag.(Componenter); ok {
 			bindings := comp.GetEventBindings()
 
 			for i := 0; i < len(bindings); i++ {
-				cache.Insert(bindings[i].ID, bindings[i])
+				cache.Set(bindings[i].ID, bindings[i])
 			}
 		}
 
@@ -84,7 +77,7 @@ func PipelineProcessorMount() *PipelineProcessor {
 func PipelineProcessorUnmount(page *Page) *PipelineProcessor {
 	cache := hashmap.HashMap{}
 
-	page.HookClose = append(page.HookClose, func(ctx context.Context, page *Page) {
+	page.hookClose = append(page.hookClose, func(ctx context.Context, page *Page) {
 		for keyVal := range cache.Iter() {
 			c, _ := keyVal.Value.(Unmounter)
 
@@ -268,7 +261,7 @@ func PipelineProcessorAttributePluginMount(page *Page) *PipelineProcessor {
 	pp.BeforeAttribute = func(ctx context.Context, w io.Writer, attr Attributer) (Attributer, error) {
 		var err error
 		if ap, ok := attr.(AttributePluginer); ok {
-			if set := cache.Insert(ap.GetAttribute().Name, nil); set {
+			if set := cache.Insert(ap.GetName(), nil); set {
 				ap.Initialize(page)
 
 				err = ErrDOMInvalidated
@@ -289,7 +282,7 @@ func PipelineProcessorAttributePluginMountSSR(page *Page) *PipelineProcessor {
 	pp.BeforeAttribute = func(ctx context.Context, w io.Writer, attr Attributer) (Attributer, error) {
 		var err error
 		if ap, ok := attr.(AttributePluginer); ok {
-			if _, loaded := cache.GetOrInsert(ap.GetAttribute().Name, nil); !loaded {
+			if _, loaded := cache.GetOrInsert(ap.GetName(), nil); !loaded {
 				ap.InitializeSSR(page)
 
 				err = ErrDOMInvalidated

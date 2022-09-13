@@ -25,7 +25,7 @@ func addAck(pageFn func() *l.Page) func() *l.Page {
 	return func() *l.Page {
 		p := pageFn()
 
-		p.DOM.HTML.Add(Ack())
+		p.DOM().HTML().Add(Ack())
 
 		return p
 	}
