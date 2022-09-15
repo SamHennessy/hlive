@@ -64,6 +64,27 @@ func (ps *PubSub) Subscribe(sub QueueSubscriber, topics ...string) {
 	}()
 }
 
+func (ps *PubSub) SubscribeWait(sub QueueSubscriber, topics ...string) {
+	if len(topics) == 0 {
+		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("no topics passed")
+
+		return
+	}
+
+	if sub == nil {
+		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("sub nil")
+
+		return
+	}
+
+	ps.mu.Lock()
+	defer ps.mu.Unlock()
+
+	for i := 0; i < len(topics); i++ {
+		ps.subscribers[topics[i]] = append(ps.subscribers[topics[i]], sub)
+	}
+}
+
 func (ps *PubSub) SubscribeFunc(subFunc func(message QueueMessage), topics ...string) SubscribeFunc {
 	sub := NewSub(subFunc)
 
@@ -72,7 +93,7 @@ func (ps *PubSub) SubscribeFunc(subFunc func(message QueueMessage), topics ...st
 	return sub
 }
 
-func (ps *PubSub) Unsubscribe(sub QueueSubscriber, topics ...string) {
+func (ps *PubSub) UnsubscribeWait(sub QueueSubscriber, topics ...string) {
 	if len(topics) == 0 {
 		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("no topics passed")
 	}
@@ -99,6 +120,37 @@ func (ps *PubSub) Unsubscribe(sub QueueSubscriber, topics ...string) {
 
 		ps.subscribers[topics[i]] = newList
 	}
+}
+
+func (ps *PubSub) Unsubscribe(sub QueueSubscriber, topics ...string) {
+	if len(topics) == 0 {
+		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("no topics passed")
+	}
+
+	if sub == nil {
+		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("sub when nil")
+
+		return
+	}
+
+	go func() {
+		ps.mu.Lock()
+		defer ps.mu.Unlock()
+
+		for i := 0; i < len(topics); i++ {
+			var newList []QueueSubscriber
+
+			for j := 0; j < len(ps.subscribers[topics[i]]); j++ {
+				if ps.subscribers[topics[i]][j].GetID() == sub.GetID() {
+					continue
+				}
+
+				newList = append(newList, ps.subscribers[topics[i]][j])
+			}
+
+			ps.subscribers[topics[i]] = newList
+		}
+	}()
 }
 
 func (ps *PubSub) Publish(topic string, value any) {
