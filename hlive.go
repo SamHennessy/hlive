@@ -120,6 +120,7 @@ func (g *NodeGroup) Add(nodes ...any) {
 	}
 }
 
+// Get returns all nodes, dereferences any valid pointers
 func (g *NodeGroup) Get() []any {
 	if g == nil {
 		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("nil call")
@@ -130,7 +131,109 @@ func (g *NodeGroup) Get() []any {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	return append([]any{}, g.group...)
+	var newGroup []any
+
+	for i := 0; i < len(g.group); i++ {
+		val := deRef(g.group[i])
+		if val != nil {
+			newGroup = append(newGroup, val)
+		}
+	}
+
+	return newGroup
+}
+
+func deRef(val any) any {
+	switch v := val.(type) {
+	case *string:
+		if v == nil || *v == "" {
+			return nil
+		}
+
+		return *v
+	case *int:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *int16:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *int8:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *int32:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *int64:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *uint:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *uint8:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *uint16:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *uint32:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *uint64:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *float32:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *float64:
+		if v == nil {
+			return nil
+		}
+
+		return *v
+	case *HTML:
+		if v == nil {
+			return nil
+		}
+
+		b := *v
+
+		return &b
+	}
+
+	return val
 }
 
 // E is shorthand for Elements.
@@ -149,8 +252,8 @@ func Elements(elements ...any) *ElementGroup {
 	return g
 }
 
-// TODO: add Msgpack support?
 // ElementGroup is a Group of Elements
+// TODO: add Msgpack support
 type ElementGroup struct {
 	group []any
 	mu    sync.RWMutex
@@ -190,7 +293,16 @@ func (g *ElementGroup) Get() []any {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
-	return g.group
+	var newGroup []any
+
+	for i := 0; i < len(g.group); i++ {
+		val := deRef(g.group[i])
+		if val != nil {
+			newGroup = append(newGroup, val)
+		}
+	}
+
+	return newGroup
 }
 
 // Render will trigger a WebSocket render for the current page

@@ -550,6 +550,9 @@ func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 }
 
 func (p *Page) GetBrowserNodeByID(id string) *Tag {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	return p.findComponent(id, p.domBrowser)
 }
 

@@ -128,90 +128,12 @@ func PipelineProcessorConvertToString() *PipelineProcessor {
 		switch v := node.(type) {
 		case nil:
 			return nil, nil
-		case *string:
-			if v == nil || *v == "" {
-				return nil, nil
-			}
-
-			return *v, nil
 		case string:
 			if v == "" {
 				return nil, nil
 			}
 
 			return v, nil
-		case *int:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.Itoa(*v), nil
-		case *int16:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.FormatInt(int64(*v), base10), nil
-		case *int8:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.FormatInt(int64(*v), base10), nil
-		case *int32:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.FormatInt(int64(*v), base10), nil
-		case *int64:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.FormatInt(*v, base10), nil
-		case *uint:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.FormatUint(uint64(*v), base10), nil
-		case *uint8:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.FormatUint(uint64(*v), base10), nil
-		case *uint16:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.FormatUint(uint64(*v), base10), nil
-		case *uint32:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.FormatUint(uint64(*v), base10), nil
-		case *uint64:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.FormatUint(*v, base10), nil
-		case *float32:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.FormatFloat(float64(*v), 'f', -1, bit32), nil
-		case *float64:
-			if v == nil {
-				return nil, nil
-			}
-
-			return strconv.FormatFloat(*v, 'f', -1, bit64), nil
 		case int:
 			return strconv.Itoa(v), nil
 		case int64:
@@ -236,12 +158,6 @@ func PipelineProcessorConvertToString() *PipelineProcessor {
 			return strconv.FormatUint(uint64(v), base10), nil
 		case uint32:
 			return strconv.FormatUint(uint64(v), base10), nil
-		case *HTML:
-			if v == nil || *v == "" {
-				return nil, nil
-			}
-
-			return v, nil
 		// HTML need to be a pointer to allow for msgpack to keep its type
 		case HTML:
 			return &v, nil

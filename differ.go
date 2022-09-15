@@ -347,7 +347,7 @@ func diffCreate(compID, path string, el any) []Diff {
 	case nil:
 		return nil
 	default:
-		panic(fmt.Errorf("unexpected type: %v", el))
+		panic(fmt.Errorf("unexpected type: %#v", el))
 	}
 }
 

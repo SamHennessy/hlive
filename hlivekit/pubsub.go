@@ -53,12 +53,15 @@ func (ps *PubSub) Subscribe(sub QueueSubscriber, topics ...string) {
 		return
 	}
 
-	ps.mu.Lock()
-	defer ps.mu.Unlock()
+	// A Publish can trigger a Subscribe. Subscribe will be added after the Publish
+	go func() {
+		ps.mu.Lock()
+		defer ps.mu.Unlock()
 
-	for i := 0; i < len(topics); i++ {
-		ps.subscribers[topics[i]] = append(ps.subscribers[topics[i]], sub)
-	}
+		for i := 0; i < len(topics); i++ {
+			ps.subscribers[topics[i]] = append(ps.subscribers[topics[i]], sub)
+		}
+	}()
 }
 
 func (ps *PubSub) SubscribeFunc(subFunc func(message QueueMessage), topics ...string) SubscribeFunc {
@@ -99,6 +102,7 @@ func (ps *PubSub) Unsubscribe(sub QueueSubscriber, topics ...string) {
 }
 
 func (ps *PubSub) Publish(topic string, value any) {
+	// Multiple Publish calls can run concurrently
 	ps.mu.RLock()
 	defer ps.mu.RUnlock()
 

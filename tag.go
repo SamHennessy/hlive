@@ -272,7 +272,7 @@ func (t *Tag) GetNodes() *NodeGroup {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	return t.nodes
+	return G(t.nodes.Get()...)
 }
 
 // AddAttributes will add zero or more attributes types (Attributer, Attribute, Attrs, Style, ClassBool).

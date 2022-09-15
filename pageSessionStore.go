@@ -63,7 +63,7 @@ func (pss *PageSessionStore) Get(id string) *PageSession {
 
 func (pss *PageSessionStore) mapAdd(ps *PageSession) {
 	pss.sessions.Set(ps.id, ps)
-	atomic.StoreUint32(&pss.sessionCount, pss.sessionCount+1)
+	atomic.AddUint32(&pss.sessionCount, 1)
 }
 
 func (pss *PageSessionStore) mapGet(id string) *PageSession {
@@ -76,7 +76,7 @@ func (pss *PageSessionStore) mapGet(id string) *PageSession {
 func (pss *PageSessionStore) mapDelete(id string) {
 	if _, exists := pss.sessions.GetStringKey(id); exists {
 		pss.sessions.Del(id)
-		atomic.StoreUint32(&pss.sessionCount, pss.sessionCount-1)
+		atomic.AddUint32(&pss.sessionCount, ^uint32(0))
 	}
 }
 
@@ -98,8 +98,9 @@ func (pss *PageSessionStore) GarbageCollection() {
 				}
 
 				// Keep until it exceeds the timeout
-				// TODO: race?
+				sess.muSess.RLock()
 				la := sess.lastActive
+				sess.muSess.RUnlock()
 
 				if now.Sub(la) > pss.DisconnectTimeout {
 					if sess.page != nil {
@@ -132,5 +133,5 @@ func (pss *PageSessionStore) Delete(id string) {
 }
 
 func (pss *PageSessionStore) GetSessionCount() int {
-	return int(pss.sessionCount)
+	return int(atomic.LoadUint32(&pss.sessionCount))
 }
