@@ -18,7 +18,7 @@ func PreventDefault() *PreventDefaultAttribute {
 }
 
 func PreventDefaultRemove(tag Adder) {
-	tag.Add(Attrs{PreventDefaultAttributeName: nil})
+	tag.Add(AttrsOff{PreventDefaultAttributeName})
 }
 
 type PreventDefaultAttribute struct {

@@ -16,17 +16,19 @@ func TestBrowser_StringConcat(t *testing.T) {
 	t.Parallel()
 
 	pageFn := func() *l.Page {
-		var count int
+		count := l.Box(0)
 
 		page := l.NewPage()
 
 		page.DOM().Body().Add(
 			l.T("div", l.Attrs{"id": "content"},
-				"The count is ", &count, ".",
+				"The count is ", count, ".",
 			),
 			l.C("button", l.Attrs{"id": "btn"}, "Click Me",
 				l.On("click", func(ctx context.Context, e l.Event) {
-					count++
+					count.Lock(func(v int) int {
+						return v + 1
+					})
 				})),
 		)
 

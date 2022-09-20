@@ -57,13 +57,9 @@ type Tag struct {
 	nodes       *NodeGroup
 	cssExists   map[string]bool
 	cssOrder    []string
-	styleValues map[string]*string
+	styleValues map[string]*LockBox[string]
 	styleOrder  []string
 	mu          sync.RWMutex
-}
-
-func (t *Tag) MU() *sync.RWMutex {
-	return &t.mu
 }
 
 func (t *Tag) MarshalMsgpack() ([]byte, error) {
@@ -75,6 +71,11 @@ func (t *Tag) MarshalMsgpack() ([]byte, error) {
 		attrs[i], _ = t.attributes[i].(*Attribute)
 	}
 
+	styleValues := make([]string, 0, len(t.styleValues))
+	for _, l := range t.styleValues {
+		styleValues = append(styleValues, l.Get())
+	}
+
 	return msgpack.Marshal([8]any{ //nolint:wrapcheck
 		t.name,
 		t.void,
@@ -82,7 +83,7 @@ func (t *Tag) MarshalMsgpack() ([]byte, error) {
 		t.nodes,
 		t.cssExists, // TODO: get from cssOrder
 		t.cssOrder,
-		t.styleValues,
+		styleValues,
 		t.styleOrder,
 	})
 }
@@ -117,13 +118,15 @@ func (t *Tag) UnmarshalMsgpack(b []byte) error {
 		t.cssOrder, _ = values[5].([]string)
 	}
 
-	styles, _ := values[6].(map[string]any)
-	for key, val := range styles {
-		t.styleValues[key], _ = val.(*string)
-	}
-
-	if values[7] != nil {
+	if values[6] != nil && values[7] != nil {
+		styles, _ := values[6].([]string)
 		t.styleOrder, _ = values[7].([]string)
+
+		if len(styles) == len(t.styleOrder) {
+			for i := 0; i < len(styles); i++ {
+				t.styleValues[t.styleOrder[i]] = NewLockBox(styles[i])
+			}
+		}
 	}
 
 	return nil
@@ -152,7 +155,7 @@ func NewTag(name string, elements ...any) *Tag {
 		name:        name,
 		void:        void,
 		cssExists:   map[string]bool{},
-		styleValues: map[string]*string{},
+		styleValues: map[string]*LockBox[string]{},
 		nodes:       G(),
 	}
 
@@ -220,7 +223,7 @@ func (t *Tag) GetAttributes() []Attributer {
 				continue
 			}
 
-			value += name + ":" + *t.styleValues[name] + ";"
+			value += name + ":" + t.styleValues[name].Get() + ";"
 		}
 
 		attrs = append(attrs, NewAttribute("style", value))
@@ -305,12 +308,6 @@ func (t *Tag) addAttributes(attrs ...any) {
 			t.attributes = append(t.attributes, newAttributes[i])
 		}
 	}
-
-	for i := 0; i < len(t.attributes); i++ {
-		if t.attributes[i].GetValuePtr() == nil {
-			t.removeAttributes(t.attributes[i].GetName())
-		}
-	}
 }
 
 func (t *Tag) RemoveAttributes(names ...string) {
@@ -360,71 +357,48 @@ func addElementToTag(t *Tag, v any) {
 	// Groups
 	case []any:
 		for i := 0; i < len(v); i++ {
-			if v == nil {
-				continue
-			}
-
 			addElementToTag(t, v[i])
 		}
 	case []*Component:
+		t.nodes.mu.Lock()
 		for i := 0; i < len(v); i++ {
-			if v == nil {
-				continue
-			}
-
 			t.nodes.group = append(t.nodes.group, v[i])
 		}
+		t.nodes.mu.Unlock()
 	case []*Tag:
+		t.nodes.mu.Lock()
 		for i := 0; i < len(v); i++ {
-			if v == nil {
-				continue
-			}
-
 			t.nodes.group = append(t.nodes.group, v[i])
 		}
+		t.nodes.mu.Unlock()
 	case []Componenter:
+		t.nodes.mu.Lock()
 		for i := 0; i < len(v); i++ {
-			if v == nil {
-				continue
-			}
-
 			t.nodes.group = append(t.nodes.group, v[i])
 		}
+		t.nodes.mu.Unlock()
 	case []Tagger:
+		t.nodes.mu.Lock()
 		for i := 0; i < len(v); i++ {
-			if v == nil {
-				continue
-			}
-
 			t.nodes.group = append(t.nodes.group, v[i])
 		}
+		t.nodes.mu.Unlock()
 	case []UniqueTagger:
+		t.nodes.mu.Lock()
 		for i := 0; i < len(v); i++ {
-			if v == nil {
-				continue
-			}
-
 			t.nodes.group = append(t.nodes.group, v[i])
 		}
-	case NodeGroup:
-		t.nodes.group = append(t.nodes.group, v.group...)
+		t.nodes.mu.Unlock()
 	case *NodeGroup:
-		if v == nil {
-			return
-		}
-
-		t.nodes.group = append(t.nodes.group, v.group...)
+		t.nodes.Add(v)
 	case *ElementGroup:
-		if v == nil {
-			return
-		}
-
-		// I still want the above error checks
 		for i := 0; i < len(v.group); i++ {
 			addElementToTag(t, v.group[i])
 		}
 	// Attributes
-	case Attrs, *Attribute, Attributer, []Attributer, []*Attribute:
+	case AttrsOff:
+		t.removeAttributes(v...)
+	case Attrs, AttrsLockBox, *Attribute, Attributer, []Attributer, []*Attribute:
 		t.addAttributes(v)
 	// Singles
 	case nil:
@@ -459,65 +433,50 @@ func addElementToTag(t *Tag, v any) {
 		addCSS(t, v)
 	case Style:
 		addStyle(t, v)
+	case StyleLockBox:
+		addStyleLockBox(t, v)
+	case StyleOff:
+		removeStyle(t, v)
 	default:
-		if !IsNode(v) {
-			LoggerDev.Error().
-				Str("callers", CallerStackStr()).
-				Str("value", fmt.Sprintf("%#v", v)).
-				Msg("invalid element")
-
-			return
-		}
-
-		t.nodes.group = append(t.nodes.group, v)
+		t.nodes.Add(v)
 	}
 }
 
-func addStyle(t *Tag, v Style) {
-	removeList := map[string]bool{}
-
-	for name, value := range v {
-		if _, exists := t.styleValues[name]; exists {
-			if value == nil {
-				removeList[name] = true
-			} else {
-				strP, ok := value.(*string)
-				if ok {
-					t.styleValues[name] = strP
-				} else {
-					str, _ := value.(string)
-					t.styleValues[name] = &str
-				}
-			}
-		} else if value != nil {
-			removeList[name] = false
-
-			strP, ok := value.(*string)
-			if ok {
-				t.styleValues[name] = strP
-			} else {
-				str, _ := value.(string)
-				t.styleValues[name] = &str
-			}
-
+func addStyle(t *Tag, styleMap Style) {
+	for name, value := range styleMap {
+		if lockBox, exists := t.styleValues[name]; exists {
+			lockBox.Set(value)
+		} else {
+			t.styleValues[name] = NewLockBox(value)
 			t.styleOrder = append(t.styleOrder, name)
 		}
 	}
+}
 
-	var newNames []string
-
-	for i := 0; i < len(t.styleOrder); i++ {
-		name := t.styleOrder[i]
-		if removeList[name] {
-			delete(t.styleValues, name)
-
-			continue
+func addStyleLockBox(t *Tag, styleMap StyleLockBox) {
+	for name, value := range styleMap {
+		if _, exists := t.styleValues[name]; exists {
+			t.styleValues[name] = value
+		} else {
+			t.styleValues[name] = value
+			t.styleOrder = append(t.styleOrder, name)
 		}
+	}
+}
 
-		newNames = append(newNames, name)
+func removeStyle(t *Tag, offList StyleOff) {
+	for i := 0; i < len(offList); i++ {
+		delete(t.styleValues, offList[i])
 	}
 
-	t.styleOrder = newNames
+	var newOrder []string
+	for i := 0; i < len(t.styleOrder); i++ {
+		if _, exist := t.styleValues[t.styleOrder[i]]; exist {
+			newOrder = append(newOrder, t.styleOrder[i])
+		}
+	}
+
+	t.styleOrder = newOrder
 }
 
 // This does allow duplicates in the same hlive.ClassBool element.

@@ -12,7 +12,7 @@ import (
 func main() {
 	http.Handle("/",
 		urlParamsMiddleware(
-			home().ServeHTTP,
+			l.NewPageServer(home).ServeHTTP,
 		),
 	)
 
@@ -23,53 +23,50 @@ func main() {
 	}
 }
 
-func home() *l.PageServer {
-	f := func() *l.Page {
-		page := l.NewPage()
-		page.DOM().Title().Add("URL Params Example")
-		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+func home() *l.Page {
+	page := l.NewPage()
+	page.DOM().Title().Add("URL Params Example")
+	page.DOM().Head().Add(
+		l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.DOM().Body().Add(
-			l.T("header",
-				l.T("h1", "URL Get Parameter Read Example"),
-				l.T("p", "This example reads the parameters from the URL and prints them in a table."),
+	page.DOM().Body().Add(
+		l.T("header",
+			l.T("h1", "URL Get Parameter Read Example"),
+			l.T("p", "This example reads the parameters from the URL and prints them in a table."),
+		),
+		l.T("main",
+			l.T("p", "Add your own query parameters to the url and load the page again."),
+			l.T("h2", "Values"),
+		),
+	)
+
+	cl := hlivekit.List("tbody")
+
+	cm := l.CM("table",
+		l.T("thead",
+			l.T("tr",
+				l.T("th", "Key"),
+				l.T("th", "Value"),
 			),
-			l.T("main",
-				l.T("p", "Add your own query parameters to the url and load the page again."),
-				l.T("h2", "Values"),
-			),
-		)
+		),
+		cl,
+	)
 
-		cl := hlivekit.List("tbody")
-
-		cm := l.CM("table",
-			l.T("thead",
-				l.T("tr",
-					l.T("th", "Key"),
-					l.T("th", "Value"),
-				),
-			),
-			cl,
-		)
-
-		cm.mountFunc = func(ctx context.Context) {
-			for key, value := range urlParamsFromCtx(ctx) {
-				cl.AddItem(l.CM("tr",
-					l.T("td", key),
-					l.T("td", value),
-				))
-			}
+	cm.SetMount(func(ctx context.Context) {
+		for key, value := range urlParamsFromCtx(ctx) {
+			cl.AddItem(l.CM("tr",
+				l.T("td", key),
+				l.T("td", value),
+			))
 		}
+	})
 
-		page.DOM().Body().Add(
-			cm,
-			l.T("p", "You will see the extra 'hlive' parameter that HLive adds on when establishing a WebSocket connection."),
-		)
+	page.DOM().Body().Add(
+		cm,
+		l.T("p", "You will see the extra 'hlive' parameter that HLive adds on when establishing a WebSocket connection."),
+	)
 
-		return page
-	}
-
-	return l.NewPageServer(f)
+	return page
 }
 
 type ctxKey string

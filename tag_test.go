@@ -40,6 +40,7 @@ func TestTag_IsVoid(t *testing.T) {
 	}
 }
 
+// TODO: Now that this doesn't panic, update to check for log output
 func TestTag_AddNodeTypes(t *testing.T) {
 	t.Parallel()
 
@@ -49,9 +50,7 @@ func TestTag_AddNodeTypes(t *testing.T) {
 	}{
 		{"nil", nil},
 		{"string", "string"},
-		{"*string", new(string)},
 		{"HTML", l.HTML("")},
-		{"*HTML", new(l.HTML)},
 		{"Tagger", &testTagger{}},
 		{"UniqueTagger", &testUniqueTagger{}},
 		{"Componenter", &testComponenter{}},
@@ -64,28 +63,18 @@ func TestTag_AddNodeTypes(t *testing.T) {
 		{"[]UniqueTagger", []l.UniqueTagger{}},
 		{"float34", float32(1)},
 		{"float64", float64(1)},
-		{"*float34", new(float32)},
-		{"*float64", new(float64)},
 		{"int", 1},
 		{"int8", int8(1)},
 		{"int16", int16(1)},
 		{"int32", int32(1)},
 		{"int64", int64(1)},
-		{"*int", new(int)},
-		{"*int8", new(int8)},
-		{"*int16", new(int16)},
-		{"*int32", new(int32)},
-		{"*int64", new(int64)},
 		{"uint", uint(1)},
 		{"uint8", uint8(1)},
 		{"uint16", uint16(1)},
 		{"uint32", uint32(1)},
 		{"uint64", uint64(1)},
-		{"*uint", new(uint)},
-		{"*uint8", new(uint8)},
-		{"*uint16", new(uint16)},
-		{"*uint32", new(uint32)},
-		{"*uint64", new(uint64)},
+		{"*NodeBox[V]", l.Box("")},
+		{"*LockBox[V]", l.NewLockBox("")},
 	}
 
 	for _, tt := range tests {
@@ -107,7 +96,7 @@ func TestTag_AddElementTypes(t *testing.T) {
 		name string
 		arg  any
 	}{
-		{"*Attribute", l.NewAttributePtr("value", nil)},
+		{"*Attribute", l.AttrsOff{"value"}},
 		{"[]*Attribute", []*l.Attribute{}},
 		{"Attrs", l.Attrs{}},
 		{"ClassBool", l.ClassBool{}},

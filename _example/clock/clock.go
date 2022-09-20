@@ -23,7 +23,8 @@ func home() *l.PageServer {
 	f := func() *l.Page {
 		page := l.NewPage()
 		page.DOM().Title().Add("Clock Example")
-		page.DOM().Head().Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+		page.DOM().Head().Add(
+			l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
 		page.DOM().Body().Add(
 			l.T("header",
@@ -39,31 +40,26 @@ func home() *l.PageServer {
 	}
 
 	ps := l.NewPageServer(f)
-	// Still kill the page session 1 second after the tab is closed
+	// Kill the page session 1 second after the tab is closed
 	ps.Sessions.DisconnectTimeout = time.Second
 
 	return ps
 }
 
 func newClock() *clock {
+	t := l.NewLockBox("")
+
 	return &clock{
-		Component: l.C("code"),
-		t:         time.Now(),
+		Component: l.C("code", "Server: ", t),
+		timeStr:   t,
 	}
 }
 
 type clock struct {
 	*l.Component
 
-	t    time.Time
-	tick *time.Ticker
-}
-
-func (c *clock) GetNodes() *l.NodeGroup {
-	c.Tag.MU().RLock()
-	defer c.Tag.MU().RUnlock()
-
-	return l.G("Server Time: " + c.t.String())
+	timeStr *l.LockBox[string]
+	tick    *time.Ticker
 }
 
 func (c *clock) Mount(ctx context.Context) {
@@ -79,9 +75,7 @@ func (c *clock) Mount(ctx context.Context) {
 
 				return
 			case t := <-c.tick.C:
-				c.Tag.MU().Lock()
-				c.t = t
-				c.Tag.MU().Unlock()
+				c.timeStr.Set(t.String())
 
 				l.RenderComponent(ctx, c)
 			}

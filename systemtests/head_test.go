@@ -29,17 +29,17 @@ func TestHead_TitleDynamic(t *testing.T) {
 	t.Parallel()
 
 	pageFn := func() *l.Page {
-		title := "value 1"
+		title := l.Box("value 1")
 
 		page := l.NewPage()
 
-		page.DOM().Title().Add(&title)
+		page.DOM().Title().Add(title)
 
 		page.DOM().Body().Add(
 			l.C("button",
 				l.Attrs{"id": "btn"},
 				l.On("click", func(ctx context.Context, e l.Event) {
-					title = "value 2"
+					title.Set("value 2")
 				}),
 				"Click Me",
 			),

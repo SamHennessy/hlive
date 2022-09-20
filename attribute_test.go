@@ -11,7 +11,7 @@ import (
 func TestAttribute_GetValueSetValue(t *testing.T) {
 	t.Parallel()
 
-	a := l.NewAttributePtr("foo", nil)
+	a := l.NewAttribute("foo", "")
 
 	if diff := deep.Equal("", a.GetValue()); diff != nil {
 		t.Error(diff)
@@ -24,20 +24,20 @@ func TestAttribute_GetValueSetValue(t *testing.T) {
 	}
 }
 
-func TestAttribute_SetValueByReference(t *testing.T) {
+func TestAttribute_SetValueLock(t *testing.T) {
 	t.Parallel()
 
-	a := l.NewAttributePtr("foo", nil)
+	value := l.NewLockBox("")
 
-	attrVal := "bar"
+	a := l.NewAttributeLockBox("foo", value)
 
-	a.SetValuePtr(&attrVal)
+	value.Set("bar")
 
 	if diff := deep.Equal("bar", a.GetValue()); diff != nil {
 		t.Error(diff)
 	}
 
-	attrVal = "fizz"
+	value.Set("fizz")
 
 	if diff := deep.Equal("fizz", a.GetValue()); diff != nil {
 		t.Error(diff)
@@ -107,7 +107,7 @@ func TestAttribute_TagNewAttributeRemove(t *testing.T) {
 		t.Error(diff)
 	}
 
-	div.Add(l.NewAttributePtr("foo", nil))
+	div.Add(l.AttrsOff{"foo"})
 
 	if diff := deep.Equal(0, len(div.GetAttributes())); diff != nil {
 		t.Error(diff)
@@ -123,7 +123,7 @@ func TestAttribute_TagAttrsRemove(t *testing.T) {
 		t.Error(diff)
 	}
 
-	div.Add(l.Attrs{"foo": nil})
+	div.Add(l.AttrsOff{"foo"})
 
 	if diff := deep.Equal(0, len(div.GetAttributes())); diff != nil {
 		t.Error(diff)
@@ -133,15 +133,15 @@ func TestAttribute_TagAttrsRemove(t *testing.T) {
 func TestAttribute_TagAttrsReferenceValue(t *testing.T) {
 	t.Parallel()
 
-	attrVal := "bar"
+	attrVal := l.NewLockBox("bar")
 
-	div := l.T("div", l.Attrs{"foo": &attrVal})
+	div := l.T("div", l.AttrsLockBox{"foo": attrVal})
 
 	if diff := deep.Equal("bar", div.GetAttributeValue("foo")); diff != nil {
 		t.Error(diff)
 	}
 
-	attrVal = "baz"
+	attrVal.Set("baz")
 
 	if diff := deep.Equal("baz", div.GetAttributeValue("foo")); diff != nil {
 		t.Error(diff)
@@ -257,7 +257,7 @@ func TestAttribute_Style(t *testing.T) {
 		t.Error(diff)
 	}
 
-	div.Add("div", l.Style{"foo": nil})
+	div.Add("div", l.StyleOff{"foo"})
 
 	if diff := deep.Equal("", div.GetAttributeValue("style")); diff != nil {
 		t.Error(diff)
@@ -297,7 +297,7 @@ func TestAttribute_StyleMultiUnordered(t *testing.T) {
 		t.Error("fizz:c; not found")
 	}
 
-	div.Add(l.Style{"bar": nil})
+	div.Add(l.StyleOff{"bar"})
 
 	if strings.Contains(div.GetAttributeValue("style"), "bar:b;") {
 		t.Error("bar:a; found")
@@ -319,7 +319,7 @@ func TestAttribute_StyleMultiOrdered(t *testing.T) {
 		t.Error(diff)
 	}
 
-	div.Add(l.Style{"bar": nil})
+	div.Add(l.StyleOff{"bar"})
 
 	if diff := deep.Equal("foo:a;fizz:c;", div.GetAttributeValue("style")); diff != nil {
 		t.Error(diff)

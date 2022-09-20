@@ -40,7 +40,7 @@ type Page struct {
 	// only one page will have this at a time but is can be passed from page to page if connection is kept open
 	sessID string
 	// Component caches, to prevent walking to tree to find something
-	eventBindings *hashmap.HashMap
+	eventBindings *hashmap.HashMap[string, *EventBinding]
 	// Buffered channel of outbound messages.
 	send chan<- MessageWS
 	// Buffered channel of inbound messages.
@@ -76,7 +76,7 @@ func NewPage(options ...PageOption) *Page {
 	}
 
 	if p.eventBindings == nil {
-		p.eventBindings = hashmap.New(EventBindingsCacheDefault)
+		p.eventBindings = hashmap.NewSized[string, *EventBinding](EventBindingsCacheDefault)
 	}
 
 	if p.renderer == nil {
@@ -415,9 +415,7 @@ func (p *Page) processMsgEvent(ctx context.Context, msg websocketMessage) {
 
 		p.logger.Trace().Str("id", id).Msg("call event handler")
 
-		val, _ := p.eventBindings.GetStringKey(id)
-		binding, _ := val.(*EventBinding)
-
+		binding, _ := p.eventBindings.Get(id)
 		if binding == nil {
 			p.logger.Error().Str("id", id).Msg("unable to find binding")
 

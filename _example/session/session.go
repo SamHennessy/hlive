@@ -37,7 +37,8 @@ func home(s *service) *l.PageServer {
 				l.T("p", "Enter a message, then open another tab to see it there."),
 				l.T("h2", "Your Message"),
 				newMessage(s),
-				l.T("p", "This example uses a cookie and server memory to persist between page reloads but not server reloads. Changes are not synced between tabs in real-time."),
+				l.T("p",
+					"This example uses a cookie and server memory to persist between page reloads but not server reloads. Changes are not synced between tabs in real-time."),
 				l.T("p", "Be careful when testing in Firefox, as it will keep the current form value on refresh."),
 			),
 		)

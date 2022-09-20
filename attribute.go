@@ -3,7 +3,6 @@ package hlive
 import (
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/vmihailenco/msgpack/v5"
 )
@@ -11,9 +10,6 @@ import (
 type Attributer interface {
 	GetName() string
 	GetValue() string
-	GetValuePtr() *string
-	SetValue(string)
-	SetValuePtr(*string)
 	IsNoEscapeString() bool
 	Clone() *Attribute
 }
@@ -27,34 +23,33 @@ type AttributePluginer interface {
 	InitializeSSR(page *Page)
 }
 
-// Attrs is a helper for adding Attributes to nodes
-// You can update an existing Attribute by adding new Attrs, it's also possible to pass a string by reference.
-// You can remove an Attribute by passing a nil value.
-type Attrs map[string]any
+// Attrs is a helper for adding and updating Attributes to nodes
+type Attrs map[string]string
 
 func (a Attrs) GetAttributers() []Attributer {
 	newAttrs := make([]Attributer, 0, len(a))
 
 	for name, val := range a {
-		attr := NewAttributePtr(name, nil)
-		switch v := val.(type) {
-		case string:
-			attr.SetValue(v)
-		case *string:
-			attr.SetValuePtr(v)
-		case nil:
-			// Nop
-		default:
-			LoggerDev.Warn().Str("value", fmt.Sprintf("%#v", val)).
-				Str("callers", CallerStackStr()).
-				Msg("Only string, *string, and nil are valid for Attr values")
-		}
-
-		newAttrs = append(newAttrs, attr)
+		newAttrs = append(newAttrs, NewAttribute(name, val))
 	}
 
 	return newAttrs
 }
+
+type AttrsLockBox map[string]*LockBox[string]
+
+func (a AttrsLockBox) GetAttributers() []Attributer {
+	newAttrs := make([]Attributer, 0, len(a))
+
+	for name, val := range a {
+		newAttrs = append(newAttrs, NewAttributeLockBox(name, val))
+	}
+
+	return newAttrs
+}
+
+// AttrsOff a helper for removing Attributes
+type AttrsOff []string
 
 // ClassBool a special Attribute for working with CSS classes on nodes using a bool to toggle them on and off.
 // It supports turning them on and off and allowing overriding. Due to how Go maps work the order of the classes in
@@ -71,19 +66,26 @@ type (
 	ClassListOff []string
 )
 
-// Style is a special Attribute that allows you to work with ClassBool styles on nodes.
-// It allows you to override
-// All Styles are de-duped, overriding a Style by adding new Style will result in the old Style getting updated.
+// Style is a special Element that allows you to work the properties of style attribute.
+// A property and value will be added or updated.
 // You don't have to use Style to add a style attribute, but it's the recommended way to do it.
-type Style map[string]any
+type Style map[string]string
+
+// StyleLockBox like Style but, you can update the property values indirectly
+// TODO: add test
+type StyleLockBox map[string]*LockBox[string]
+
+// StyleOff remove an existing style property, ignored if the property doesn't exist
+// TODO: add test
+type StyleOff []string
 
 // NewAttribute create a new Attribute
 func NewAttribute(name string, value string) *Attribute {
-	return NewAttributePtr(name, &value)
+	return &Attribute{name: strings.ToLower(name), value: NewLockBox(value)}
 }
 
-// NewAttribute create a new Attribute
-func NewAttributePtr(name string, value *string) *Attribute {
+// NewAttributeLockBox create a new Attribute using the passed LockBox value
+func NewAttributeLockBox(name string, value *LockBox[string]) *Attribute {
 	return &Attribute{name: strings.ToLower(name), value: value}
 }
 
@@ -91,22 +93,15 @@ func NewAttributePtr(name string, value *string) *Attribute {
 type Attribute struct {
 	// name must always be lowercase
 	name           string
-	value          *string
+	value          *LockBox[string]
 	noEscapeString bool
-	mu             sync.RWMutex
 }
 
 func (a *Attribute) MarshalMsgpack() ([]byte, error) {
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
-	return msgpack.Marshal([2]any{a.name, a.value})
+	return msgpack.Marshal([2]any{a.name, a.value.Get()})
 }
 
 func (a *Attribute) UnmarshalMsgpack(b []byte) error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-
 	var values [2]any
 	if err := msgpack.Unmarshal(b, &values); err != nil {
 		return fmt.Errorf("msgpack.Unmarshal: %w", err)
@@ -115,7 +110,7 @@ func (a *Attribute) UnmarshalMsgpack(b []byte) error {
 	a.name, _ = values[0].(string)
 
 	val, _ := values[1].(string)
-	a.value = &val
+	a.value = NewLockBox(val)
 
 	return nil
 }
@@ -125,48 +120,25 @@ func (a *Attribute) GetName() string {
 		return ""
 	}
 
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
 	return a.name
 }
 
 func (a *Attribute) SetValue(value string) {
-	a.value = &value
+	a.value.Set(value)
 }
 
 func (a *Attribute) GetValue() string {
-	if a == nil || a.value == nil {
+	if a == nil {
 		return ""
 	}
 
-	return *a.value
-}
-
-func (a *Attribute) SetValuePtr(value *string) {
-	a.value = value
-}
-
-func (a *Attribute) GetValuePtr() *string {
-	if a == nil || a.value == nil {
-		return nil
-	}
-
-	return a.value
+	return a.value.Get()
 }
 
 // Clone creates a new Attribute using the data from this Attribute
 func (a *Attribute) Clone() *Attribute {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	newA := NewAttributePtr(a.name, nil)
+	newA := NewAttribute(a.name, a.value.Get())
 	newA.noEscapeString = a.noEscapeString
-
-	// Copy the value only
-	if a.GetValuePtr() != nil {
-		val := a.GetValue()
-		newA.value = &val
-	}
 
 	return newA
 }
@@ -176,20 +148,11 @@ func (a *Attribute) IsNoEscapeString() bool {
 		return false
 	}
 
-	a.mu.RLock()
-	defer a.mu.RUnlock()
-
 	return a.noEscapeString
 }
 
 func (a *Attribute) SetNoEscapeString(noEscapeString bool) {
-	a.mu.Lock()
 	a.noEscapeString = noEscapeString
-	a.mu.Unlock()
-}
-
-func (a *Attribute) GetAttribute() *Attribute {
-	return a
 }
 
 func anyToAttributes(attrs ...any) []Attributer {
@@ -202,6 +165,8 @@ func anyToAttributes(attrs ...any) []Attributer {
 
 		switch v := attrs[i].(type) {
 		case Attrs:
+			newAttrs = append(newAttrs, v.GetAttributers()...)
+		case AttrsLockBox:
 			newAttrs = append(newAttrs, v.GetAttributers()...)
 		case Attributer:
 			newAttrs = append(newAttrs, v)

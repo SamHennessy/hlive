@@ -15,6 +15,7 @@ func NewPageSessionStore() *PageSessionStore {
 		SessionLimit:          PageSessionLimitDefault,
 		GarbageCollectionTick: PageSessionGarbageCollectionTick,
 		Done:                  make(chan bool),
+		sessions:              hashmap.New[string, *PageSession](),
 	}
 
 	go pss.GarbageCollection()
@@ -23,7 +24,7 @@ func NewPageSessionStore() *PageSessionStore {
 }
 
 type PageSessionStore struct {
-	sessions              hashmap.HashMap
+	sessions              *hashmap.HashMap[string, *PageSession]
 	DisconnectTimeout     time.Duration
 	SessionLimit          uint32
 	sessionCount          uint32
@@ -67,15 +68,13 @@ func (pss *PageSessionStore) mapAdd(ps *PageSession) {
 }
 
 func (pss *PageSessionStore) mapGet(id string) *PageSession {
-	val, _ := pss.sessions.GetStringKey(id)
-	ps, _ := val.(*PageSession)
+	ps, _ := pss.sessions.Get(id)
 
 	return ps
 }
 
 func (pss *PageSessionStore) mapDelete(id string) {
-	if _, exists := pss.sessions.GetStringKey(id); exists {
-		pss.sessions.Del(id)
+	if pss.sessions.Del(id) {
 		atomic.AddUint32(&pss.sessionCount, ^uint32(0))
 	}
 }
@@ -89,12 +88,9 @@ func (pss *PageSessionStore) GarbageCollection() {
 			return
 		default:
 			now := time.Now()
-			for keyVal := range pss.sessions.Iter() {
-				id, _ := keyVal.Key.(string)
-				sess, _ := keyVal.Value.(*PageSession)
-
+			pss.sessions.Range(func(id string, sess *PageSession) bool {
 				if sess.IsConnected() {
-					continue
+					return true
 				}
 
 				// Keep until it exceeds the timeout
@@ -114,7 +110,9 @@ func (pss *PageSessionStore) GarbageCollection() {
 					close(sess.done)
 					pss.mapDelete(id)
 				}
-			}
+
+				return true
+			})
 		}
 	}
 }

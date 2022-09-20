@@ -21,7 +21,7 @@ func ScrollTop(val int) l.Attributer {
 }
 
 func ScrollTopRemove(tag l.Adder) {
-	tag.Add(l.Attrs{ScrollTopAttributeName: nil})
+	tag.Add(l.AttrsOff{ScrollTopAttributeName})
 }
 
 type ScrollTopAttribute struct {

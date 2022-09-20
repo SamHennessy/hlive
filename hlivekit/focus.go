@@ -20,7 +20,7 @@ func Focus() l.Attributer {
 }
 
 func FocusRemove(tag l.Adder) {
-	tag.Add(l.Attrs{FocusAttributeName: nil})
+	tag.Add(l.AttrsOff{FocusAttributeName})
 }
 
 type FocusAttribute struct {

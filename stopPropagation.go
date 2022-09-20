@@ -18,7 +18,7 @@ func StopPropagation() Attributer {
 }
 
 func StopPropagationRemove(tag Adder) {
-	tag.Add(Attrs{StopPropagationAttributeName: nil})
+	tag.Add(AttrsOff{StopPropagationAttributeName})
 }
 
 type StopPropagationAttribute struct {

@@ -35,12 +35,74 @@ func IsElement(el any) bool {
 
 func IsNonNodeElement(el any) bool {
 	switch el.(type) {
-	case []Attributer, []*Attribute, Attributer, *Attribute, Attrs, ClassBool, Style, ClassList, ClassListOff, Class,
-		ClassOff, *EventBinding:
+	case []Attributer, []*Attribute, *Attribute, Attributer, Attrs, AttrsLockBox, AttrsOff,
+		ClassBool, Style, ClassList, ClassListOff, Class, ClassOff,
+		*EventBinding:
 		return true
 	default:
 		return false
 	}
+}
+
+type NodeBoxer interface {
+	GetNode() any
+}
+
+type NodeBox[V any] struct {
+	*LockBox[V]
+}
+
+func (b NodeBox[V]) GetNode() any {
+	return b.Get()
+}
+
+func Box[V any](node V) *NodeBox[V] {
+	if !IsNode(node) {
+		LoggerDev.Error().
+			Str("callers", CallerStackStr()).
+			Str("node", fmt.Sprintf("%#v", node)).
+			Msg("invalid node")
+	}
+
+	return &NodeBox[V]{NewLockBox(node)}
+}
+
+type LockBox[V any] struct {
+	mu  sync.RWMutex
+	val V
+}
+
+func (b *LockBox[V]) Set(val V) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.val = val
+}
+
+func (b *LockBox[V]) Get() V {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+
+	return b.val
+}
+
+type LockBoxer interface {
+	GetLockedAny() any
+}
+
+func (b *LockBox[V]) GetLockedAny() any {
+	return b.Get()
+}
+
+func (b *LockBox[V]) Lock(f func(val V) V) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	b.val = f(b.val)
+}
+
+func NewLockBox[V any](val V) *LockBox[V] {
+	return &LockBox[V]{val: val}
 }
 
 // IsNode returns true is the pass value is a valid Node.
@@ -49,11 +111,11 @@ func IsNonNodeElement(el any) bool {
 // valid HTML. An attribute would not be valid and doesn't make sense to cast to a string.
 func IsNode(node any) bool {
 	switch node.(type) {
-	case nil, string, HTML, Tagger,
+	// TODO: Need *HTML for encoding, maybe new read only Tag will help
+	case nil, string, HTML, *HTML, Tagger,
 		[]any, *NodeGroup, []*Component, []*Tag, []Componenter, []Tagger, []UniqueTagger,
 		int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64,
-		*int, *int8, *int16, *int32, *int64, *uint, *uint8, *uint16, *uint32, *uint64, *float32, *float64,
-		*string, *HTML:
+		NodeBoxer, LockBoxer:
 		return true
 	default:
 		return false
@@ -134,106 +196,22 @@ func (g *NodeGroup) Get() []any {
 	var newGroup []any
 
 	for i := 0; i < len(g.group); i++ {
-		val := deRef(g.group[i])
-		if val != nil {
-			newGroup = append(newGroup, val)
+		node := g.group[i]
+		if node == nil {
+			continue
+		}
+
+		switch v := node.(type) {
+		case NodeBoxer:
+			newGroup = append(newGroup, v.GetNode())
+		case LockBoxer:
+			newGroup = append(newGroup, v.GetLockedAny())
+		default:
+			newGroup = append(newGroup, node)
 		}
 	}
 
 	return newGroup
-}
-
-func deRef(val any) any {
-	switch v := val.(type) {
-	case *string:
-		if v == nil || *v == "" {
-			return nil
-		}
-
-		return *v
-	case *int:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *int16:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *int8:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *int32:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *int64:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *uint:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *uint8:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *uint16:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *uint32:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *uint64:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *float32:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *float64:
-		if v == nil {
-			return nil
-		}
-
-		return *v
-	case *HTML:
-		if v == nil {
-			return nil
-		}
-
-		b := *v
-
-		return &b
-	}
-
-	return val
 }
 
 // E is shorthand for Elements.
@@ -253,7 +231,6 @@ func Elements(elements ...any) *ElementGroup {
 }
 
 // ElementGroup is a Group of Elements
-// TODO: add Msgpack support
 type ElementGroup struct {
 	group []any
 	mu    sync.RWMutex
@@ -296,9 +273,18 @@ func (g *ElementGroup) Get() []any {
 	var newGroup []any
 
 	for i := 0; i < len(g.group); i++ {
-		val := deRef(g.group[i])
-		if val != nil {
-			newGroup = append(newGroup, val)
+		node := g.group[i]
+		if node == nil {
+			continue
+		}
+
+		switch v := node.(type) {
+		case NodeBoxer:
+			newGroup = append(newGroup, v.GetNode())
+		case LockBoxer:
+			newGroup = append(newGroup, v.GetLockedAny())
+		default:
+			newGroup = append(newGroup, node)
 		}
 	}
 

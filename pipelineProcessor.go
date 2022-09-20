@@ -36,7 +36,7 @@ func NewPipelineProcessor(key string) *PipelineProcessor {
 	return &PipelineProcessor{Key: key}
 }
 
-func PipelineProcessorEventBindingCache(cache *hashmap.HashMap) *PipelineProcessor {
+func PipelineProcessorEventBindingCache(cache *hashmap.HashMap[string, *EventBinding]) *PipelineProcessor {
 	pp := NewPipelineProcessor(PipelineProcessorKeyEventBindingCache)
 
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag Tagger) (Tagger, error) {
@@ -75,18 +75,16 @@ func PipelineProcessorMount() *PipelineProcessor {
 }
 
 func PipelineProcessorUnmount(page *Page) *PipelineProcessor {
-	cache := hashmap.HashMap{}
+	cache := hashmap.New[string, Unmounter]()
 
 	page.hookClose = append(page.hookClose, func(ctx context.Context, page *Page) {
-		for keyVal := range cache.Iter() {
-			c, _ := keyVal.Value.(Unmounter)
-
-			if c == nil {
-				continue
+		cache.Range(func(key string, value Unmounter) bool {
+			if value != nil {
+				value.Unmount(ctx)
 			}
 
-			c.Unmount(ctx)
-		}
+			return true
+		})
 	})
 
 	pp := NewPipelineProcessor(PipelineProcessorKeyUnmount)
@@ -170,7 +168,7 @@ func PipelineProcessorConvertToString() *PipelineProcessor {
 }
 
 func PipelineProcessorAttributePluginMount(page *Page) *PipelineProcessor {
-	var cache hashmap.HashMap
+	cache := hashmap.New[string, *struct{}]()
 
 	pp := NewPipelineProcessor(PipelineProcessorKeyAttributePluginMount)
 
@@ -191,7 +189,7 @@ func PipelineProcessorAttributePluginMount(page *Page) *PipelineProcessor {
 }
 
 func PipelineProcessorAttributePluginMountSSR(page *Page) *PipelineProcessor {
-	var cache hashmap.HashMap
+	cache := hashmap.New[string, *struct{}]()
 
 	pp := NewPipelineProcessor(PipelineProcessorKeyAttributePluginMount)
 
