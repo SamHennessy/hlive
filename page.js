@@ -540,8 +540,26 @@ hlive.connect = () => {
     hlive.conn.onclose = hlive.onclose;
 }
 
+hlive.connectWails = () => {
+    hlive.conn = {
+        readyState: 1,
+        send: function (msg) {
+            runtime.EventsEmit("out", msg);
+        }
+    };
+
+    runtime.EventsOn("in", function(evt){
+        hlive.processMsg({"data":evt});
+        hlive.postMessage();
+    })
+
+    runtime.EventsEmit("connect", true);
+}
+
 document.addEventListener("DOMContentLoaded", function (evt) {
-    if (window["WebSocket"]) {
+    if (window.runtime !== undefined) {
+        hlive.connectWails()
+    } else if (window["WebSocket"]) {
         hlive.log("init");
         hlive.connect();
     } else {

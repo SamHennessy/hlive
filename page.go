@@ -41,9 +41,9 @@ type Page struct {
 	sessID string
 	// Component caches, to prevent walking to tree to find something
 	eventBindings *hashmap.HashMap[string, *EventBinding]
-	// Buffered channel of outbound messages.
+	// Channel of outbound messages.
 	send chan<- MessageWS
-	// Buffered channel of inbound messages.
+	// Channel of inbound messages.
 	receive <-chan MessageWS
 	// cache async safe
 	cache Cache
@@ -160,6 +160,13 @@ func (p *Page) serverHTTP(w http.ResponseWriter, r *http.Request) error {
 	return err
 }
 
+func (p *Page) RunRenderPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.runRenderPipeline(ctx, w)
+}
+
 func (p *Page) runRenderPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {
 start:
 	tree, err := p.pipelineSSR.run(ctx, w, p.getNodes())
@@ -170,6 +177,13 @@ start:
 	}
 
 	return tree, err
+}
+
+func (p *Page) RunDiffPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.runDiffPipeline(ctx, w)
 }
 
 func (p *Page) runDiffPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {

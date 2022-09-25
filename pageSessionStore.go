@@ -1,6 +1,7 @@
 package hlive
 
 import (
+	"runtime"
 	"sync/atomic"
 	"time"
 
@@ -50,11 +51,10 @@ func (pss *PageSessionStore) New() *PageSession {
 	return ps
 }
 
+// TODO: use sync.Cond
 func (pss *PageSessionStore) newWait() {
-	for {
-		if atomic.LoadUint32(&pss.sessionCount) < pss.SessionLimit {
-			return
-		}
+	for atomic.LoadUint32(&pss.sessionCount) > pss.SessionLimit {
+		runtime.Gosched()
 	}
 }
 

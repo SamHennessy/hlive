@@ -15,13 +15,11 @@ func NewPageServer(pf func() *Page) *PageServer {
 }
 
 func NewPageServerWithSessionStore(pf func() *Page, sess *PageSessionStore) *PageServer {
-	s := &PageServer{
+	return &PageServer{
 		pageFunc: pf,
 		Sessions: sess,
 		logger:   zerolog.Nop(),
 	}
-
-	return s
 }
 
 type PageServer struct {
