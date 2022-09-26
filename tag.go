@@ -329,7 +329,7 @@ func (t *Tag) removeAttributes(names ...string) {
 		hit := false
 
 		for i := 0; i < len(names); i++ {
-			if names[i] == attr.GetName() {
+			if strings.ToLower(names[i]) == attr.GetName() {
 				hit = true
 
 				break
