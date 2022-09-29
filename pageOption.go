@@ -10,7 +10,7 @@ func PageOptionCache(cache Cache) func(*Page) {
 	}
 }
 
-func PageOptionEventBindingCache(m *hashmap.HashMap[string, *EventBinding]) func(*Page) {
+func PageOptionEventBindingCache(m *hashmap.Map[string, *EventBinding]) func(*Page) {
 	return func(page *Page) {
 		page.eventBindings = m
 	}

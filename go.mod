@@ -3,7 +3,7 @@ module github.com/SamHennessy/hlive
 go 1.19
 
 require (
-	github.com/cornelk/hashmap v1.0.6
+	github.com/cornelk/hashmap v1.0.8
 	github.com/dgraph-io/ristretto v0.1.0
 	github.com/go-test/deep v1.0.8
 	github.com/gorilla/websocket v1.5.0
@@ -16,7 +16,6 @@ require (
 )
 
 require (
-	github.com/cespare/xxhash v1.1.0 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
 	github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964 // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect

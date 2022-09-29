@@ -36,7 +36,7 @@ func NewPipelineProcessor(key string) *PipelineProcessor {
 	return &PipelineProcessor{Key: key}
 }
 
-func PipelineProcessorEventBindingCache(cache *hashmap.HashMap[string, *EventBinding]) *PipelineProcessor {
+func PipelineProcessorEventBindingCache(cache *hashmap.Map[string, *EventBinding]) *PipelineProcessor {
 	pp := NewPipelineProcessor(PipelineProcessorKeyEventBindingCache)
 
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag Tagger) (Tagger, error) {
@@ -93,7 +93,11 @@ func PipelineProcessorUnmount(page *Page) *PipelineProcessor {
 		if comp, ok := tag.(Unmounter); ok {
 			id := comp.GetID()
 
-			if _, loaded := cache.GetOrInsert(id, comp); !loaded {
+			if id == "" {
+				return tag, nil
+			}
+
+			if cache.Insert(id, comp) {
 				// A way to remove the key when you delete a Component
 				if comp, ok := tag.(Teardowner); ok {
 					comp.AddTeardown(func() {

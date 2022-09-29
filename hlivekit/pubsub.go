@@ -24,6 +24,11 @@ type PubSubMounter interface {
 	PubSubMount(context.Context, *PubSub)
 }
 
+type PubSubAfterMounter interface {
+	PubSubMounter
+	AfterPubSubMount(context.Context, *PubSub)
+}
+
 type PubSubSSRMounter interface {
 	GetID() string
 	PubSubSSRMount(context.Context, *PubSub)
@@ -83,6 +88,14 @@ func (ps *PubSub) SubscribeWait(sub QueueSubscriber, topics ...string) {
 	for i := 0; i < len(topics); i++ {
 		ps.subscribers[topics[i]] = append(ps.subscribers[topics[i]], sub)
 	}
+}
+
+func (ps *PubSub) SubscribeWaitFunc(subFunc func(message QueueMessage), topics ...string) SubscribeFunc {
+	sub := NewSub(subFunc)
+
+	ps.SubscribeWait(sub, topics...)
+
+	return sub
 }
 
 func (ps *PubSub) SubscribeFunc(subFunc func(message QueueMessage), topics ...string) SubscribeFunc {
@@ -188,27 +201,46 @@ func (a *PubSubAttribute) PipelineProcessorPubSub() *hlive.PipelineProcessor {
 
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag hlive.Tagger) (hlive.Tagger, error) {
 		if comp, ok := tag.(PubSubMounter); ok {
-			a.lock.Lock()
+			a.mu.Lock()
+			defer a.mu.Unlock()
 
 			if _, exists := a.mountedMap[comp.GetID()]; !exists {
 				a.mountedMap[comp.GetID()] = struct{}{}
-
 				comp.PubSubMount(ctx, a.pubSub)
+
+				if afterComp, ok := comp.(PubSubAfterMounter); ok {
+					a.afterMountQueue = append(a.afterMountQueue, afterComp)
+				}
 			}
 
 			// A way to remove the key when you delete a Component
 			if comp, ok := tag.(hlive.Teardowner); ok {
 				comp.AddTeardown(func() {
-					a.lock.Lock()
+					a.mu.Lock()
 					delete(a.mountedMap, comp.GetID())
-					a.lock.Unlock()
+					a.mu.Unlock()
 				})
 			}
-
-			a.lock.Unlock()
 		}
 
 		return tag, nil
+	}
+
+	pp.AfterWalk = func(ctx context.Context, _ io.Writer, node *hlive.NodeGroup) (*hlive.NodeGroup, error) {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+
+		queue := append([]PubSubAfterMounter{}, a.afterMountQueue...)
+		a.afterMountQueue = nil
+
+		// People will want to be able to publish and render
+		go func() {
+			for i := 0; i < len(queue); i++ {
+				queue[i].AfterPubSubMount(ctx, a.pubSub)
+			}
+		}()
+
+		return node, nil
 	}
 
 	return pp
@@ -231,9 +263,10 @@ type PubSubAttribute struct {
 
 	pubSub *PubSub
 	// Will memory leak is you don't use a Teardowner when deleting Components
-	mountedMap map[string]struct{}
-	lock       sync.Mutex
-	rendered   bool
+	mountedMap      map[string]struct{}
+	afterMountQueue []PubSubAfterMounter
+	mu              sync.Mutex
+	rendered        bool
 }
 
 func (a *PubSubAttribute) Initialize(page *hlive.Page) {
@@ -253,7 +286,8 @@ func (a *PubSubAttribute) InitializeSSR(page *hlive.Page) {
 type ComponentPubSub struct {
 	*hlive.ComponentMountable
 
-	MountPubSubFunc func(ctx context.Context, pubSub *PubSub)
+	mountPubSubFunc      *hlive.LockBox[func(ctx context.Context, pubSub *PubSub)]
+	afterMountPubSubFunc *hlive.LockBox[func(ctx context.Context, pubSub *PubSub)]
 }
 
 // CPS is a shortcut for NewComponentPubSub
@@ -263,14 +297,34 @@ func CPS(name string, elements ...any) *ComponentPubSub {
 
 func NewComponentPubSub(name string, elements ...any) *ComponentPubSub {
 	return &ComponentPubSub{
-		ComponentMountable: hlive.NewComponentMountable(name, elements...),
+		ComponentMountable:   hlive.NewComponentMountable(name, elements...),
+		mountPubSubFunc:      hlive.NewLockBox[func(ctx context.Context, pubSub *PubSub)](nil),
+		afterMountPubSubFunc: hlive.NewLockBox[func(ctx context.Context, pubSub *PubSub)](nil),
 	}
 }
 
 func (c *ComponentPubSub) PubSubMount(ctx context.Context, pubSub *PubSub) {
-	if c.MountPubSubFunc == nil {
+	f := c.mountPubSubFunc.Get()
+	if f == nil {
 		return
 	}
 
-	c.MountPubSubFunc(ctx, pubSub)
+	f(ctx, pubSub)
+}
+
+func (c *ComponentPubSub) AfterPubSubMount(ctx context.Context, pubSub *PubSub) {
+	f := c.afterMountPubSubFunc.Get()
+	if f == nil {
+		return
+	}
+
+	f(ctx, pubSub)
+}
+
+func (c *ComponentPubSub) SetMountPubSub(f func(ctx context.Context, pubSub *PubSub)) {
+	c.mountPubSubFunc.Set(f)
+}
+
+func (c *ComponentPubSub) SetAfterMountPubSub(f func(ctx context.Context, pubSub *PubSub)) {
+	c.afterMountPubSubFunc.Set(f)
 }

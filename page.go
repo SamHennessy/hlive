@@ -40,7 +40,7 @@ type Page struct {
 	// only one page will have this at a time but is can be passed from page to page if connection is kept open
 	sessID string
 	// Component caches, to prevent walking to tree to find something
-	eventBindings *hashmap.HashMap[string, *EventBinding]
+	eventBindings *hashmap.Map[string, *EventBinding]
 	// Channel of outbound messages.
 	send chan<- MessageWS
 	// Channel of inbound messages.
@@ -229,6 +229,7 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 	ctx = context.WithValue(ctx, CtxRenderComponent, p.renderComponentWS)
 
 	p.mu.Unlock()
+
 	// TODO: add tests
 	for i := 0; i < len(p.hookBeforeMount); i++ {
 		p.hookBeforeMount[i](ctx, p)

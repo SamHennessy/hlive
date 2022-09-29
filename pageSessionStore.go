@@ -25,7 +25,7 @@ func NewPageSessionStore() *PageSessionStore {
 }
 
 type PageSessionStore struct {
-	sessions              *hashmap.HashMap[string, *PageSession]
+	sessions              *hashmap.Map[string, *PageSession]
 	DisconnectTimeout     time.Duration
 	SessionLimit          uint32
 	sessionCount          uint32
