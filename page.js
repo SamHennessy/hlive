@@ -540,7 +540,7 @@ hlive.connect = () => {
     hlive.conn.onclose = hlive.onclose;
 }
 
-hlive.connectWails = () => {
+hlive.connectWails2 = () => {
     hlive.conn = {
         readyState: 1,
         send: function (msg) {
@@ -556,9 +556,23 @@ hlive.connectWails = () => {
     runtime.EventsEmit("connect", true);
 }
 
+hlive.connectWails3 = () => {
+    hlive.conn = {
+        readyState: 1,
+        send: function (msg) {
+            console.log("send", msg);
+            window.wails.Events.Emit({"name": "out", "data":msg, "sender": hlive.sessID.toString()});
+        }
+    };
+
+    window.wails.Events.Emit({"name": "connect", "data":true, "sender": hlive.sessID.toString()});
+}
+
 document.addEventListener("DOMContentLoaded", function (evt) {
     if (window.runtime !== undefined) {
-        hlive.connectWails()
+        hlive.connectWails2()
+    } else if (window.wails !== undefined) {
+        hlive.connectWails3()
     } else if (window["WebSocket"]) {
         hlive.log("init");
         hlive.connect();
