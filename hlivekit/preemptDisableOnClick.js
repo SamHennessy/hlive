@@ -8,8 +8,10 @@ function hlivePreDisable (e) {
     el.setAttribute("disabled", "");
 }
 
-hlive.afterMessage.push(function() {
-    document.querySelectorAll("[data-hlive-pre-disable]").forEach(function (el) {
-        el.addEventListener(el.getAttribute("data-hlive-pre-disable"), hlivePreDisable)
+if (hlive.afterMessage.get("hpreDis") === undefined) {
+    hlive.afterMessage.set("hpreDis", function () {
+        document.querySelectorAll("[data-hlive-pre-disable]").forEach(function (el) {
+            el.addEventListener(el.getAttribute("data-hlive-pre-disable"), hlivePreDisable)
+        });
     });
-});
+}

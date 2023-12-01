@@ -13,7 +13,7 @@ type testSubscriber struct {
 	id          string
 	called      bool
 	calledTopic string
-	calledValue interface{}
+	calledValue any
 	wait        sync.WaitGroup
 }
 
@@ -49,7 +49,7 @@ func TestPubSub_PublishAndSubscribe(t *testing.T) {
 	sub := newSub()
 	ps := hlivekit.NewPubSub()
 
-	ps.Subscribe(sub, "topic_1")
+	ps.SubscribeWait(sub, "topic_1")
 
 	ps.Publish("topic_2", nil)
 
@@ -74,7 +74,7 @@ func TestPubSub_PublishAsync(t *testing.T) {
 	sub := newSub()
 	ps := hlivekit.NewPubSub()
 
-	ps.Subscribe(sub, "topic_1")
+	ps.SubscribeWait(sub, "topic_1")
 
 	go ps.Publish("topic_1", nil)
 
@@ -91,7 +91,7 @@ func TestPubSub_SubscribeMultiTopic(t *testing.T) {
 	sub := newSub()
 	ps := hlivekit.NewPubSub()
 
-	ps.Subscribe(sub, "topic_1", "topic_2")
+	ps.SubscribeWait(sub, "topic_1", "topic_2")
 
 	ps.Publish("topic_1", nil)
 
@@ -115,9 +115,9 @@ func TestPubSub_Unsubscribe(t *testing.T) {
 	sub := newSub()
 	ps := hlivekit.NewPubSub()
 
-	ps.Subscribe(sub, "topic_1")
+	ps.SubscribeWait(sub, "topic_1")
 
-	ps.Unsubscribe(sub, "topic_1")
+	ps.UnsubscribeWait(sub, "topic_1")
 
 	ps.Publish("topic_1", nil)
 
@@ -132,9 +132,9 @@ func TestPubSub_UnsubscribeOneOfMulti(t *testing.T) {
 	sub := newSub()
 	ps := hlivekit.NewPubSub()
 
-	ps.Subscribe(sub, "topic_1", "topic_2")
+	ps.SubscribeWait(sub, "topic_1", "topic_2")
 
-	ps.Unsubscribe(sub, "topic_1")
+	ps.UnsubscribeWait(sub, "topic_1")
 
 	ps.Publish("topic_1", nil)
 
@@ -155,9 +155,9 @@ func TestPubSub_UnsubscribeMulti(t *testing.T) {
 	sub := newSub()
 	ps := hlivekit.NewPubSub()
 
-	ps.Subscribe(sub, "topic_1", "topic_2")
+	ps.SubscribeWait(sub, "topic_1", "topic_2")
 
-	ps.Unsubscribe(sub, "topic_1", "topic_2")
+	ps.UnsubscribeWait(sub, "topic_1", "topic_2")
 
 	ps.Publish("topic_1", nil)
 

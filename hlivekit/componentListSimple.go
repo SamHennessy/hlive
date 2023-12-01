@@ -2,6 +2,7 @@ package hlivekit
 
 import (
 	"fmt"
+	"sync"
 
 	l "github.com/SamHennessy/hlive"
 )
@@ -10,11 +11,12 @@ import (
 type ComponentListSimple struct {
 	*l.ComponentMountable
 
-	Items []l.UniqueTagger
+	items []l.UniqueTagger
+	mu    sync.RWMutex
 }
 
 // NewComponentListSimple creates a ComponentListSimple value
-func NewComponentListSimple(name string, elements ...interface{}) *ComponentListSimple {
+func NewComponentListSimple(name string, elements ...any) *ComponentListSimple {
 	list := &ComponentListSimple{
 		ComponentMountable: l.CM(name),
 	}
@@ -26,56 +28,53 @@ func NewComponentListSimple(name string, elements ...interface{}) *ComponentList
 
 // GetNodes returns the list of items.
 func (list *ComponentListSimple) GetNodes() *l.NodeGroup {
-	return l.G(list.Items)
+	list.mu.RLock()
+	defer list.mu.RUnlock()
+
+	return l.G(list.items)
 }
 
 // Add an element to this ComponentListSimple.
 //
 // You can add Groups, UniqueTagger, EventBinding, or None Node Elements
-func (list *ComponentListSimple) Add(elements ...interface{}) {
+func (list *ComponentListSimple) Add(elements ...any) {
 	for i := 0; i < len(elements); i++ {
 		switch v := elements[i].(type) {
 		case *l.NodeGroup:
-			g := v.Get()
-			for j := 0; j < len(g); j++ {
-				list.Add(g[j])
-			}
+			list.Add(v.Get()...)
 		case l.UniqueTagger:
-			list.AddItems(v)
-		case *l.EventBinding:
-			list.Component.Add(v)
+			list.items = append(list.items, v)
 		default:
 			if l.IsNonNodeElement(v) {
-				list.Tag.Add(v)
+				list.Component.Add(v)
 			} else {
-				panic(fmt.Errorf("ComponentListSimple.Add: element: %#v: %w", v, ErrInvalidListAdd))
+				l.LoggerDev.Warn().Str("callers", l.CallerStackStr()).
+					Str("element", fmt.Sprintf("%#v", v)).
+					Msg("invalid element type")
 			}
 		}
 	}
 }
 
 func (list *ComponentListSimple) AddItems(items ...l.UniqueTagger) {
-	for i := 0; i < len(items); i++ {
-		if !l.IsNode(items[i]) {
-			panic(fmt.Sprintf("component list: passed item is not a node: %v", items[i]))
-		}
-	}
-
-	for i := 0; i < len(items); i++ {
-		list.Items = append(list.Items, items[i])
-	}
+	list.mu.Lock()
+	list.items = append(list.items, items...)
+	list.mu.Unlock()
 }
 
 func (list *ComponentListSimple) RemoveItems(items ...l.UniqueTagger) {
+	list.mu.Lock()
+	defer list.mu.Unlock()
+
 	var newList []l.UniqueTagger
 
-	for i := 0; i < len(list.Items); i++ {
+	for i := 0; i < len(list.items); i++ {
 		hit := false
 
 		for j := 0; j < len(items); j++ {
 			item := items[j]
 
-			if item.GetID() == list.Items[i].GetID() {
+			if item.GetID() == list.items[i].GetID() {
 				hit = true
 
 				break
@@ -83,13 +82,15 @@ func (list *ComponentListSimple) RemoveItems(items ...l.UniqueTagger) {
 		}
 
 		if !hit {
-			newList = append(newList, list.Items[i])
+			newList = append(newList, list.items[i])
 		}
 	}
 
-	list.Items = newList
+	list.items = newList
 }
 
 func (list *ComponentListSimple) RemoveAllItems() {
-	list.Items = nil
+	list.mu.Lock()
+	list.items = nil
+	list.mu.Unlock()
 }

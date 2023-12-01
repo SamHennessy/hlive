@@ -8,21 +8,6 @@ import (
 	"github.com/go-test/deep"
 )
 
-func TestEvent_OnID(t *testing.T) {
-	t.Parallel()
-
-	eb := l.On("input", func(_ context.Context, _ l.Event) {})
-	eb2 := l.On("input", func(_ context.Context, _ l.Event) {})
-
-	if eb.ID == "" || eb2.ID == "" {
-		t.Error("id not set")
-	}
-
-	if eb.ID == eb2.ID {
-		t.Error("id no unique")
-	}
-}
-
 func TestEvent_OnHandler(t *testing.T) {
 	t.Parallel()
 
@@ -60,9 +45,7 @@ func TestEvent_On(t *testing.T) {
 func TestEvent_OnOnce(t *testing.T) {
 	t.Parallel()
 
-	eb := l.OnOnce("input", nil)
-
-	if !eb.Once {
+	if eb := l.OnOnce("input", nil); !eb.Once {
 		t.Error("once not default to true")
 	}
 }

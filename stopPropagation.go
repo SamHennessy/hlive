@@ -18,7 +18,7 @@ func StopPropagation() Attributer {
 }
 
 func StopPropagationRemove(tag Adder) {
-	tag.Add(Attrs{StopPropagationAttributeName: nil})
+	tag.Add(AttrsOff{StopPropagationAttributeName})
 }
 
 type StopPropagationAttribute struct {
@@ -26,9 +26,9 @@ type StopPropagationAttribute struct {
 }
 
 func (a *StopPropagationAttribute) Initialize(page *Page) {
-	page.DOM.Head.Add(T("script", HTML(StopPropagationJavaScript)))
+	page.DOM().Head().Add(T("script", HTML(StopPropagationJavaScript)))
 }
 
 func (a *StopPropagationAttribute) InitializeSSR(page *Page) {
-	page.DOM.Head.Add(T("script", HTML(StopPropagationJavaScript)))
+	page.DOM().Head().Add(T("script", HTML(StopPropagationJavaScript)))
 }

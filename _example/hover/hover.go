@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	http.Handle("/", home())
+	http.Handle("/", l.NewPageServer(home))
 
 	log.Println("INFO: listing :3000")
 
@@ -18,39 +18,36 @@ func main() {
 	}
 }
 
-func home() *l.PageServer {
-	f := func() *l.Page {
-		hoverState := " "
+func home() *l.Page {
+	hoverState := l.Box(" ")
 
-		hover := l.C("h2",
-			l.Style{"padding": "1em", "text-align": "center", "border": "solid"},
-			l.On("mouseEnter", func(ctx context.Context, e l.Event) {
-				hoverState = "Mouse enter"
-			}),
-			l.On("mouseLeave", func(ctx context.Context, e l.Event) {
-				hoverState = "Mouse leave"
-			}),
-			"Hover over me",
-		)
+	hover := l.C("h2",
+		l.Style{"padding": "1em", "text-align": "center", "border": "solid"},
+		l.On("mouseEnter", func(ctx context.Context, e l.Event) {
+			hoverState.Set("Mouse enter")
+		}),
+		l.On("mouseLeave", func(ctx context.Context, e l.Event) {
+			hoverState.Set("Mouse leave")
+		}),
+		"Hover over me",
+	)
 
-		page := l.NewPage()
-		page.DOM.Title.Add("Hover Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+	page := l.NewPage()
+	page.DOM().Title().Add("Hover Example")
+	page.DOM().Head().Add(
+		l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.DOM.Body.Add(
-			l.T("header",
-				l.T("h1", "Hover"),
-				l.T("p", "React to hover events on the server"),
-			),
-			l.T("main",
-				l.T("div", hover),
-				l.T("hr"),
-				l.T("pre", l.T("code", &hoverState)),
-			),
-		)
+	page.DOM().Body().Add(
+		l.T("header",
+			l.T("h1", "Hover"),
+			l.T("p", "React to hover events on the server"),
+		),
+		l.T("main",
+			l.T("div", hover),
+			l.T("hr"),
+			l.T("pre", l.T("code", hoverState)),
+		),
+	)
 
-		return page
-	}
-
-	return l.NewPageServer(f)
+	return page
 }

@@ -3,8 +3,6 @@ package hlive
 import (
 	"context"
 	"strings"
-
-	"github.com/teris-io/shortid"
 )
 
 type Event struct {
@@ -52,7 +50,7 @@ type File struct {
 type EventHandler func(ctx context.Context, e Event)
 
 func NewEventBinding() *EventBinding {
-	return &EventBinding{ID: shortid.MustGenerate()}
+	return &EventBinding{}
 }
 
 type EventBinding struct {

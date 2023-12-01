@@ -3,7 +3,6 @@ package hlive
 import (
 	_ "embed"
 	"fmt"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,7 +27,7 @@ type Diff struct {
 	Attribute *Attribute
 	HTML      *HTML
 	// Not used for render but for Lifecycle events
-	Old interface{}
+	Old any
 }
 
 func NewDiffer() *Differ {
@@ -40,7 +39,7 @@ func NewDiffer() *Differ {
 	if err == nil {
 		jsB = jsMin
 	} else {
-		log.Println("Error: minify:", err)
+		LoggerDev.Err(err).Msg("NewDiffer: minify")
 	}
 
 	return &Differ{
@@ -64,7 +63,7 @@ func (d *Differ) SetLogger(logger zerolog.Logger) {
 // Path: 0>1>3
 //
 // After tree copy you only have Tagger (with []Attribute), HTML, and strings. Then can be grouped in a NodeGroup
-func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]Diff, error) {
+func (d *Differ) Trees(selector, path string, oldNode, newNode any) ([]Diff, error) {
 	var diffs []Diff
 
 	d.logger.Trace().Str("sel", selector).Str("path", path).Msg("diffTrees")
@@ -106,11 +105,11 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 	case *NodeGroup:
 		oldList := v.Get()
 		newNG, _ := newNode.(*NodeGroup)
-		newList := newNG.list
+		newList := newNG.group
 		indexOffset := 0
 
 		for i := 0; i < len(oldList); i++ {
-			var n interface{}
+			var n any
 			if len(newList) > i {
 				n = newList[i]
 			}
@@ -171,20 +170,20 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 		// exists maps helps us know if we should delete or update
 		oldAttrsMap := map[string]Attributer{}
 		for i := 0; i < len(oldAttrs); i++ {
-			oldAttrsMap[oldAttrs[i].GetAttribute().Name] = oldAttrs[i]
+			oldAttrsMap[oldAttrs[i].GetName()] = oldAttrs[i]
 		}
 
 		newAttrsMap := map[string]Attributer{}
 
 		for i := 0; i < len(newAttrs); i++ {
-			newAttrsMap[newAttrs[i].GetAttribute().Name] = newAttrs[i]
+			newAttrsMap[newAttrs[i].GetName()] = newAttrs[i]
 		}
 
 		// Update existing or create new
 		for i := 0; i < len(newAttrs); i++ {
-			oldAttr, exits := oldAttrsMap[newAttrs[i].GetAttribute().Name]
+			oldAttr, exits := oldAttrsMap[newAttrs[i].GetName()]
 
-			if !exits || newAttrs[i].GetAttribute().GetValue() != oldAttr.GetAttribute().GetValue() {
+			if !exits || newAttrs[i].GetValue() != oldAttr.GetValue() {
 				dt := DiffUpdate
 				if !exits {
 					dt = DiffCreate
@@ -194,20 +193,20 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 					Root:      selector,
 					Path:      path,
 					Type:      dt,
-					Attribute: newAttrs[i].GetAttribute(),
+					Attribute: newAttrs[i].Clone(),
 				})
 			}
 		}
 
 		// Delete old attrs that have been removed
 		for i := 0; i < len(oldAttrs); i++ {
-			_, exits := newAttrsMap[oldAttrs[i].GetAttribute().Name]
+			_, exits := newAttrsMap[oldAttrs[i].GetName()]
 			if !exits {
 				diffs = append(diffs, Diff{
 					Root:      selector,
 					Path:      path,
 					Type:      DiffDelete,
-					Attribute: oldAttrs[i].GetAttribute(),
+					Attribute: oldAttrs[i].Clone(),
 				})
 			}
 		}
@@ -215,7 +214,7 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 		// Is this tag a component?
 		// TODO: add tests to ensure this always works
 		if attr, exits := newAttrsMap[AttrID]; exits {
-			selector = attr.GetAttribute().GetValue()
+			selector = attr.GetValue()
 			path = ""
 		}
 
@@ -225,7 +224,7 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 		// Loop old kids
 		i := 0
 		for ; i < len(oldKids); i++ {
-			var newKid interface{}
+			var newKid any
 			if i < len(newKids) {
 				newKid = newKids[i]
 			}
@@ -299,7 +298,7 @@ func (d *Differ) Trees(selector, path string, oldNode, newNode interface{}) ([]D
 	return diffs, nil
 }
 
-func diffCreate(compID, path string, el interface{}) []Diff {
+func diffCreate(compID, path string, el any) []Diff {
 	switch v := el.(type) {
 	case *NodeGroup:
 		g := v.Get()
@@ -318,13 +317,13 @@ func diffCreate(compID, path string, el interface{}) []Diff {
 				Text: &v,
 			},
 		}
-	case HTML:
+	case *HTML:
 		return []Diff{
 			{
 				Root: compID,
 				Path: path,
 				Type: DiffCreate,
-				HTML: &v,
+				HTML: v,
 			},
 		}
 	case Tagger:
@@ -337,7 +336,6 @@ func diffCreate(compID, path string, el interface{}) []Diff {
 			},
 		}
 	case *Attribute:
-
 		return []Diff{
 			{
 				Root:      compID,
@@ -353,7 +351,7 @@ func diffCreate(compID, path string, el interface{}) []Diff {
 	}
 }
 
-func diffTreeNodeTypeMatch(oldNode, newNode interface{}) bool {
+func diffTreeNodeTypeMatch(oldNode, newNode any) bool {
 	switch oldNode.(type) {
 	case *NodeGroup:
 		_, ok := newNode.(*NodeGroup)
@@ -363,8 +361,8 @@ func diffTreeNodeTypeMatch(oldNode, newNode interface{}) bool {
 		_, ok := newNode.(string)
 
 		return ok
-	case HTML:
-		_, ok := newNode.(HTML)
+	case *HTML:
+		_, ok := newNode.(*HTML)
 
 		return ok
 	case Tagger:
@@ -374,7 +372,7 @@ func diffTreeNodeTypeMatch(oldNode, newNode interface{}) bool {
 	case nil:
 		return false
 	default:
-		panic(fmt.Errorf("unexpected type: %#v", oldNode))
+		panic(fmt.Sprintf("unexpected type: %#v", oldNode))
 	}
 }
 

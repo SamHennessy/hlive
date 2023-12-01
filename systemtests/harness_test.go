@@ -32,6 +32,8 @@ func setup(t *testing.T, pageFn func() *l.Page) harness {
 				t.Error(err)
 			}
 		}
+
+		h.server.PageSessionStore.Done <- true
 	}
 
 	if _, err := h.pwpage.Goto(h.server.HTTPServer.URL); err != nil {

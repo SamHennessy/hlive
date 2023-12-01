@@ -1,7 +1,9 @@
 // Client side redirect
 // Register plugin
-hlive.afterMessage.push(function() {
-    document.querySelectorAll("[data-redirect]").forEach(function (el) {
-        window.location.replace(el.getAttribute("data-redirect"));
+if (hlive.afterMessage.get("hredi") === undefined) {
+    hlive.afterMessage.set("hredi", function () {
+        document.querySelectorAll("[data-redirect]").forEach(function (el) {
+            window.location.replace(el.getAttribute("data-redirect"));
+        });
     });
-});
+}

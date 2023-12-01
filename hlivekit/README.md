@@ -28,3 +28,4 @@ Features:
   - Hide things until HLive had initialised
 - Copy to clipboard
   - `navigator.clipboard.writeText(<value>)`
+- Drag and drop

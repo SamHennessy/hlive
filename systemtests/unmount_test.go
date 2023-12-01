@@ -15,13 +15,13 @@ func TestUnmount_CloseTab(t *testing.T) {
 	done := make(chan bool)
 
 	c := l.CM("div")
-	c.UnmountFunc = func(ctx context.Context) {
+	c.SetUnmount(func(ctx context.Context) {
 		done <- true
-	}
+	})
 
 	page := l.NewPage()
 
-	page.DOM.Body.Add(c)
+	page.DOM().Body().Add(c)
 
 	pageFn := func() *l.Page {
 		return page

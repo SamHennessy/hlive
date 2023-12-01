@@ -1,11 +1,17 @@
 package hlive
 
 import (
+	"fmt"
 	"strings"
+
+	"github.com/vmihailenco/msgpack/v5"
 )
 
 type Attributer interface {
-	GetAttribute() *Attribute
+	GetName() string
+	GetValue() string
+	IsNoEscapeString() bool
+	Clone() *Attribute
 }
 
 type AttributePluginer interface {
@@ -17,28 +23,33 @@ type AttributePluginer interface {
 	InitializeSSR(page *Page)
 }
 
-// Attrs is a helper for adding Attributes to nodes
-// You can update an existing Attribute by adding new Attrs, it;s also possible to pass a string by reference.
-// You can remove an Attribute by passing a nil value.
-type Attrs map[string]interface{}
+// Attrs is a helper for adding and updating Attributes to nodes
+type Attrs map[string]string
 
-func (a Attrs) GetAttributes() []Attributer {
+func (a Attrs) GetAttributers() []Attributer {
 	newAttrs := make([]Attributer, 0, len(a))
 
 	for name, val := range a {
-		attr := NewAttribute(name)
-		switch v := val.(type) {
-		case string:
-			attr.SetValue(v)
-		case *string:
-			attr.Value = v
-		}
-
-		newAttrs = append(newAttrs, attr)
+		newAttrs = append(newAttrs, NewAttribute(name, val))
 	}
 
 	return newAttrs
 }
+
+type AttrsLockBox map[string]*LockBox[string]
+
+func (a AttrsLockBox) GetAttributers() []Attributer {
+	newAttrs := make([]Attributer, 0, len(a))
+
+	for name, val := range a {
+		newAttrs = append(newAttrs, NewAttributeLockBox(name, val))
+	}
+
+	return newAttrs
+}
+
+// AttrsOff a helper for removing Attributes
+type AttrsOff []string
 
 // ClassBool a special Attribute for working with CSS classes on nodes using a bool to toggle them on and off.
 // It supports turning them on and off and allowing overriding. Due to how Go maps work the order of the classes in
@@ -55,63 +66,96 @@ type (
 	ClassListOff []string
 )
 
-// Style is a special Attribute that allows you to work with ClassBool styles on nodes.
-// It allows you to override
-// All Styles are de-duped, overriding a Style by adding new Style will result in the old Style getting updated.
+// Style is a special Element that allows you to work the properties of style attribute.
+// A property and value will be added or updated.
 // You don't have to use Style to add a style attribute, but it's the recommended way to do it.
-type Style map[string]interface{}
+type Style map[string]string
+
+// StyleLockBox like Style but, you can update the property values indirectly
+// TODO: add test
+type StyleLockBox map[string]*LockBox[string]
+
+// StyleOff remove an existing style property, ignored if the property doesn't exist
+// TODO: add test
+type StyleOff []string
 
 // NewAttribute create a new Attribute
-func NewAttribute(name string, value ...string) *Attribute {
-	a := Attribute{Name: strings.ToLower(name)}
+func NewAttribute(name string, value string) *Attribute {
+	return &Attribute{name: strings.ToLower(name), value: NewLockBox(value)}
+}
 
-	if len(value) != 0 {
-		if len(value) != 1 {
-			panic(ErrAttrValueCount)
-		}
-
-		a.Value = &value[0]
-	}
-
-	return &a
+// NewAttributeLockBox create a new Attribute using the passed LockBox value
+func NewAttributeLockBox(name string, value *LockBox[string]) *Attribute {
+	return &Attribute{name: strings.ToLower(name), value: value}
 }
 
 // Attribute represents an HTML attribute e.g. id="submitBtn"
 type Attribute struct {
-	// Name must always be lowercase
-	Name  string
-	Value *string
+	// name must always be lowercase
+	name           string
+	value          *LockBox[string]
+	noEscapeString bool
 }
 
-func (a *Attribute) SetValue(value string) {
-	a.Value = &value
+func (a *Attribute) MarshalMsgpack() ([]byte, error) {
+	return msgpack.Marshal([2]any{a.name, a.value.Get()})
 }
 
-func (a *Attribute) GetValue() string {
-	if a == nil || a.Value == nil {
+func (a *Attribute) UnmarshalMsgpack(b []byte) error {
+	var values [2]any
+	if err := msgpack.Unmarshal(b, &values); err != nil {
+		return fmt.Errorf("msgpack.Unmarshal: %w", err)
+	}
+
+	a.name, _ = values[0].(string)
+
+	val, _ := values[1].(string)
+	a.value = NewLockBox(val)
+
+	return nil
+}
+
+func (a *Attribute) GetName() string {
+	if a == nil {
 		return ""
 	}
 
-	return *a.Value
+	return a.name
+}
+
+func (a *Attribute) SetValue(value string) {
+	a.value.Set(value)
+}
+
+func (a *Attribute) GetValue() string {
+	if a == nil {
+		return ""
+	}
+
+	return a.value.Get()
 }
 
 // Clone creates a new Attribute using the data from this Attribute
 func (a *Attribute) Clone() *Attribute {
-	newA := NewAttribute(a.Name)
-
-	if a.Value != nil {
-		val := *a.Value
-		newA.Value = &val
-	}
+	newA := NewAttribute(a.name, a.value.Get())
+	newA.noEscapeString = a.noEscapeString
 
 	return newA
 }
 
-func (a *Attribute) GetAttribute() *Attribute {
-	return a
+func (a *Attribute) IsNoEscapeString() bool {
+	if a == nil {
+		return false
+	}
+
+	return a.noEscapeString
 }
 
-func anyToAttributes(attrs ...interface{}) []Attributer {
+func (a *Attribute) SetNoEscapeString(noEscapeString bool) {
+	a.noEscapeString = noEscapeString
+}
+
+func anyToAttributes(attrs ...any) []Attributer {
 	var newAttrs []Attributer
 
 	for i := 0; i < len(attrs); i++ {
@@ -121,7 +165,9 @@ func anyToAttributes(attrs ...interface{}) []Attributer {
 
 		switch v := attrs[i].(type) {
 		case Attrs:
-			newAttrs = append(newAttrs, v.GetAttributes()...)
+			newAttrs = append(newAttrs, v.GetAttributers()...)
+		case AttrsLockBox:
+			newAttrs = append(newAttrs, v.GetAttributers()...)
 		case Attributer:
 			newAttrs = append(newAttrs, v)
 		case []Attributer:
@@ -131,7 +177,12 @@ func anyToAttributes(attrs ...interface{}) []Attributer {
 				newAttrs = append(newAttrs, v[j])
 			}
 		default:
-			panic(ErrInvalidAttribute)
+			LoggerDev.Error().
+				Str("callers", CallerStackStr()).
+				Str("value", fmt.Sprintf("%#v", v)).
+				Msg("invalid attribute")
+
+			continue
 		}
 	}
 

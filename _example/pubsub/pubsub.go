@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	http.Handle("/", l.NewPageServer(home()))
+	http.Handle("/", l.NewPageServer(home))
 
 	log.Println("INFO: listing :3000")
 
@@ -34,35 +34,42 @@ var emailRegex = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z
 
 type inputValue struct {
 	name  string
-	value string
-	error string
+	value *l.NodeBox[string]
+	error *l.NodeBox[string]
 }
 
-func home() func() *l.Page {
-	return func() *l.Page {
-		pubSub := hlivekit.NewPubSub()
-
-		page := l.NewPage()
-		page.DOM.HTML.Add(hlivekit.InstallPubSub(pubSub))
-		page.DOM.Title.Add("PubSub Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
-
-		page.DOM.Body.Add(
-			l.T("h1", "PubSub"),
-			l.T("blockquote", "Use the PubSub system to allow for decoupled components."),
-			l.T("hr"),
-			newErrorMessages(),
-			newUserForm(
-				newInputName(),
-				newInputEmail(),
-				l.C("button", "Submit"),
-				l.T("p", "*Required"),
-			),
-			newFormOutput(),
-		)
-
-		return page
+func newInputValue(name string) inputValue {
+	return inputValue{
+		name:  name,
+		value: l.Box(""),
+		error: l.Box(""),
 	}
+}
+
+func home() *l.Page {
+	pubSub := hlivekit.NewPubSub()
+
+	page := l.NewPage()
+	page.DOM().HTML().Add(hlivekit.InstallPubSub(pubSub))
+	page.DOM().Title().Add("PubSub Example")
+	page.DOM().Head().Add(l.T("link",
+		l.Attrs{"rel": "stylesheet", "href": "https://classless.de/classless.css"}))
+
+	page.DOM().Body().Add(
+		l.T("h1", "PubSub"),
+		l.T("blockquote", "Use the PubSub system to allow for decoupled components."),
+		l.T("hr"),
+		newErrorMessages(),
+		newUserForm(
+			newInputName(),
+			newInputEmail(),
+			l.C("button", "Submit"),
+			l.T("p", "*Required"),
+		),
+		newFormOutput(),
+	)
+
+	return page
 }
 
 //
@@ -73,8 +80,9 @@ func home() func() *l.Page {
 
 func newErrorMessages() *errorMessages {
 	c := &errorMessages{
-		Component: l.C("div"),
-		inputMap:  map[string]inputValue{},
+		Component:  l.C("div"),
+		inputMap:   map[string]inputValue{},
+		errMessage: l.Box(""),
 	}
 
 	c.initDOM()
@@ -86,12 +94,12 @@ type errorMessages struct {
 	*l.Component
 
 	pubSub     *hlivekit.PubSub
-	errMessage string
+	errMessage *l.NodeBox[string]
 	inputs     []string
 	inputMap   map[string]inputValue
 }
 
-func (c *errorMessages) PubSubMount(pubSub *hlivekit.PubSub) {
+func (c *errorMessages) PubSubMount(_ context.Context, pubSub *hlivekit.PubSub) {
 	c.pubSub = pubSub
 
 	// Track input updates
@@ -104,7 +112,7 @@ func (c *errorMessages) PubSubMount(pubSub *hlivekit.PubSub) {
 func (c *errorMessages) onFormValidate(_ hlivekit.QueueMessage) {
 	c.inputs = nil
 	c.inputMap = map[string]inputValue{}
-	c.errMessage = ""
+	c.errMessage.Set("")
 	c.Add(l.Attrs{"display": "none"})
 }
 
@@ -129,28 +137,30 @@ func (c *errorMessages) initDOM() {
 	c.Add(l.ClassBool{"card": true}, l.Style{"display": "none"},
 		l.T("h4", "Errors"),
 		l.T("hr"),
-		l.T("p", &c.errMessage),
+		l.T("p", c.errMessage),
 	)
 }
 
 func (c *errorMessages) formatErrMessage() {
-	c.errMessage = ""
+	c.errMessage.Set("")
 	for i := 0; i < len(c.inputs); i++ {
-		if c.inputMap[c.inputs[i]].error != "" {
-			c.errMessage += c.inputMap[c.inputs[i]].error + " "
+		if c.inputMap[c.inputs[i]].error.Get() != "" {
+			c.errMessage.Lock(func(v string) string {
+				return v + c.inputMap[c.inputs[i]].error.Get() + " "
+			})
 		}
 	}
 
-	if c.errMessage == "" {
+	if c.errMessage.Get() == "" {
 		c.Add(l.Style{"display": "none"})
 	} else {
-		c.Add(l.Style{"display": nil})
+		c.Add(l.StyleOff{"display"})
 	}
 }
 
 // User form
 
-func newUserForm(nodes ...interface{}) *userForm {
+func newUserForm(nodes ...any) *userForm {
 	c := &userForm{
 		Component: l.C("form", nodes...),
 	}
@@ -167,7 +177,7 @@ type userForm struct {
 	pubSub    *hlivekit.PubSub
 }
 
-func (c *userForm) PubSubMount(pubSub *hlivekit.PubSub) {
+func (c *userForm) PubSubMount(_ context.Context, pubSub *hlivekit.PubSub) {
 	c.pubSub = pubSub
 
 	// If any errors, then we can't submit
@@ -201,7 +211,7 @@ func (c *userForm) onSubmit(_ context.Context, _ l.Event) {
 func newInputName() *inputName {
 	c := &inputName{
 		Component: l.NewComponent("span"),
-		input:     inputValue{name: "name"},
+		input:     newInputValue("name"),
 	}
 
 	c.initDOM()
@@ -217,7 +227,7 @@ type inputName struct {
 	firstChange bool
 }
 
-func (c *inputName) PubSubMount(pubSub *hlivekit.PubSub) {
+func (c *inputName) PubSubMount(_ context.Context, pubSub *hlivekit.PubSub) {
 	c.pubSub = pubSub
 
 	c.pubSub.Subscribe(hlivekit.NewSub(c.onFormValidate), pstFormValidate)
@@ -227,12 +237,14 @@ func (c *inputName) initDOM() {
 	c.Add(
 		l.T("label", "Name*"),
 
-		l.C("input", l.Attrs{"name": "name", "placeholder": "Your name", "value": &c.input.value},
+		l.C("input",
+			l.Attrs{"name": "name", "placeholder": "Your name"},
+			l.AttrsLockBox{"value": c.input.value.LockBox},
 			l.On("input", c.onInput),
 			l.On("change", c.onChange),
 		),
 
-		l.T("p", l.Style{"color": "red"}, &c.input.error),
+		l.T("p", l.Style{"color": "red"}, c.input.error),
 	)
 }
 
@@ -247,7 +259,7 @@ func (c *inputName) onChange(ctx context.Context, e l.Event) {
 }
 
 func (c *inputName) onInput(_ context.Context, e l.Event) {
-	c.input.value = e.Value
+	c.input.value.Set(e.Value)
 
 	if c.firstChange {
 		c.validate()
@@ -255,17 +267,17 @@ func (c *inputName) onInput(_ context.Context, e l.Event) {
 }
 
 func (c *inputName) validate() {
-	c.input.error = ""
+	c.input.error.Set("")
 
-	if c.input.value == "" {
-		c.input.error = "Name is required."
+	if c.input.value.Get() == "" {
+		c.input.error.Set("Name is required.")
 		c.pubSub.Publish(pstInputInvalid, c.input)
 
 		return
 	}
 
-	if len([]rune(c.input.value)) < 2 {
-		c.input.error = "Name is too short."
+	if len([]rune(c.input.value.Get())) < 2 {
+		c.input.error.Set("Name is too short.")
 		c.pubSub.Publish(pstInputInvalid, c.input)
 
 		return
@@ -279,7 +291,7 @@ func (c *inputName) validate() {
 func newInputEmail() *inputEmail {
 	c := &inputEmail{
 		Component: l.NewComponent("span"),
-		input:     inputValue{name: "email"},
+		input:     newInputValue("email"),
 	}
 
 	c.initDOM()
@@ -295,7 +307,7 @@ type inputEmail struct {
 	firstChange bool
 }
 
-func (c *inputEmail) PubSubMount(pubSub *hlivekit.PubSub) {
+func (c *inputEmail) PubSubMount(_ context.Context, pubSub *hlivekit.PubSub) {
 	c.pubSub = pubSub
 
 	c.pubSub.Subscribe(hlivekit.NewSub(c.onFormValidate), pstFormValidate)
@@ -306,12 +318,13 @@ func (c *inputEmail) initDOM() {
 		l.T("label", "Email"),
 
 		l.C("input",
-			l.Attrs{"name": "email", "placeholder": "Your email address", "value": &c.input.value},
+			l.Attrs{"name": "email", "placeholder": "Your email address"},
+			l.AttrsLockBox{"value": c.input.value.LockBox},
 			l.On("input", c.onInput),
 			l.On("change", c.onChange),
 		),
 
-		l.T("p", l.Style{"color": "red"}, &c.input.error),
+		l.T("p", l.Style{"color": "red"}, c.input.error),
 	)
 }
 
@@ -326,7 +339,7 @@ func (c *inputEmail) onChange(ctx context.Context, e l.Event) {
 }
 
 func (c *inputEmail) onInput(_ context.Context, e l.Event) {
-	c.input.value = e.Value
+	c.input.value.Set(e.Value)
 
 	if c.firstChange {
 		c.validate()
@@ -334,10 +347,10 @@ func (c *inputEmail) onInput(_ context.Context, e l.Event) {
 }
 
 func (c *inputEmail) validate() {
-	c.input.error = ""
+	c.input.error.Set("")
 
-	if len(c.input.value) != 0 && !emailRegex.MatchString(c.input.value) {
-		c.input.error = "Email address not valid."
+	if len(c.input.value.Get()) != 0 && !emailRegex.MatchString(c.input.value.Get()) {
+		c.input.error.Set("Email address not valid.")
 		c.pubSub.Publish(pstInputInvalid, c.input)
 
 		return
@@ -377,7 +390,7 @@ type formOutput struct {
 	inputs map[string]inputValue
 }
 
-func (c *formOutput) PubSubMount(pubSub *hlivekit.PubSub) {
+func (c *formOutput) PubSubMount(_ context.Context, pubSub *hlivekit.PubSub) {
 	c.pubSub = pubSub
 
 	c.pubSub.Subscribe(hlivekit.NewSub(c.onValidInput), pstInputValid)
@@ -391,7 +404,7 @@ func (c *formOutput) onValidInput(item hlivekit.QueueMessage) {
 }
 
 func (c *formOutput) onSubmitForm(_ hlivekit.QueueMessage) {
-	c.Add(l.Style{"display": nil})
+	c.Add(l.StyleOff{"display"})
 	c.list.RemoveAllItems()
 	for key, input := range c.inputs {
 		c.list.Add(

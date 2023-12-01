@@ -12,11 +12,11 @@ type ComponentGetNodes struct {
 }
 
 // CGN is a shortcut for NewComponentGetNodes
-func CGN(name string, getNodesFunc func() *hlive.NodeGroup, elements ...interface{}) *ComponentGetNodes {
+func CGN(name string, getNodesFunc func() *hlive.NodeGroup, elements ...any) *ComponentGetNodes {
 	return NewComponentGetNodes(name, getNodesFunc, elements...)
 }
 
-func NewComponentGetNodes(name string, getNodesFunc func() *hlive.NodeGroup, elements ...interface{}) *ComponentGetNodes {
+func NewComponentGetNodes(name string, getNodesFunc func() *hlive.NodeGroup, elements ...any) *ComponentGetNodes {
 	return &ComponentGetNodes{
 		ComponentMountable: hlive.NewComponentMountable(name, elements...),
 		GetNodesFunc:       getNodesFunc,

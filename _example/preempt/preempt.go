@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	http.Handle("/", home())
+	http.Handle("/", l.NewPageServer(home))
 
 	log.Println("INFO: listing :3000")
 
@@ -20,60 +20,51 @@ func main() {
 	}
 }
 
-func home() *l.PageServer {
-	f := func() *l.Page {
-		page := l.NewPage()
-		page.DOM.Title.Add("Preempt Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+func home() *l.Page {
+	page := l.NewPage()
+	page.DOM().Title().Add("Preempt Example")
+	page.DOM().Head().Add(l.T("link",
+		l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		var countWith int
+	countWith := l.Box(0)
 
-		btnWith := l.C("button",
-			// Passing by reference
-			&countWith,
-		)
+	btnWith := l.C("button", countWith)
 
-		btnWith.Add(hlivekit.PreemptDisableOn(l.On("click",
-			func(_ context.Context, _ l.Event) {
-				time.Sleep(2 * time.Second)
-				countWith++
-				btnWith.Add(l.Attrs{"disabled": nil})
-			}),
-		))
+	btnWith.Add(hlivekit.PreemptDisableOn(l.On("click",
+		func(_ context.Context, _ l.Event) {
+			time.Sleep(2 * time.Second)
+			countWith.Lock(func(v int) int { return v + 1 })
+			btnWith.Add(l.AttrsOff{"disabled"})
+		}),
+	))
 
-		var countWithout int
+	countWithout := l.Box(0)
 
-		btnWithout := l.C("button",
-			// Passing by reference
-			&countWithout,
-		)
+	btnWithout := l.C("button", countWithout)
 
-		btnWithout.Add(l.On("click",
-			func(_ context.Context, _ l.Event) {
-				time.Sleep(2 * time.Second)
-				countWithout++
-			}),
-		)
+	btnWithout.Add(l.On("click",
+		func(_ context.Context, _ l.Event) {
+			time.Sleep(2 * time.Second)
+			countWithout.Lock(func(v int) int { return v + 1 })
+		}),
+	)
 
-		page.DOM.Body.Add(
-			l.T("header",
-				l.T("h1", "Preempt - Client Side First Code"),
-				l.T("p", "Update the client side DOM before the server side."),
-			),
-			l.T("main",
-				l.T("p", "The handler will sleep for 2 seconds to simulate a long processing time. "+
-					"The first button will be disabled in the browser first to prevent extra clicks. Now click the "+
-					"buttons as many times as you can to see the differance"),
-				"Clicks With: ",
-				btnWith,
-				l.T("br"),
-				"Clicks Without: ",
-				btnWithout,
-			),
-		)
+	page.DOM().Body().Add(
+		l.T("header",
+			l.T("h1", "Preempt - Client Side First Code"),
+			l.T("p", "Update the client side DOM before the server side."),
+		),
+		l.T("main",
+			l.T("p", "The handler will sleep for 2 seconds to simulate a long processing time. "+
+				"The first button will be disabled in the browser first to prevent extra clicks. Now click the "+
+				"buttons as many times as you can to see the difference"),
+			"Clicks With: ",
+			btnWith,
+			l.T("br"),
+			"Clicks Without: ",
+			btnWithout,
+		),
+	)
 
-		return page
-	}
-
-	return l.NewPageServer(f)
+	return page
 }

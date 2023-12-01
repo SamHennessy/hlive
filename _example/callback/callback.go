@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	http.Handle("/", home())
+	http.Handle("/", l.NewPageServer(home))
 
 	log.Println("INFO: listing :3000")
 
@@ -30,35 +30,32 @@ func callback(container *l.Component) {
 	)
 }
 
-func home() *l.PageServer {
-	f := func() *l.Page {
-		container := l.C("code")
+func home() *l.Page {
+	container := l.C("code")
 
-		btn := l.C("button", "Trigger Click",
-			l.On("click", func(ctx context.Context, e l.Event) {
-				container.Add(l.T("p", "Click"))
-				callback(container)
-			}),
-		)
+	btn := l.C("button", "Trigger Click",
+		l.On("click", func(ctx context.Context, e l.Event) {
+			container.Add(l.T("p", "Click"))
+			callback(container)
+		}),
+	)
 
-		page := l.NewPage()
-		page.DOM.Title.Add("Callback Example")
-		page.DOM.Head.Add(l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
+	page := l.NewPage()
+	page.DOM().Title().Add("Callback Example")
+	page.DOM().Head().Add(
+		l.T("link", l.Attrs{"rel": "stylesheet", "href": "https://cdn.simplecss.org/simple.min.css"}))
 
-		page.DOM.Body.Add(
-			l.T("header",
-				l.T("h1", "Callback"),
-				l.T("p", "Get notified when a change has been applied in the browser"),
-			),
-			l.T("main",
-				l.T("p", btn),
-				l.T("h2", "Events"),
-				l.T("pre", container),
-			),
-		)
+	page.DOM().Body().Add(
+		l.T("header",
+			l.T("h1", "Callback"),
+			l.T("p", "Get notified when a change has been applied in the browser"),
+		),
+		l.T("main",
+			l.T("p", btn),
+			l.T("h2", "Events"),
+			l.T("pre", container),
+		),
+	)
 
-		return page
-	}
-
-	return l.NewPageServer(f)
+	return page
 }

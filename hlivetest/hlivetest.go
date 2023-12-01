@@ -59,7 +59,7 @@ func GetID(t *testing.T, pwpage playwright.Page, selector string) string {
 	return GetAttribute(t, pwpage, selector, "id")
 }
 
-func Diff(t *testing.T, want interface{}, got interface{}) {
+func Diff(t *testing.T, want any, got any) {
 	t.Helper()
 
 	if diff := deep.Equal(want, got); diff != nil {
@@ -67,7 +67,7 @@ func Diff(t *testing.T, want interface{}, got interface{}) {
 	}
 }
 
-func DiffFatal(t *testing.T, want interface{}, got interface{}) {
+func DiffFatal(t *testing.T, want any, got any) {
 	t.Helper()
 
 	if diff := deep.Equal(want, got); diff != nil {

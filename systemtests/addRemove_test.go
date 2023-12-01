@@ -19,7 +19,7 @@ func TestAddRemove_AddSibling(t *testing.T) {
 			l.T("div", l.Attrs{"id": "b"}),
 		)
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.C("button", l.Attrs{"id": "btn"}, "Click Me",
 				l.On("click", func(ctx context.Context, e l.Event) {
 					parent.Add(l.T("div", l.Attrs{"id": "c"}))
@@ -52,7 +52,7 @@ func TestAddRemove_AddMultipleSibling(t *testing.T) {
 			l.T("div", l.Attrs{"id": "b"}),
 		)
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.C("button", l.Attrs{"id": "btn"}, "Click Me",
 				l.On("click", func(ctx context.Context, e l.Event) {
 					parent.Add(

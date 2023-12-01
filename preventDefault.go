@@ -9,7 +9,7 @@ const PreventDefaultAttributeName = "data-hlive-pd"
 //go:embed preventDefault.js
 var PreventDefaultJavaScript []byte
 
-func PreventDefault() Attributer {
+func PreventDefault() *PreventDefaultAttribute {
 	attr := &PreventDefaultAttribute{
 		NewAttribute(PreventDefaultAttributeName, ""),
 	}
@@ -18,7 +18,7 @@ func PreventDefault() Attributer {
 }
 
 func PreventDefaultRemove(tag Adder) {
-	tag.Add(Attrs{PreventDefaultAttributeName: nil})
+	tag.Add(AttrsOff{PreventDefaultAttributeName})
 }
 
 type PreventDefaultAttribute struct {
@@ -26,9 +26,9 @@ type PreventDefaultAttribute struct {
 }
 
 func (a *PreventDefaultAttribute) Initialize(page *Page) {
-	page.DOM.Head.Add(T("script", HTML(PreventDefaultJavaScript)))
+	page.DOM().Head().Add(T("script", HTML(PreventDefaultJavaScript)))
 }
 
 func (a *PreventDefaultAttribute) InitializeSSR(page *Page) {
-	page.DOM.Head.Add(T("script", HTML(PreventDefaultJavaScript)))
+	page.DOM().Head().Add(T("script", HTML(PreventDefaultJavaScript)))
 }

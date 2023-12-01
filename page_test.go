@@ -18,7 +18,7 @@ func TestPage_CloseHooks(t *testing.T) {
 		called = true
 	}
 
-	p.HookClose = append(p.HookClose, hook)
+	p.HookCloseAdd(hook)
 
 	p.Close(context.Background())
 

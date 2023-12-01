@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,81 +17,101 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const EventBindingsCacheDefault = 10 // Default for a small page
+
 type Page struct {
 	// HTML renderer
-	Renderer *Renderer
+	renderer *Renderer
 	// DOM differ
-	Differ *Differ
+	differ *Differ
 	// Page rendering pipelines
-	PipelineDiff *Pipeline
+	pipelineDiff *Pipeline
 	// Page HTML rendering pipeline
-	PipelineSSR *Pipeline
+	pipelineSSR *Pipeline
 	// Internal debug logger
 	logger zerolog.Logger
 	// Virtual DOM
-	DOM DOM
-	// What we think is the browser done is now
-	DOMBrowser interface{}
+	dom DOM
+	// What we think is the browser DOM is
+	domBrowser any
 	// Lock the page for writes
-	// TODO: replace with channel?
-	pageLock sync.RWMutex
-	// weConn    *websocket.Conn
-	connected bool
+	mu sync.RWMutex
 	// sessID is the WebSocket connection session id
 	// only one page will have this at a time but is can be passed from page to page if connection is kept open
 	sessID string
 	// Component caches, to prevent walking to tree to find something
-	eventBindings *hashmap.HashMap
-	// Buffered channel of outbound messages.
+	eventBindings *hashmap.Map[string, *EventBinding]
+	// Channel of outbound messages.
 	send chan<- MessageWS
-	// Buffered channel of inbound messages.
+	// Channel of inbound messages.
 	receive <-chan MessageWS
-	// done with the main loop
-	done chan bool
+	// cache async safe
+	cache Cache
 	//
 	// Hooks
 	//
 	// Before each event
-	HookBeforeEvent []func(ctx context.Context, e Event) (context.Context, Event)
+	hookBeforeEvent []func(ctx context.Context, e Event) (context.Context, Event)
 	// After each event
-	HookAfterEvent []func(ctx context.Context, e Event) (context.Context, Event)
+	hookAfterEvent []func(ctx context.Context, e Event) (context.Context, Event)
 	// After each render
-	HookAfterRender []func(context.Context, []Diff, chan<- MessageWS)
-	HookClose       []func(context.Context, *Page)
+	hookAfterRender []func(context.Context, []Diff, chan<- MessageWS)
+	hookClose       []func(context.Context, *Page)
 	// Before we do the initial render and send to the browser
-	HookBeforeMount []func(context.Context, *Page)
+	hookBeforeMount []func(context.Context, *Page)
 	// After we do the initial render and send to the browser
-	HookMount []func(context.Context, *Page)
+	hookMount []func(context.Context, *Page)
 	// When we close the page
-	HookUnmount []func(context.Context, *Page)
+	hookUnmount []func(context.Context, *Page)
 }
 
-func NewPage() *Page {
+func NewPage(options ...PageOption) *Page {
 	p := &Page{
-		Renderer:      NewRenderer(),
-		Differ:        NewDiffer(),
-		DOM:           *NewDOM(),
-		logger:        zerolog.Nop(),
-		eventBindings: hashmap.New(10), // No real reason for 10
+		dom:    NewDOM(),
+		logger: zerolog.Nop(),
 	}
 
-	p.DOM.Head.Add(T("script", HTML(p.Differ.JavaScript)))
+	for i := 0; i < len(options); i++ {
+		options[i](p)
+	}
+
+	if p.eventBindings == nil {
+		p.eventBindings = hashmap.NewSized[string, *EventBinding](EventBindingsCacheDefault)
+	}
+
+	if p.renderer == nil {
+		p.renderer = NewRenderer()
+	}
+
+	if p.differ == nil {
+		p.differ = NewDiffer()
+		p.dom.head.Add(T("script", HTML(p.differ.JavaScript)))
+	}
 
 	// Differ Pipeline
-	p.PipelineDiff = NewPipeline(
-		PipelineProcessorAttributePluginMount(p),
-		PipelineProcessorEventBindingCache(p.eventBindings),
-		PipelineProcessorMount(),
-		PipelineProcessorUnmount(p),
-		PipelineProcessorConvertToString(),
-	)
+	if p.pipelineDiff == nil {
+		p.pipelineDiff = NewPipeline(
+			PipelineProcessorAttributePluginMount(p),
+			PipelineProcessorMount(),
+			PipelineProcessorEventBindingCache(p.eventBindings),
+			PipelineProcessorUnmount(p),
+			PipelineProcessorConvertToString(),
+		)
+	}
 	// Server Side Render Pipeline
-	p.PipelineSSR = NewPipeline(
-		PipelineProcessorAttributePluginMountSSR(p),
-		PipelineProcessorStripHLiveAttrs(),
-		PipelineProcessorConvertToString(),
-		PipelineProcessorRenderer(p.Renderer),
-	)
+	if p.pipelineSSR == nil {
+		p.pipelineSSR = NewPipeline(
+			PipelineProcessorAttributePluginMountSSR(p),
+			PipelineProcessorConvertToString(),
+		)
+	}
+
+	if p.cache != nil {
+		p.pipelineSSR.Add(PipelineProcessorRenderHashAndCache(p.logger, p.renderer, p.cache))
+		p.DOM().HTML().Add(Attrs{PageHashAttr: PageHashAttrTmpl})
+	} else {
+		p.pipelineSSR.Add(PipelineProcessorRenderer(p.renderer))
+	}
 
 	return p
 }
@@ -110,51 +129,47 @@ type websocketMessage struct {
 
 func (p *Page) SetLogger(logger zerolog.Logger) {
 	p.logger = logger
-	p.Renderer.SetLogger(p.logger)
-	p.Differ.SetLogger(p.logger)
-}
-
-func (p *Page) IsConnected() bool {
-	return p.connected
+	p.renderer.SetLogger(p.logger)
+	p.differ.SetLogger(p.logger)
 }
 
 func (p *Page) GetSessionID() string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
 	return p.sessID
 }
 
 func (p *Page) Close(ctx context.Context) {
-	for i := 0; i < len(p.HookClose); i++ {
-		p.HookClose[i](ctx, p)
-	}
-
-	if p.connected {
-		p.connected = false
-	}
-
-	if p.done != nil {
-		p.done <- true
+	for i := 0; i < len(p.hookClose); i++ {
+		p.hookClose[i](ctx, p)
 	}
 }
 
 func (p *Page) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	p.mu.Lock()
 	if err := p.serverHTTP(w, r); err != nil {
 		p.logger.Err(err).Msg("server http")
 	}
+	p.mu.Unlock()
 }
 
 func (p *Page) serverHTTP(w http.ResponseWriter, r *http.Request) error {
-	p.pageLock.Lock()
-
 	_, err := p.runRenderPipeline(r.Context(), w)
-
-	p.pageLock.Unlock()
 
 	return err
 }
 
+func (p *Page) RunRenderPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.runRenderPipeline(ctx, w)
+}
+
 func (p *Page) runRenderPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {
 start:
-	tree, err := p.PipelineSSR.run(ctx, w, p.GetNodes())
+	tree, err := p.pipelineSSR.run(ctx, w, p.getNodes())
 
 	// A plugin being added will do this
 	if errors.Is(err, ErrDOMInvalidated) {
@@ -164,9 +179,16 @@ start:
 	return tree, err
 }
 
+func (p *Page) RunDiffPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	return p.runDiffPipeline(ctx, w)
+}
+
 func (p *Page) runDiffPipeline(ctx context.Context, w io.Writer) (*NodeGroup, error) {
 start:
-	tree, err := p.PipelineDiff.run(ctx, w, p.GetNodes())
+	tree, err := p.pipelineDiff.run(ctx, w, p.getNodes())
 
 	// Plugins will do this
 	if errors.Is(err, ErrDOMInvalidated) {
@@ -177,71 +199,71 @@ start:
 }
 
 func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS, receive <-chan MessageWS) error {
-	p.send = send
-	p.receive = receive
-	p.done = make(chan bool)
-
-	defer func() {
-		if p.done != nil {
-			close(p.done)
-		}
-		p.done = nil
-	}()
-
 	var err error
+	p.mu.Lock()
 
-	p.connected = true
+	if p.send == nil {
+		p.send = send
+	}
+
+	if p.receive == nil {
+		p.receive = receive
+	}
 
 	// Send session id, it may be new or have changed
 	p.sessID = sessID
-	p.wsSend("s|id|" + sessID)
+	p.wsSend(ctx, "s|id|"+sessID)
 
 	// Do an initial render
-	if p.DOMBrowser == nil {
-		p.logger.Trace().Msg("initial render")
+	if p.domBrowser == nil {
+		p.logger.Debug().Msg("ServeWS: browser render")
 		// We need a static render
-		// p.DOMBrowser, err = p.PipelineSSR.run(ctx, io.Discard, p.GetNodes())
-		p.DOMBrowser, err = p.runRenderPipeline(ctx, io.Discard)
+		p.domBrowser, err = p.runRenderPipeline(ctx, io.Discard)
 		if err != nil {
-			p.logger.Err(err).Msg("ws static render: html pipeline")
+			p.logger.Err(err).Msg("ServeWS: render pipeline")
 		}
 	}
 
 	// Add render function to context
-	ctx = context.WithValue(ctx, "Unique", strconv.Itoa(rand.Int()))
 	ctx = context.WithValue(ctx, CtxRender, p.executeRenderWS)
 	ctx = context.WithValue(ctx, CtxRenderComponent, p.renderComponentWS)
 
+	p.mu.Unlock()
+
 	// TODO: add tests
-	for i := 0; i < len(p.HookBeforeMount); i++ {
-		p.HookBeforeMount[i](ctx, p)
+	for i := 0; i < len(p.hookBeforeMount); i++ {
+		p.hookBeforeMount[i](ctx, p)
 	}
 
 	// Do a dynamic render
 	p.executeRenderWS(ctx)
 
 	// TODO: add tests
-	for i := 0; i < len(p.HookMount); i++ {
-		p.HookMount[i](ctx, p)
+	for i := 0; i < len(p.hookMount); i++ {
+		p.hookMount[i](ctx, p)
 	}
 
 	defer func() {
-		for i := 0; i < len(p.HookUnmount); i++ {
-			p.HookUnmount[i](ctx, p)
+		for i := 0; i < len(p.hookUnmount); i++ {
+			p.hookUnmount[i](ctx, p)
 		}
 	}()
 
 	taskQueue := make(chan func())
-	defer func() { close(taskQueue) }()
 	go func() {
-		for task := range taskQueue {
-			task()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case task := <-taskQueue:
+				task()
+			}
 		}
 	}()
 
 	for {
 		select {
-		case <-p.done:
+		case <-ctx.Done():
 			return nil
 		case messageWS, ok := <-p.receive:
 			if !ok {
@@ -250,11 +272,7 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 
 			// We can't block here else we can't close and events here can trigger a close
 			go func() {
-				if !p.connected {
-					return
-				}
-
-				taskQueue <- func() {
+				f := func() {
 					message := messageWS.Message
 					msg := websocketMessage{Data: map[string]string{}}
 
@@ -271,7 +289,7 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 						msg.fileData = msgParts[1]
 					}
 
-					p.logger.Debug().Str("msg", string(message)).Msg("ws msg recv")
+					p.logger.Trace().Str("msg", string(message)).Msg("ws msg recv")
 
 					if err := json.Unmarshal(message, &msg); err != nil {
 						p.logger.Err(err).Str("json", string(message)).Msg("ws msg unmarshal")
@@ -295,42 +313,44 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 						p.logger.Error().Str("msg", string(message)).Msg("ws msg recv: unexpected message format")
 					}
 				}
+
+				select {
+				case <-ctx.Done():
+					return
+				case taskQueue <- f:
+				}
 			}()
 		}
 	}
 }
 
 func (p *Page) executeRenderWS(ctx context.Context) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	// Do a dynamic render
-	diffs, err := p.RenderWS(ctx)
+	diffs, err := p.renderWS(ctx)
 	if err != nil {
 		p.logger.Err(err).Msg("ws render")
 	}
 	// Any DOM updates?
 
 	if len(diffs) != 0 {
-		p.wsSend(p.diffsToMsg(diffs))
+		p.wsSend(ctx, p.diffsToMsg(diffs))
 	}
 
-	for i := 0; i < len(p.HookAfterRender); i++ {
-		p.HookAfterRender[i](ctx, diffs, p.send)
+	for i := 0; i < len(p.hookAfterRender); i++ {
+		p.hookAfterRender[i](ctx, diffs, p.send)
 	}
 }
 
-func (p *Page) wsSend(message string) {
-	defer func() {
-		if r := recover(); r != nil {
-			p.logger.Error().Interface("data", r).Msg("wsSend recover")
-		}
-	}()
+func (p *Page) wsSend(ctx context.Context, message string) {
+	p.logger.Trace().Str("msg", message).Msg("ws send")
 
-	if p == nil || !p.IsConnected() {
-		return
+	select {
+	case <-ctx.Done():
+	case p.send <- MessageWS{Message: []byte(message)}:
 	}
-
-	p.logger.Debug().Str("msg", message).Msg("ws send")
-
-	p.send <- MessageWS{Message: []byte(message)}
 }
 
 // Create and deletes should only happen at the end of a tag or attr list?
@@ -347,7 +367,7 @@ func (p *Page) diffsToMsg(diffs []Diff) string {
 
 		bb := bytes.NewBuffer(nil)
 
-		var el interface{}
+		var el any
 
 		if diff.Type == DiffDelete && diff.Attribute == nil {
 			message += "|"
@@ -361,7 +381,7 @@ func (p *Page) diffsToMsg(diffs []Diff) string {
 		} else if diff.Attribute != nil {
 			message += "a|"
 
-			if err := p.Renderer.Attribute([]Attributer{diff.Attribute}, bb); err != nil {
+			if err := p.renderer.Attribute([]Attributer{diff.Attribute}, bb); err != nil {
 				p.logger.Err(err).Msg("diffs to msg: render attribute")
 			}
 		} else if diff.Tag != nil {
@@ -369,7 +389,7 @@ func (p *Page) diffsToMsg(diffs []Diff) string {
 			message += "h|"
 		}
 
-		if err := p.Renderer.HTML(bb, el); err != nil {
+		if err := p.renderer.HTML(bb, el); err != nil {
 			p.logger.Err(err).Msg("diffs to msg: render children")
 		}
 
@@ -410,13 +430,11 @@ func (p *Page) processMsgEvent(ctx context.Context, msg websocketMessage) {
 
 		p.logger.Trace().Str("id", id).Msg("call event handler")
 
-		val, _ := p.eventBindings.GetStringKey(id)
-		binding, _ := val.(*EventBinding)
-
+		binding, _ := p.eventBindings.Get(id)
 		if binding == nil {
 			p.logger.Error().Str("id", id).Msg("unable to find binding")
 
-			return
+			continue
 		}
 
 		e.Binding = binding
@@ -426,27 +444,25 @@ func (p *Page) processMsgEvent(ctx context.Context, msg websocketMessage) {
 
 			p.eventBindings.Del(id)
 
-			return
+			break
 		}
 
 		// Hook
-		for j := 0; j < len(p.HookBeforeEvent); j++ {
-			ctx, e = p.HookBeforeEvent[j](ctx, e)
+		for j := 0; j < len(p.hookBeforeEvent); j++ {
+			ctx, e = p.hookBeforeEvent[j](ctx, e)
 		}
 
 		e.Binding.Handler(ctx, e)
 
 		// Hook
-		for j := 0; j < len(p.HookAfterEvent); j++ {
-			ctx, e = p.HookAfterEvent[j](ctx, e)
+		for j := 0; j < len(p.hookAfterEvent); j++ {
+			ctx, e = p.hookAfterEvent[j](ctx, e)
 		}
 
 		// Once, do this after calling the handler so the developer can change their mind
 		if e.Binding.Once {
-			p.pageLock.Lock()
 			p.eventBindings.Del(id)
 			binding.Component.RemoveEventBinding(id)
-			p.pageLock.Unlock()
 		}
 
 		// Auto Render?
@@ -456,37 +472,45 @@ func (p *Page) processMsgEvent(ctx context.Context, msg websocketMessage) {
 	}
 }
 
-func (p *Page) RenderWS(ctx context.Context) ([]Diff, error) {
-	p.pageLock.Lock()
-	defer p.pageLock.Unlock()
-
+func (p *Page) renderWS(ctx context.Context) ([]Diff, error) {
 	// TODO: replace discard with something useful
 	tree, err := p.runDiffPipeline(ctx, io.Discard)
 	if err != nil {
 		return nil, fmt.Errorf("run pipeline: %w", err)
 	}
 
-	diffs, err := p.Differ.Trees("doc", "", p.DOMBrowser, tree)
+	diffs, err := p.differ.Trees("doc", "", p.domBrowser, tree)
 	if err != nil {
 		return nil, fmt.Errorf("diff old and new tag trees: %w", err)
 	}
 
-	p.DOMBrowser = tree
+	p.domBrowser = tree
 
 	return diffs, nil
 }
 
 func (p *Page) GetNodes() *NodeGroup {
-	return G(p.DOM.DocType, p.DOM.HTML)
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.getNodes()
 }
 
+func (p *Page) getNodes() *NodeGroup {
+	return G(p.dom.docType, p.dom.html)
+}
+
+// Gets a lock as it acts like a public function
 // Will fail if plugins invalidate the tree
 func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
-	if p == nil {
-		p.logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("render component on dead page")
-
+	select {
+	case <-ctx.Done():
 		return
+	default:
 	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	oldTag := p.findComponentInTree(comp.GetID())
 	if oldTag == nil {
@@ -497,7 +521,7 @@ func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 	}
 
 	// TODO: replace discard
-	newTreeNode, err := p.PipelineDiff.runNode(ctx, io.Discard, comp)
+	newTreeNode, err := p.pipelineDiff.runNode(ctx, io.Discard, comp)
 	if err != nil {
 		p.logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).
 			Msg("render component ws: pipeline run node")
@@ -521,7 +545,7 @@ func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 		return
 	}
 
-	diffs, err := p.Differ.Trees(comp.GetID(), "", oldTag, newTag)
+	diffs, err := p.differ.Trees(comp.GetID(), "", oldTag, newTag)
 	if err != nil {
 		p.logger.Err(err).Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("diff trees")
 
@@ -529,7 +553,7 @@ func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 	}
 
 	if len(diffs) != 0 {
-		p.wsSend(p.diffsToMsg(diffs))
+		p.wsSend(ctx, p.diffsToMsg(diffs))
 
 		oldTag.name = newTag.name
 		oldTag.void = newTag.void
@@ -539,14 +563,17 @@ func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 }
 
 func (p *Page) GetBrowserNodeByID(id string) *Tag {
-	return p.findComponent(id, p.DOMBrowser)
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.findComponent(id, p.domBrowser)
 }
 
 func (p *Page) findComponentInTree(id string) *Tag {
-	return p.findComponent(id, p.DOMBrowser)
+	return p.findComponent(id, p.domBrowser)
 }
 
-func (p *Page) findComponent(id string, tree interface{}) *Tag {
+func (p *Page) findComponent(id string, tree any) *Tag {
 	switch v := tree.(type) {
 	case *NodeGroup:
 		g := v.Get()
@@ -565,4 +592,53 @@ func (p *Page) findComponent(id string, tree interface{}) *Tag {
 	}
 
 	return nil
+}
+
+func (p *Page) DOM() DOM {
+	return p.dom
+}
+
+func (p *Page) PipelineDiff() *Pipeline {
+	return p.pipelineDiff
+}
+
+func (p *Page) PipelineSSR() *Pipeline {
+	return p.pipelineSSR
+}
+
+func (p *Page) HookBeforeEventAdd(hook func(context.Context, Event) (context.Context, Event)) {
+	p.hookBeforeEvent = append(p.hookBeforeEvent, hook)
+}
+
+func (p *Page) HookAfterRenderAdd(hook func(ctx context.Context, diffs []Diff, send chan<- MessageWS)) {
+	p.hookAfterRender = append(p.hookAfterRender, hook)
+}
+
+func (p *Page) HookCloseAdd(hook func(context.Context, *Page)) {
+	p.hookClose = append(p.hookClose, hook)
+}
+
+func (p *Page) HookMountAdd(hook func(context.Context, *Page)) {
+	p.hookMount = append(p.hookMount, hook)
+}
+
+func (p *Page) HookUnmountAdd(hook func(context.Context, *Page)) {
+	p.hookUnmount = append(p.hookUnmount, hook)
+}
+
+func (p *Page) HookBeforeMountAdd(hook func(context.Context, *Page)) {
+	p.hookBeforeMount = append(p.hookBeforeMount, hook)
+}
+
+func (p *Page) DOMBrowser() any {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	return p.domBrowser
+}
+
+func (p *Page) SetDOMBrowser(dom any) {
+	p.mu.Lock()
+	p.domBrowser = dom
+	p.mu.Unlock()
 }

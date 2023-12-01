@@ -14,7 +14,7 @@ func TestHead_TitleStatic(t *testing.T) {
 	pageFn := func() *l.Page {
 		page := l.NewPage()
 
-		page.DOM.Title.Add("value 1")
+		page.DOM().Title().Add("value 1")
 
 		return page
 	}
@@ -29,17 +29,17 @@ func TestHead_TitleDynamic(t *testing.T) {
 	t.Parallel()
 
 	pageFn := func() *l.Page {
-		title := "value 1"
+		title := l.Box("value 1")
 
 		page := l.NewPage()
 
-		page.DOM.Title.Add(&title)
+		page.DOM().Title().Add(title)
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.C("button",
 				l.Attrs{"id": "btn"},
 				l.On("click", func(ctx context.Context, e l.Event) {
-					title = "value 2"
+					title.Set("value 2")
 				}),
 				"Click Me",
 			),
@@ -64,10 +64,10 @@ func TestHead_ScriptTag(t *testing.T) {
 	pageFn := func() *l.Page {
 		page := l.NewPage()
 
-		page.DOM.Body.Add(
+		page.DOM().Body().Add(
 			l.C("button", l.Attrs{"id": "btn"}, "Click Me",
 				l.On("click", func(ctx context.Context, e l.Event) {
-					page.DOM.Head.Add(l.T("script", l.HTML(`document.getElementById("content").innerText = "value 2"`)))
+					page.DOM().Head().Add(l.T("script", l.HTML(`document.getElementById("content").innerText = "value 2"`)))
 				}),
 			),
 			l.T("div", l.Attrs{"id": "content"}, "value 1"),
