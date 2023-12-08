@@ -8,6 +8,11 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 )
 
+// TODO: add tests
+type GetTagger interface {
+	GetTagger() Tagger
+}
+
 // Tagger represents a static HTML tag.
 type Tagger interface {
 	// GetName returns a tag's name. For example <hr>'s name is hr.
@@ -437,6 +442,8 @@ func addElementToTag(t *Tag, v any) {
 		addStyleLockBox(t, v)
 	case StyleOff:
 		removeStyle(t, v)
+	case GetTagger:
+		t.nodes.Add(v.GetTagger())
 	default:
 		t.nodes.Add(v)
 	}
