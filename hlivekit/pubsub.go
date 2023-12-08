@@ -296,8 +296,17 @@ func CPS(name string, elements ...any) *ComponentPubSub {
 }
 
 func NewComponentPubSub(name string, elements ...any) *ComponentPubSub {
+	return WrapComponentPubSub(hlive.NewComponentMountable(name, elements...))
+}
+
+// WCPS is a shortcut for WrapComponentPubSub
+func WCPS(name string, elements ...any) *ComponentPubSub {
+	return NewComponentPubSub(name, elements...)
+}
+
+func WrapComponentPubSub(c *hlive.ComponentMountable) *ComponentPubSub {
 	return &ComponentPubSub{
-		ComponentMountable:   hlive.NewComponentMountable(name, elements...),
+		ComponentMountable:   c,
 		mountPubSubFunc:      hlive.NewLockBox[func(ctx context.Context, pubSub *PubSub)](nil),
 		afterMountPubSubFunc: hlive.NewLockBox[func(ctx context.Context, pubSub *PubSub)](nil),
 	}
