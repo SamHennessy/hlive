@@ -1,6 +1,6 @@
 package hlive
 
-import "github.com/cornelk/hashmap"
+import "sync"
 
 type PageOption func(*Page)
 
@@ -10,7 +10,7 @@ func PageOptionCache(cache Cache) func(*Page) {
 	}
 }
 
-func PageOptionEventBindingCache(m *hashmap.Map[string, *EventBinding]) func(*Page) {
+func PageOptionEventBindingCache(m *sync.Map) func(*Page) {
 	return func(page *Page) {
 		page.eventBindings = m
 	}

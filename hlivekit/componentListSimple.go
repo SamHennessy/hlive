@@ -9,7 +9,7 @@ import (
 
 // ComponentListSimple is a version of ComponentList that doesn't have the Teardown logic
 type ComponentListSimple struct {
-	*l.ComponentMountable
+	*l.Component
 
 	items []l.UniqueTagger
 	mu    sync.RWMutex
@@ -18,7 +18,7 @@ type ComponentListSimple struct {
 // NewComponentListSimple creates a ComponentListSimple value
 func NewComponentListSimple(name string, elements ...any) *ComponentListSimple {
 	list := &ComponentListSimple{
-		ComponentMountable: l.CM(name),
+		Component: l.C(name),
 	}
 
 	list.Add(elements...)

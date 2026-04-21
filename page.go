@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/cornelk/hashmap"
 	"github.com/rs/zerolog"
 )
 
@@ -40,7 +39,7 @@ type Page struct {
 	// only one page will have this at a time but is can be passed from page to page if connection is kept open
 	sessID string
 	// Component caches, to prevent walking to tree to find something
-	eventBindings *hashmap.Map[string, *EventBinding]
+	eventBindings *sync.Map
 	// Channel of outbound messages.
 	send chan<- MessageWS
 	// Channel of inbound messages.
@@ -76,7 +75,7 @@ func NewPage(options ...PageOption) *Page {
 	}
 
 	if p.eventBindings == nil {
-		p.eventBindings = hashmap.NewSized[string, *EventBinding](EventBindingsCacheDefault)
+		p.eventBindings = &sync.Map{}
 	}
 
 	if p.renderer == nil {
@@ -430,44 +429,44 @@ func (p *Page) processMsgEvent(ctx context.Context, msg websocketMessage) {
 
 		p.logger.Trace().Str("id", id).Msg("call event handler")
 
-		binding, _ := p.eventBindings.Get(id)
-		if binding == nil {
+		if bindingInterface, ok := p.eventBindings.Load(id); !ok || bindingInterface == nil {
 			p.logger.Error().Str("id", id).Msg("unable to find binding")
 
 			continue
-		}
+		} else {
+			binding := bindingInterface.(*EventBinding)
+			e.Binding = binding
 
-		e.Binding = binding
+			if binding.Handler == nil {
+				p.logger.Error().Str("id", id).Msg("binding handler nil")
 
-		if binding.Handler == nil {
-			p.logger.Error().Str("id", id).Msg("binding handler nil")
+				p.eventBindings.Delete(id)
 
-			p.eventBindings.Del(id)
+				break
+			}
 
-			break
-		}
+			// Hook
+			for j := 0; j < len(p.hookBeforeEvent); j++ {
+				ctx, e = p.hookBeforeEvent[j](ctx, e)
+			}
 
-		// Hook
-		for j := 0; j < len(p.hookBeforeEvent); j++ {
-			ctx, e = p.hookBeforeEvent[j](ctx, e)
-		}
+			e.Binding.Handler(ctx, e)
 
-		e.Binding.Handler(ctx, e)
+			// Hook
+			for j := 0; j < len(p.hookAfterEvent); j++ {
+				ctx, e = p.hookAfterEvent[j](ctx, e)
+			}
 
-		// Hook
-		for j := 0; j < len(p.hookAfterEvent); j++ {
-			ctx, e = p.hookAfterEvent[j](ctx, e)
-		}
+			// Once, do this after calling the handler so the developer can change their mind
+			if e.Binding.Once {
+				p.eventBindings.Delete(id)
+				binding.Component.RemoveEventBinding(id)
+			}
 
-		// Once, do this after calling the handler so the developer can change their mind
-		if e.Binding.Once {
-			p.eventBindings.Del(id)
-			binding.Component.RemoveEventBinding(id)
-		}
-
-		// Auto Render?
-		if e.Binding.Component.IsAutoRender() {
-			p.executeRenderWS(ctx)
+			// Auto Render?
+			if e.Binding.Component.IsAutoRender() {
+				p.executeRenderWS(ctx)
+			}
 		}
 	}
 }

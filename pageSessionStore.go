@@ -2,10 +2,10 @@ package hlive
 
 import (
 	"runtime"
+	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/cornelk/hashmap"
 	"github.com/rs/xid"
 	"github.com/rs/zerolog"
 )
@@ -16,7 +16,7 @@ func NewPageSessionStore() *PageSessionStore {
 		SessionLimit:          PageSessionLimitDefault,
 		GarbageCollectionTick: PageSessionGarbageCollectionTick,
 		Done:                  make(chan bool),
-		sessions:              hashmap.New[string, *PageSession](),
+		sessions:              &sync.Map{},
 	}
 
 	go pss.GarbageCollection()
@@ -25,7 +25,7 @@ func NewPageSessionStore() *PageSessionStore {
 }
 
 type PageSessionStore struct {
-	sessions              *hashmap.Map[string, *PageSession]
+	sessions              *sync.Map
 	DisconnectTimeout     time.Duration
 	SessionLimit          uint32
 	sessionCount          uint32
@@ -63,18 +63,19 @@ func (pss *PageSessionStore) Get(id string) *PageSession {
 }
 
 func (pss *PageSessionStore) mapAdd(ps *PageSession) {
-	pss.sessions.Set(ps.id, ps)
+	pss.sessions.Store(ps.id, ps)
 	atomic.AddUint32(&pss.sessionCount, 1)
 }
 
 func (pss *PageSessionStore) mapGet(id string) *PageSession {
-	ps, _ := pss.sessions.Get(id)
-
-	return ps
+	if ps, ok := pss.sessions.Load(id); ok {
+		return ps.(*PageSession)
+	}
+	return nil
 }
 
 func (pss *PageSessionStore) mapDelete(id string) {
-	if pss.sessions.Del(id) {
+	if _, loaded := pss.sessions.LoadAndDelete(id); loaded {
 		atomic.AddUint32(&pss.sessionCount, ^uint32(0))
 	}
 }
@@ -88,7 +89,10 @@ func (pss *PageSessionStore) GarbageCollection() {
 			return
 		default:
 			now := time.Now()
-			pss.sessions.Range(func(id string, sess *PageSession) bool {
+			pss.sessions.Range(func(key, value any) bool {
+				id := key.(string)
+				sess := value.(*PageSession)
+
 				if sess.IsConnected() {
 					return true
 				}

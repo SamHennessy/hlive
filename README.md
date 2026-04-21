@@ -113,7 +113,7 @@ Let's create our first page:
 ```go
 func home() *l.Page {
 	page := l.NewPage()
-	page.DOM.Body.Add("Hello, world.")
+	page.DOM.Body().Add("Hello, world.")
 
 	return page
 }

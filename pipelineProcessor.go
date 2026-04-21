@@ -4,9 +4,9 @@ import (
 	"context"
 	"io"
 	"strconv"
+	"sync"
 	"sync/atomic"
-
-	"github.com/cornelk/hashmap"
+	"time"
 )
 
 const (
@@ -36,7 +36,7 @@ func NewPipelineProcessor(key string) *PipelineProcessor {
 	return &PipelineProcessor{Key: key}
 }
 
-func PipelineProcessorEventBindingCache(cache *hashmap.Map[string, *EventBinding]) *PipelineProcessor {
+func PipelineProcessorEventBindingCache(cache *sync.Map) *PipelineProcessor {
 	pp := NewPipelineProcessor(PipelineProcessorKeyEventBindingCache)
 
 	pp.BeforeTagger = func(ctx context.Context, w io.Writer, tag Tagger) (Tagger, error) {
@@ -44,7 +44,7 @@ func PipelineProcessorEventBindingCache(cache *hashmap.Map[string, *EventBinding
 			bindings := comp.GetEventBindings()
 
 			for i := 0; i < len(bindings); i++ {
-				cache.Set(bindings[i].ID, bindings[i])
+				cache.Store(bindings[i].ID, bindings[i])
 			}
 		}
 
@@ -75,12 +75,12 @@ func PipelineProcessorMount() *PipelineProcessor {
 }
 
 func PipelineProcessorUnmount(page *Page) *PipelineProcessor {
-	cache := hashmap.New[string, Unmounter]()
+	cache := &sync.Map{}
 
 	page.hookClose = append(page.hookClose, func(ctx context.Context, page *Page) {
-		cache.Range(func(key string, value Unmounter) bool {
-			if value != nil {
-				value.Unmount(ctx)
+		cache.Range(func(key, value interface{}) bool {
+			if unmounter, ok := value.(Unmounter); ok && unmounter != nil {
+				unmounter.Unmount(ctx)
 			}
 
 			return true
@@ -97,11 +97,11 @@ func PipelineProcessorUnmount(page *Page) *PipelineProcessor {
 				return tag, nil
 			}
 
-			if cache.Insert(id, comp) {
+			if _, loaded := cache.LoadOrStore(id, comp); !loaded {
 				// A way to remove the key when you delete a Component
 				if comp, ok := tag.(Teardowner); ok {
 					comp.AddTeardown(func() {
-						cache.Del(id)
+						cache.Delete(id)
 					})
 				}
 			}
@@ -117,6 +117,11 @@ func PipelineProcessorRenderer(renderer *Renderer) *PipelineProcessor {
 	pp := NewPipelineProcessor(PipelineProcessorKeyRenderer)
 
 	pp.AfterWalk = func(ctx context.Context, w io.Writer, node *NodeGroup) (*NodeGroup, error) {
+		LoggerDev.Debug().Msg("HTML Start")
+		t := time.Now()
+		defer func() {
+			LoggerDev.Debug().Dur("dur", time.Since(t)).Msg("HTML Done")
+		}()
 		return node, renderer.HTML(w, node)
 	}
 
@@ -172,14 +177,14 @@ func PipelineProcessorConvertToString() *PipelineProcessor {
 }
 
 func PipelineProcessorAttributePluginMount(page *Page) *PipelineProcessor {
-	cache := hashmap.New[string, *struct{}]()
+	cache := &sync.Map{}
 
 	pp := NewPipelineProcessor(PipelineProcessorKeyAttributePluginMount)
 
 	pp.BeforeAttribute = func(ctx context.Context, w io.Writer, attr Attributer) (Attributer, error) {
 		var err error
 		if ap, ok := attr.(AttributePluginer); ok {
-			if set := cache.Insert(ap.GetName(), nil); set {
+			if _, loaded := cache.LoadOrStore(ap.GetName(), nil); !loaded {
 				ap.Initialize(page)
 
 				err = ErrDOMInvalidated
@@ -193,14 +198,14 @@ func PipelineProcessorAttributePluginMount(page *Page) *PipelineProcessor {
 }
 
 func PipelineProcessorAttributePluginMountSSR(page *Page) *PipelineProcessor {
-	cache := hashmap.New[string, *struct{}]()
+	cache := &sync.Map{}
 
 	pp := NewPipelineProcessor(PipelineProcessorKeyAttributePluginMount)
 
 	pp.BeforeAttribute = func(ctx context.Context, w io.Writer, attr Attributer) (Attributer, error) {
 		var err error
 		if ap, ok := attr.(AttributePluginer); ok {
-			if _, loaded := cache.GetOrInsert(ap.GetName(), nil); !loaded {
+			if _, loaded := cache.LoadOrStore(ap.GetName(), nil); !loaded {
 				ap.InitializeSSR(page)
 
 				err = ErrDOMInvalidated
