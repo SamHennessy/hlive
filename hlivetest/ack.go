@@ -62,7 +62,7 @@ func AckWatcher(t *testing.T, page playwright.Page, selector string) <-chan erro
 
 	id := shortid.MustGenerate()
 
-	_, err := page.EvalOnSelector(selector, "node => node.setAttribute(\"data-hlive-test-ack-id\", \""+id+"\")")
+	_, err := page.EvalOnSelector(selector, "node => node.setAttribute(\"data-hlive-test-ack-id\", \""+id+"\")", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
