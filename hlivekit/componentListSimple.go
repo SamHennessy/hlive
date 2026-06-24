@@ -48,9 +48,7 @@ func (list *ComponentListSimple) Add(elements ...any) {
 			if l.IsNonNodeElement(v) {
 				list.Component.Add(v)
 			} else {
-				l.LoggerDev.Warn().Str("callers", l.CallerStackStr()).
-					Str("element", fmt.Sprintf("%#v", v)).
-					Msg("invalid element type")
+				l.LoggerDev.Warn("invalid element type", "callers", l.CallerStackStr(), "element", fmt.Sprintf("%#v", v))
 			}
 		}
 	}

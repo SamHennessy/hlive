@@ -5,8 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"log/slog"
+
 	"github.com/gorilla/websocket"
-	"github.com/rs/zerolog"
 )
 
 type PageSession struct {
@@ -26,7 +27,7 @@ type PageSession struct {
 	ctxInitialCancel context.CancelFunc
 	done             chan bool
 	wsConn           *websocket.Conn
-	logger           zerolog.Logger
+	logger           *slog.Logger
 	muSess           sync.RWMutex
 	muWrite          sync.RWMutex
 	muRead           sync.RWMutex
@@ -50,9 +51,9 @@ func (sess *PageSession) readPump() {
 
 		sess.muWrite.Lock()
 		if err := sess.wsConn.Close(); err != nil {
-			sess.logger.Err(err).Str("sess", sess.id).Msg("ws conn close")
+			sess.logger.Error("ws conn close", "error", err, "sess", sess.id)
 		} else {
-			sess.logger.Debug().Str("sess", sess.id).Msg("ws conn close")
+			sess.logger.Debug("ws conn close", "sess", sess.id)
 		}
 		sess.muWrite.Unlock()
 	}()
@@ -61,16 +62,16 @@ func (sess *PageSession) readPump() {
 
 	// c.conn.SetReadLimit(maxMessageSize)
 	if err := sess.wsConn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
-		sess.logger.Err(err).Msg("read pump set read deadline")
+		sess.logger.Error("read pump set read deadline", "error", err)
 	}
 
 	sess.wsConn.SetPongHandler(func(string) error {
-		sess.logger.Trace().Msg("ws pong")
+		sess.logger.Log(context.Background(), LevelTrace, "ws pong")
 
 		sess.muWrite.Lock()
 
 		if err := sess.wsConn.SetReadDeadline(time.Now().Add(pongWait)); err != nil {
-			sess.logger.Err(err).Msg("pong handler: set read deadline")
+			sess.logger.Error("pong handler: set read deadline", "error", err)
 		}
 
 		sess.muWrite.Unlock()
@@ -90,7 +91,7 @@ func (sess *PageSession) readPump() {
 			mt, message, err := sess.wsConn.ReadMessage()
 			if err != nil {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					sess.logger.Debug().Err(err).Msg("unexpected close error")
+					sess.logger.Debug("unexpected close error", "error", err)
 				}
 
 				return
@@ -128,7 +129,7 @@ func (sess *PageSession) writePump() {
 			sess.muWrite.Lock()
 
 			if err := sess.wsConn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-				sess.logger.Err(err).Msg("write pump: message set write deadline")
+				sess.logger.Error("write pump: message set write deadline", "error", err)
 			}
 
 			sess.muWrite.Unlock()
@@ -138,7 +139,7 @@ func (sess *PageSession) writePump() {
 				sess.muWrite.Lock()
 
 				if err := sess.wsConn.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
-					sess.logger.Err(err).Msg("write pump: write close message")
+					sess.logger.Error("write pump: write close message", "error", err)
 				}
 
 				sess.muWrite.Unlock()
@@ -155,7 +156,7 @@ func (sess *PageSession) writePump() {
 
 			w, err := sess.wsConn.NextWriter(mt)
 			if err != nil {
-				sess.logger.Err(err).Msg("write pump: create writer")
+				sess.logger.Error("write pump: create writer", "error", err)
 
 				sess.muWrite.Unlock()
 
@@ -163,26 +164,26 @@ func (sess *PageSession) writePump() {
 			}
 
 			if _, err := w.Write(message.Message); err != nil {
-				sess.logger.Err(err).Msg("write pump: write first message")
+				sess.logger.Error("write pump: write first message", "error", err)
 			}
 
 			if err := w.Close(); err != nil {
-				sess.logger.Err(err).Msg("write pump: close write")
+				sess.logger.Error("write pump: close write", "error", err)
 			}
 
 			sess.muWrite.Unlock()
 
 		case <-ticker.C:
-			sess.logger.Trace().Msg("ws ping")
+			sess.logger.Log(context.Background(), LevelTrace, "ws ping")
 
 			sess.muWrite.Lock()
 
 			if err := sess.wsConn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
-				sess.logger.Err(err).Msg("write pump: ping tick: set write deadline")
+				sess.logger.Error("write pump: ping tick: set write deadline", "error", err)
 			}
 
 			if err := sess.wsConn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				sess.logger.Err(err).Msg("write pump: ping tick: write write message")
+				sess.logger.Error("write pump: ping tick: write write message", "error", err)
 			}
 
 			sess.muWrite.Unlock()

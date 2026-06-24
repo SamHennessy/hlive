@@ -1,6 +1,6 @@
 // test-ack
 if (hlive.beforeSendEvent.get("htack") === undefined) {
-    const hliveTestAck = {
+    window.hliveTestAck = {
         received: {},
     }
 
@@ -31,11 +31,10 @@ if (hlive.beforeSendEvent.get("htack") === undefined) {
         const parts = msg.split("|")
         console.log("ack beforeProcessMessage", parts);
 
-        hliveTestAck.received[parts[1]] = true;
+        window.hliveTestAck.received[parts[1]] = true;
 
         return "";
     })
 }
-
 
 

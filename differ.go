@@ -2,12 +2,13 @@ package hlive
 
 import (
 	_ "embed"
+	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/rs/zerolog"
 	"github.com/tdewolff/minify/v2"
 	"github.com/tdewolff/minify/v2/js"
 )
@@ -39,21 +40,21 @@ func NewDiffer() *Differ {
 	if err == nil {
 		jsB = jsMin
 	} else {
-		LoggerDev.Err(err).Msg("NewDiffer: minify")
+		LoggerDev.Error("NewDiffer: minify", "error", err)
 	}
 
 	return &Differ{
-		logger:     zerolog.Nop(),
+		logger:     slog.New(slog.DiscardHandler),
 		JavaScript: jsB,
 	}
 }
 
 type Differ struct {
-	logger     zerolog.Logger
+	logger     *slog.Logger
 	JavaScript []byte
 }
 
-func (d *Differ) SetLogger(logger zerolog.Logger) {
+func (d *Differ) SetLogger(logger *slog.Logger) {
 	d.logger = logger
 }
 
@@ -66,7 +67,7 @@ func (d *Differ) SetLogger(logger zerolog.Logger) {
 func (d *Differ) Trees(selector, path string, oldNode, newNode any) ([]Diff, error) {
 	var diffs []Diff
 
-	d.logger.Trace().Str("sel", selector).Str("path", path).Msg("diffTrees")
+	d.logger.Log(context.Background(), LevelTrace, "diffTrees", "sel", selector, "path", path)
 
 	// More nodes in new node
 	if oldNode == nil && newNode != nil {

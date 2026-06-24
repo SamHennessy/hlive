@@ -33,7 +33,7 @@ func PreemptDisableOn(eb *l.EventBinding) *l.ElementGroup {
 		if adder, ok := e.Binding.Component.(l.Adder); ok {
 			adder.Add(l.Attrs{"disabled": ""})
 		} else {
-			l.LoggerDev.Error().Msg("PreemptDisableOn: bound Component must be an Adder")
+			l.LoggerDev.Error("PreemptDisableOn: bound Component must be an Adder")
 		}
 
 		// Call original handler

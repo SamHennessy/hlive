@@ -177,10 +177,7 @@ func anyToAttributes(attrs ...any) []Attributer {
 				newAttrs = append(newAttrs, v[j])
 			}
 		default:
-			LoggerDev.Error().
-				Str("callers", CallerStackStr()).
-				Str("value", fmt.Sprintf("%#v", v)).
-				Msg("invalid attribute")
+			LoggerDev.Error("invalid attribute", "callers", CallerStackStr(), "value", fmt.Sprintf("%#v", v))
 
 			continue
 		}

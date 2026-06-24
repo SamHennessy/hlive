@@ -51,10 +51,7 @@ func (list *ComponentList) Add(elements ...any) {
 			if l.IsNonNodeElement(v) {
 				list.Tag.Add(v)
 			} else {
-				l.LoggerDev.Error().
-					Str("callers", l.CallerStackStr()).
-					Str("element", fmt.Sprintf("%#v", v)).
-					Msg("invalid element")
+				l.LoggerDev.Error("invalid element", "callers", l.CallerStackStr(), "element", fmt.Sprintf("%#v", v))
 			}
 		}
 	}

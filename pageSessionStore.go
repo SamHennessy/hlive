@@ -6,8 +6,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"log/slog"
+
 	"github.com/rs/xid"
-	"github.com/rs/zerolog"
 )
 
 func NewPageSessionStore() *PageSessionStore {
@@ -40,7 +41,7 @@ func (pss *PageSessionStore) New() *PageSession {
 
 	ps := &PageSession{
 		id:      xid.New().String(),
-		logger:  zerolog.Nop(),
+		logger:  slog.New(slog.DiscardHandler),
 		Send:    make(chan MessageWS),
 		Receive: make(chan MessageWS),
 		done:    make(chan bool),

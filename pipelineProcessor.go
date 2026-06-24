@@ -117,10 +117,10 @@ func PipelineProcessorRenderer(renderer *Renderer) *PipelineProcessor {
 	pp := NewPipelineProcessor(PipelineProcessorKeyRenderer)
 
 	pp.AfterWalk = func(ctx context.Context, w io.Writer, node *NodeGroup) (*NodeGroup, error) {
-		LoggerDev.Debug().Msg("HTML Start")
+		LoggerDev.Debug("HTML Start")
 		t := time.Now()
 		defer func() {
-			LoggerDev.Debug().Dur("dur", time.Since(t)).Msg("HTML Done")
+			LoggerDev.Debug("HTML Done", "dur", time.Since(t))
 		}()
 		return node, renderer.HTML(w, node)
 	}

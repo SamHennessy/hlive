@@ -47,13 +47,13 @@ func NewPubSub() *PubSub {
 
 func (ps *PubSub) Subscribe(sub QueueSubscriber, topics ...string) {
 	if len(topics) == 0 {
-		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("no topics passed")
+		hlive.LoggerDev.Warn("no topics passed", "callers", hlive.CallerStackStr())
 
 		return
 	}
 
 	if sub == nil {
-		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("sub nil")
+		hlive.LoggerDev.Warn("sub nil", "callers", hlive.CallerStackStr())
 
 		return
 	}
@@ -71,13 +71,13 @@ func (ps *PubSub) Subscribe(sub QueueSubscriber, topics ...string) {
 
 func (ps *PubSub) SubscribeWait(sub QueueSubscriber, topics ...string) {
 	if len(topics) == 0 {
-		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("no topics passed")
+		hlive.LoggerDev.Warn("no topics passed", "callers", hlive.CallerStackStr())
 
 		return
 	}
 
 	if sub == nil {
-		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("sub nil")
+		hlive.LoggerDev.Warn("sub nil", "callers", hlive.CallerStackStr())
 
 		return
 	}
@@ -108,11 +108,11 @@ func (ps *PubSub) SubscribeFunc(subFunc func(message QueueMessage), topics ...st
 
 func (ps *PubSub) UnsubscribeWait(sub QueueSubscriber, topics ...string) {
 	if len(topics) == 0 {
-		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("no topics passed")
+		hlive.LoggerDev.Warn("no topics passed", "callers", hlive.CallerStackStr())
 	}
 
 	if sub == nil {
-		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("sub when nil")
+		hlive.LoggerDev.Warn("sub when nil", "callers", hlive.CallerStackStr())
 
 		return
 	}
@@ -137,11 +137,11 @@ func (ps *PubSub) UnsubscribeWait(sub QueueSubscriber, topics ...string) {
 
 func (ps *PubSub) Unsubscribe(sub QueueSubscriber, topics ...string) {
 	if len(topics) == 0 {
-		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("no topics passed")
+		hlive.LoggerDev.Warn("no topics passed", "callers", hlive.CallerStackStr())
 	}
 
 	if sub == nil {
-		hlive.LoggerDev.Warn().Str("callers", hlive.CallerStackStr()).Msg("sub when nil")
+		hlive.LoggerDev.Warn("sub when nil", "callers", hlive.CallerStackStr())
 
 		return
 	}

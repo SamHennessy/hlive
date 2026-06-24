@@ -37,6 +37,8 @@ func (a *ack) Initialize(page *l.Page) {
 	page.DOM().Head().Add(l.T("script", l.HTML(ackJavaScript)))
 }
 
+func (a *ack) InitializeSSR(_ *l.Page) {}
+
 // Look in the extra data for ack id and add the value to the context if found
 func ackBeforeEvent(ctx context.Context, e l.Event) (context.Context, l.Event) {
 	if e.Extra[ackExtraKey] != "" {
@@ -70,7 +72,7 @@ func AckWatcher(t *testing.T, page playwright.Page, selector string) <-chan erro
 	done := make(chan error)
 
 	go func() {
-		if _, err := page.WaitForFunction("hliveTestAck.received[\""+id+"\"] === true", nil); err != nil {
+		if _, err := page.WaitForFunction("window.hliveTestAck && window.hliveTestAck.received[\""+id+"\"] === true", nil); err != nil {
 			done <- fmt.Errorf("wait for function: %w", err)
 
 			return

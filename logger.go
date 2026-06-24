@@ -2,24 +2,22 @@ package hlive
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"runtime"
-
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/pkgerrors"
 )
 
+const LevelTrace = slog.Level(-8)
+
 // Logger is a global logger used when a logger is not available
-var Logger zerolog.Logger
+var Logger *slog.Logger
 
 // LoggerDev is a global logger needed for developer warnings to avoid the need for panics
-var LoggerDev zerolog.Logger
+var LoggerDev *slog.Logger
 
 func init() {
-	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
-
-	Logger = zerolog.New(os.Stderr).With().Timestamp().Logger()
-	LoggerDev = zerolog.New(zerolog.ConsoleWriter{Out: os.Stderr}).With().Timestamp().Logger()
+	Logger = slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	LoggerDev = slog.New(slog.NewTextHandler(os.Stderr, nil))
 }
 
 func callerFrame(skip int) (runtime.Frame, bool) {

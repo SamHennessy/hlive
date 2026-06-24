@@ -28,7 +28,9 @@ func ClickAndWait(t *testing.T, pwpage playwright.Page, selector string) {
 
 	Click(t, pwpage, selector)
 
-	<-done
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TextContent(t *testing.T, pwpage playwright.Page, selector string) string {
@@ -46,6 +48,10 @@ func GetAttribute(t *testing.T, pwpage playwright.Page, selector string, attribu
 
 	el, err := pwpage.QuerySelector(selector)
 	FatalOnErr(t, err)
+
+	if el == nil {
+		t.Fatalf("element not found for selector: %s", selector)
+	}
 
 	val, err := el.GetAttribute(attribute)
 	FatalOnErr(t, err)

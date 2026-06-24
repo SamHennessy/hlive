@@ -58,10 +58,7 @@ func (b NodeBox[V]) GetNode() any {
 
 func Box[V any](node V) *NodeBox[V] {
 	if !IsNode(node) {
-		LoggerDev.Error().
-			Str("callers", CallerStackStr()).
-			Str("node", fmt.Sprintf("%#v", node)).
-			Msg("invalid node")
+		LoggerDev.Error("invalid node", "callers", CallerStackStr(), "node", fmt.Sprintf("%#v", node))
 	}
 
 	return &NodeBox[V]{NewLockBox(node)}
@@ -160,7 +157,7 @@ func (g *NodeGroup) UnmarshalMsgpack(b []byte) error {
 
 func (g *NodeGroup) Add(nodes ...any) {
 	if g == nil {
-		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("nil call")
+		LoggerDev.Error("nil call", "callers", CallerStackStr())
 
 		return
 	}
@@ -170,10 +167,7 @@ func (g *NodeGroup) Add(nodes ...any) {
 
 	for i := 0; i < len(nodes); i++ {
 		if !IsNode(nodes[i]) {
-			LoggerDev.Error().
-				Str("callers", CallerStackStr()).
-				Str("node", fmt.Sprintf("%#v", nodes[i])).
-				Msg("invalid node")
+			LoggerDev.Error("invalid node", "callers", CallerStackStr(), "node", fmt.Sprintf("%#v", nodes[i]))
 
 			continue
 		}
@@ -185,7 +179,7 @@ func (g *NodeGroup) Add(nodes ...any) {
 // Get returns all nodes, dereferences any valid pointers
 func (g *NodeGroup) Get() []any {
 	if g == nil {
-		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("nil call")
+		LoggerDev.Error("nil call", "callers", CallerStackStr())
 
 		return nil
 	}
@@ -238,7 +232,7 @@ type ElementGroup struct {
 
 func (g *ElementGroup) Add(elements ...any) {
 	if g == nil {
-		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("nil call")
+		LoggerDev.Error("nil call", "callers", CallerStackStr())
 
 		return
 	}
@@ -248,10 +242,7 @@ func (g *ElementGroup) Add(elements ...any) {
 
 	for i := 0; i < len(elements); i++ {
 		if !IsElement(elements[i]) {
-			LoggerDev.Error().
-				Str("callers", CallerStackStr()).
-				Str("element", fmt.Sprintf("%#v", elements[i])).
-				Msg("invalid element")
+			LoggerDev.Error("invalid element", "callers", CallerStackStr(), "element", fmt.Sprintf("%#v", elements[i]))
 
 			continue
 		}
@@ -262,7 +253,7 @@ func (g *ElementGroup) Add(elements ...any) {
 
 func (g *ElementGroup) Get() []any {
 	if g == nil {
-		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("nil call")
+		LoggerDev.Error("nil call", "callers", CallerStackStr())
 
 		return nil
 	}
@@ -295,7 +286,7 @@ func (g *ElementGroup) Get() []any {
 func Render(ctx context.Context) {
 	render, ok := ctx.Value(CtxRender).(func(context.Context))
 	if !ok {
-		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("render not found in context")
+		LoggerDev.Error("render not found in context", "callers", CallerStackStr())
 
 		return
 	}
@@ -307,7 +298,7 @@ func Render(ctx context.Context) {
 func RenderComponent(ctx context.Context, comp Componenter) {
 	render, ok := ctx.Value(CtxRenderComponent).(func(context.Context, Componenter))
 	if !ok {
-		LoggerDev.Error().Str("callers", CallerStackStr()).Msg("component render not found in context")
+		LoggerDev.Error("component render not found in context", "callers", CallerStackStr())
 
 		return
 	}

@@ -353,10 +353,11 @@ func addElementToTag(t *Tag, v any) {
 	switch v := v.(type) {
 	// Common error
 	case *EventBinding:
-		LoggerDev.Error().Str("callers", CallerStackStr()).Msg(
-			"You've added an event binding to a Tag. You can only add these to a Component. " +
-				"You can fix this by replacing l.T(\"div\"...) with l.C(\"div\"...)." +
-				"You can also turn any Tag into a Component by using the Wrap function.")
+		LoggerDev.Error(
+			"You've added an event binding to a Tag. You can only add these to a Component. "+
+				"You can fix this by replacing l.T(\"div\"...) with l.C(\"div\"...)."+
+				"You can also turn any Tag into a Component by using the Wrap function.",
+			"callers", CallerStackStr())
 
 		return
 	// Groups

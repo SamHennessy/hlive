@@ -4,22 +4,21 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"log/slog"
 	"strconv"
-
-	"github.com/rs/zerolog"
 )
 
 func NewRenderer() *Renderer {
 	return &Renderer{
-		log: zerolog.Nop(),
+		log: slog.New(slog.DiscardHandler),
 	}
 }
 
 type Renderer struct {
-	log zerolog.Logger
+	log *slog.Logger
 }
 
-func (r *Renderer) SetLogger(logger zerolog.Logger) {
+func (r *Renderer) SetLogger(logger *slog.Logger) {
 	r.log = logger
 }
 

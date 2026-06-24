@@ -5,8 +5,9 @@ import (
 	"net/http"
 	"time"
 
+	"log/slog"
+
 	"github.com/gorilla/websocket"
-	"github.com/rs/zerolog"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -18,7 +19,7 @@ func NewPageServerWithSessionStore(pf func() *Page, sess *PageSessionStore) *Pag
 	return &PageServer{
 		pageFunc: pf,
 		Sessions: sess,
-		logger:   zerolog.Nop(),
+		logger:   slog.New(slog.DiscardHandler),
 	}
 }
 
@@ -27,7 +28,7 @@ type PageServer struct {
 	Upgrader websocket.Upgrader
 
 	pageFunc func() *Page
-	logger   zerolog.Logger
+	logger   *slog.Logger
 }
 
 func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -88,18 +89,17 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hhash := r.URL.Query().Get("hhash")
 
 	s.logger = sess.GetPage().logger
-	s.logger.Debug().Str("sessionID", sessID).Str("hash", hhash).Msg("ws start")
+	s.logger.Debug("ws start", "sessionID", sessID, "hash", hhash)
 
 	if sess.GetPage().cache != nil && hhash != "" && sessID == "1" {
 		val, hit := sess.GetPage().cache.Get(hhash)
 
 		b, ok := val.([]byte)
 		if hit && ok {
-			s.logger.Debug().Bool("hit", hit).Str("hhash", hhash).Int("size", len(b)/1024).
-				Msg("cache get")
+			s.logger.Debug("cache get", "hit", hit, "hhash", hhash, "size", len(b)/1024)
 			newTree := G()
 			if err := msgpack.Unmarshal(b, newTree); err != nil {
-				s.logger.Err(err).Msg("ServeHTTP: msgpack.Unmarshal")
+				s.logger.Error("ServeHTTP: msgpack.Unmarshal", "error", err)
 			} else {
 				sess.GetPage().domBrowser = newTree
 			}
@@ -112,7 +112,7 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sess.wsConn, err = s.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		sess.muSess.Unlock()
-		s.logger.Err(err).Msg("ws upgrade")
+		s.logger.Error("ws upgrade", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 
 		return
@@ -127,7 +127,7 @@ func (s *PageServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	go sess.readPump()
 
 	if err := sess.GetPage().ServeWS(sess.GetContextPage(), sess.GetID(), sess.Send, sess.Receive); err != nil {
-		sess.GetPage().logger.Err(err).Msg("ws serve")
+		sess.GetPage().logger.Error("ws serve", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 

@@ -31,7 +31,7 @@ func TestFocus(t *testing.T) {
 	h := setup(t, pageFn)
 	defer h.teardown()
 
-	response, err := h.pwpage.EvalOnSelector("#in_f", "(el) => el === document.activeElement")
+	response, err := h.pwpage.EvalOnSelector("#in_f", "(el) => el === document.activeElement", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestFocus(t *testing.T) {
 
 	<-done
 
-	response, err = h.pwpage.EvalOnSelector("#in_f", "(el) => el === document.activeElement")
+	response, err = h.pwpage.EvalOnSelector("#in_f", "(el) => el === document.activeElement", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

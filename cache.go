@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/rs/zerolog"
+	"log/slog"
+
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -37,7 +38,7 @@ type Cache interface {
 }
 
 // PipelineProcessorRenderHashAndCache that will cache the returned tree to support SSR
-func PipelineProcessorRenderHashAndCache(logger zerolog.Logger, renderer *Renderer, cache Cache) *PipelineProcessor {
+func PipelineProcessorRenderHashAndCache(logger *slog.Logger, renderer *Renderer, cache Cache) *PipelineProcessor {
 	pp := NewPipelineProcessor(PipelineProcessorKeyRenderer)
 
 	pp.AfterWalk = func(ctx context.Context, w io.Writer, node *NodeGroup) (*NodeGroup, error) {
@@ -55,10 +56,10 @@ func PipelineProcessorRenderHashAndCache(logger zerolog.Logger, renderer *Render
 		doc = bytes.Replace(doc, []byte(PageHashAttrTmpl), []byte(hhash), 1)
 
 		if nodeBytes, err := msgpack.Marshal(node); err != nil {
-			logger.Err(err).Msg("PipelineProcessorRenderHashAndCache: msgpack.Marshal")
+			logger.Error("PipelineProcessorRenderHashAndCache: msgpack.Marshal", "error", err)
 		} else {
 			cache.Set(hhash, nodeBytes)
-			logger.Debug().Str("hhash", hhash).Int("size", len(nodeBytes)/1024).Msg("cache set")
+			logger.Debug("cache set", "hhash", hhash, "size", len(nodeBytes)/1024)
 		}
 
 		if _, err := w.Write(doc); err != nil {

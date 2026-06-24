@@ -13,7 +13,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/rs/zerolog"
+	"log/slog"
 )
 
 const EventBindingsCacheDefault = 10 // Default for a small page
@@ -28,7 +28,7 @@ type Page struct {
 	// Page HTML rendering pipeline
 	pipelineSSR *Pipeline
 	// Internal debug logger
-	logger zerolog.Logger
+	logger *slog.Logger
 	// Virtual DOM
 	dom DOM
 	// What we think is the browser DOM is
@@ -67,7 +67,7 @@ type Page struct {
 func NewPage(options ...PageOption) *Page {
 	p := &Page{
 		dom:    NewDOM(),
-		logger: zerolog.Nop(),
+		logger: slog.New(slog.DiscardHandler),
 	}
 
 	for i := 0; i < len(options); i++ {
@@ -126,7 +126,7 @@ type websocketMessage struct {
 	fileData   []byte
 }
 
-func (p *Page) SetLogger(logger zerolog.Logger) {
+func (p *Page) SetLogger(logger *slog.Logger) {
 	p.logger = logger
 	p.renderer.SetLogger(p.logger)
 	p.differ.SetLogger(p.logger)
@@ -148,7 +148,7 @@ func (p *Page) Close(ctx context.Context) {
 func (p *Page) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	p.mu.Lock()
 	if err := p.serverHTTP(w, r); err != nil {
-		p.logger.Err(err).Msg("server http")
+		p.logger.Error("server http", "error", err)
 	}
 	p.mu.Unlock()
 }
@@ -215,11 +215,11 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 
 	// Do an initial render
 	if p.domBrowser == nil {
-		p.logger.Debug().Msg("ServeWS: browser render")
+		p.logger.Debug("ServeWS: browser render")
 		// We need a static render
 		p.domBrowser, err = p.runRenderPipeline(ctx, io.Discard)
 		if err != nil {
-			p.logger.Err(err).Msg("ServeWS: render pipeline")
+			p.logger.Error("ServeWS: render pipeline", "error", err)
 		}
 	}
 
@@ -279,7 +279,7 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 						msgParts := bytes.SplitN(message, []byte("\n\n"), 2)
 
 						if len(msgParts) != 2 {
-							p.logger.Error().Msg("invalid binary message")
+							p.logger.Error("invalid binary message")
 
 							return
 						}
@@ -288,10 +288,10 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 						msg.fileData = msgParts[1]
 					}
 
-					p.logger.Trace().Str("msg", string(message)).Msg("ws msg recv")
+					p.logger.Log(ctx, LevelTrace, "ws msg recv", "msg", string(message))
 
 					if err := json.Unmarshal(message, &msg); err != nil {
-						p.logger.Err(err).Str("json", string(message)).Msg("ws msg unmarshal")
+						p.logger.Error("ws msg unmarshal", "error", err, "json", string(message))
 
 						return
 					}
@@ -299,7 +299,7 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 					switch msg.Typ {
 					// log
 					case "l":
-						p.logger.Info().Str("log", msg.Data["m"]).Str("sess", sessID).Msg("ws log")
+						p.logger.Info("ws log", "log", msg.Data["m"], "sess", sessID)
 					// Event
 					case "e":
 						if len(msg.fileData) != 0 && msg.File != nil {
@@ -309,7 +309,7 @@ func (p *Page) ServeWS(ctx context.Context, sessID string, send chan<- MessageWS
 						// Call handler
 						go p.processMsgEvent(ctx, msg)
 					default:
-						p.logger.Error().Str("msg", string(message)).Msg("ws msg recv: unexpected message format")
+						p.logger.Error("ws msg recv: unexpected message format", "msg", string(message))
 					}
 				}
 
@@ -330,7 +330,7 @@ func (p *Page) executeRenderWS(ctx context.Context) {
 	// Do a dynamic render
 	diffs, err := p.renderWS(ctx)
 	if err != nil {
-		p.logger.Err(err).Msg("ws render")
+		p.logger.Error("ws render", "error", err)
 	}
 	// Any DOM updates?
 
@@ -344,7 +344,7 @@ func (p *Page) executeRenderWS(ctx context.Context) {
 }
 
 func (p *Page) wsSend(ctx context.Context, message string) {
-	p.logger.Trace().Str("msg", message).Msg("ws send")
+	p.logger.Log(ctx, LevelTrace, "ws send", "msg", message)
 
 	select {
 	case <-ctx.Done():
@@ -381,7 +381,7 @@ func (p *Page) diffsToMsg(diffs []Diff) string {
 			message += "a|"
 
 			if err := p.renderer.Attribute([]Attributer{diff.Attribute}, bb); err != nil {
-				p.logger.Err(err).Msg("diffs to msg: render attribute")
+				p.logger.Error("diffs to msg: render attribute", "error", err)
 			}
 		} else if diff.Tag != nil {
 			el = diff.Tag
@@ -389,7 +389,7 @@ func (p *Page) diffsToMsg(diffs []Diff) string {
 		}
 
 		if err := p.renderer.HTML(bb, el); err != nil {
-			p.logger.Err(err).Msg("diffs to msg: render children")
+			p.logger.Error("diffs to msg: render children", "error", err)
 		}
 
 		message += base64.StdEncoding.EncodeToString(bb.Bytes())
@@ -427,10 +427,10 @@ func (p *Page) processMsgEvent(ctx context.Context, msg websocketMessage) {
 	for i := 0; i < len(ids); i++ {
 		id := ids[i]
 
-		p.logger.Trace().Str("id", id).Msg("call event handler")
+		p.logger.Log(ctx, LevelTrace, "call event handler", "id", id)
 
 		if bindingInterface, ok := p.eventBindings.Load(id); !ok || bindingInterface == nil {
-			p.logger.Error().Str("id", id).Msg("unable to find binding")
+			p.logger.Error("unable to find binding", "id", id)
 
 			continue
 		} else {
@@ -438,7 +438,7 @@ func (p *Page) processMsgEvent(ctx context.Context, msg websocketMessage) {
 			e.Binding = binding
 
 			if binding.Handler == nil {
-				p.logger.Error().Str("id", id).Msg("binding handler nil")
+				p.logger.Error("binding handler nil", "id", id)
 
 				p.eventBindings.Delete(id)
 
@@ -513,8 +513,7 @@ func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 
 	oldTag := p.findComponentInTree(comp.GetID())
 	if oldTag == nil {
-		p.logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).
-			Msg("render component ws: can't find component in tree")
+		p.logger.Error("render component ws: can't find component in tree", "id", comp.GetID(), "name", comp.GetName())
 
 		return
 	}
@@ -522,8 +521,7 @@ func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 	// TODO: replace discard
 	newTreeNode, err := p.pipelineDiff.runNode(ctx, io.Discard, comp)
 	if err != nil {
-		p.logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).
-			Msg("render component ws: pipeline run node")
+		p.logger.Error("render component ws: pipeline run node", "id", comp.GetID(), "name", comp.GetName())
 
 		return
 	}
@@ -538,15 +536,14 @@ func (p *Page) renderComponentWS(ctx context.Context, comp Componenter) {
 	}
 
 	if !ok {
-		p.logger.Error().Str("id", comp.GetID()).Str("name", comp.GetName()).
-			Msg("render component ws: new node is not a tag, component, or group")
+		p.logger.Error("render component ws: new node is not a tag, component, or group", "id", comp.GetID(), "name", comp.GetName())
 
 		return
 	}
 
 	diffs, err := p.differ.Trees(comp.GetID(), "", oldTag, newTag)
 	if err != nil {
-		p.logger.Err(err).Str("id", comp.GetID()).Str("name", comp.GetName()).Msg("diff trees")
+		p.logger.Error("diff trees", "error", err, "id", comp.GetID(), "name", comp.GetName())
 
 		return
 	}
