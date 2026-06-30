@@ -1,0 +1,17 @@
+{
+  "name": "hlive",
+  "owner": {
+    "name": "Sam Hennessy"
+  },
+  "metadata": {
+    "description": "Plugins for the HLive Go framework",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "hlive",
+      "source": "./plugin",
+      "description": "Expert guidance and scaffolding for HLive, the server-side virtual-DOM framework for Go."
+    }
+  ]
+}

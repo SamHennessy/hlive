@@ -16,6 +16,22 @@ It's a great use case for admin interfaces and internal company tools.
 
 Please help the project by building something and giving us your feedback.
 
+## Claude Code plugin
+
+HLive ships a [Claude Code](https://code.claude.com) plugin that gives you expert
+HLive guidance and scaffolding in your editor. Install it from this repo:
+
+```shell
+/plugin marketplace add SamHennessy/hlive
+/plugin install hlive@hlive
+```
+
+It adds skills for the core API, the `hhtml` markup builders, project structure,
+the `hlivekit` toolkit, and browser testing with `hlivetest`, plus
+`/hlive-component` to scaffold a component or page and `/hlive-new-project` to
+scaffold a whole runnable project. See [`plugin/README.md`](./plugin/README.md)
+for details.
+
 ## Table of contents
 - [Quick Start Tutorial](#quick-start-tutorial)
   * [Step 1: Static Page](#step-1--static-page)
@@ -113,7 +129,7 @@ Let's create our first page:
 ```go
 func home() *l.Page {
 	page := l.NewPage()
-	page.DOM.Body().Add("Hello, world.")
+	page.DOM().Body().Add("Hello, world.")
 
 	return page
 }
@@ -183,14 +199,14 @@ We create a new `Page` like before:
 Here we add our `input` to the body but first we wrap it in a `div` tag.
 
 ```go
-	page.DOM.Body.Add(l.T("div", input))
+	page.DOM().Body().Add(l.T("div", input))
 ```
 
 Next, we will display our message. Notice that we're passing `message` by reference. That's key for making this example work. We'll also add an "hr" tag to stop it being squashed todeather.
 
 ```go
-	page.DOM.Body.Add(l.T("hr"))
-	page.DOM.Body.Add("Hello, ", &message)
+	page.DOM().Body().Add(l.T("hr"))
+	page.DOM().Body().Add("Hello, ", &message)
 ```
 
 Finally, we return the `Page` we created.
@@ -207,13 +223,13 @@ func home() *l.Page {
 
 	input := l.C("input",
 		l.Attrs{"type": "text"},
-		l.OnKeyUp(func(ctx context.Context, e l.Event) {
+		l.On("keyup", func(ctx context.Context, e l.Event) {
 			message = e.Value
 		}),
 	)
 
 	page := l.NewPage()
-	page.DOM.Body.Add(
+	page.DOM().Body().Add(
 		l.T("div", input),
 		l.T("hr"),
 		"Hello, ", &message,

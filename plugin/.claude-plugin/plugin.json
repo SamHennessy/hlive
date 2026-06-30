@@ -1,0 +1,13 @@
+{
+  "name": "hlive",
+  "description": "Expert guidance and scaffolding for HLive, the server-side virtual-DOM framework for Go. Skills cover the core API, the hhtml markup builders, project structure, the hlivekit toolkit, and browser testing; /hlive-component scaffolds a component or page, and /hlive-new-project scaffolds a whole runnable project.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Sam Hennessy",
+    "url": "https://github.com/SamHennessy/hlive"
+  },
+  "homepage": "https://github.com/SamHennessy/hlive",
+  "repository": "https://github.com/SamHennessy/hlive",
+  "license": "MIT",
+  "keywords": ["hlive", "go", "golang", "virtual-dom", "websocket", "server-side-rendering"]
+}
